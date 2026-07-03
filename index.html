@@ -524,19 +524,20 @@ function editorRutinaHTML(){
     const items=d.orden||[];
     h+=`<div style="margin:10px 0"><b>${esc(d.nombre||('Día '+(di+1)))}</b>`;
     if(items.length){
-      h+=`<div style="display:flex;gap:6px;font-size:11px;color:var(--muted);margin:4px 0"><span style="flex:2;min-width:150px">Ejercicio</span><span style="width:64px">Series</span><span style="width:52px">R.mín</span><span style="width:52px">R.máx</span><span style="width:52px">RIR</span><span style="width:110px">Técnica</span></div>`;
+      const GRID='display:grid;grid-template-columns:minmax(140px,2fr) 62px 50px 50px 50px 108px 42px 30px;gap:6px;align-items:center;margin:4px 2px';
+      h+=`<div style="${GRID};font-size:11px;color:var(--muted)"><span>Ejercicio</span><span style="text-align:center">Series</span><span style="text-align:center">R.mín</span><span style="text-align:center">R.máx</span><span style="text-align:center">RIR</span><span style="text-align:center">Técnica</span><span></span><span></span></div>`;
       items.forEach((it,ii)=>{
         const tk=(RUT.tecnicas||{})[di+"|"+it.id]||"normal";
         const ex=EJ.find(e=>String(e.id)===String(it.id))||{};
-        h+=`<div style="display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap">
-          <select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="flex:2;min-width:150px;margin:0">${opcionesEj(it.id,it.g)}</select>
-          <input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="width:64px;margin:0">
-          <input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="width:52px;margin:0">
-          <input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="width:52px;margin:0">
-          <input class="rutRir" type="number" placeholder="RIR" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="width:52px;margin:0">
-          <select data-d="${di}" data-i="${ii}" class="rutTec" style="width:110px;margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select>
-          <span style="font-size:11px">${fatPill(ex)}</span>
-          <button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:4px 9px">×</button>
+        h+=`<div style="${GRID}">
+          <select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="min-width:0;margin:0">${opcionesEj(it.id,it.g)}</select>
+          <input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="margin:0;text-align:center">
+          <input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="margin:0;text-align:center">
+          <input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="margin:0;text-align:center">
+          <input class="rutRir" type="number" placeholder="RIR" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="margin:0;text-align:center">
+          <select data-d="${di}" data-i="${ii}" class="rutTec" style="min-width:0;margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select>
+          <span style="font-size:11px;text-align:center;overflow:hidden">${fatPill(ex)}</span>
+          <button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:4px 6px;margin:0">×</button>
         </div>`;
       });
     } else { h+=`<div class="muted" style="font-size:12px;margin:4px 0">Sin ejercicios en este día.</div>`; }
