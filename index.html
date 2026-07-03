@@ -213,7 +213,8 @@ const cap=s=>!s?"":s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();
 async function verCliente(id){
   SEL=id;renderClientes();$("detalle").innerHTML='<div class="card">Cargando…</div>';
   const wk=weekId(),d7=hace(7);
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic]=await Promise.all([
+  const d28=hace(28);
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -231,6 +232,7 @@ async function verCliente(id){
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
     sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
+    sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
   ]);
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
@@ -252,7 +254,33 @@ async function verCliente(id){
   // Programación
   const sem=plan.semanas||12,ini=plan.inicio;const sa=semanaActual(ini,sem);const ms=mesos(sem);const m=ms.find(x=>sa>=x.ini&&sa<=x.fin)||ms[0];const esDeload=m&&m.deload===sa;
 
-  let h=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2></div>`;
+  // ---- Reporte automático (primera tarjeta, resumen de un vistazo) ----
+  const S=ses.data||[];const ses7=S.filter(x=>x.fecha>=d7).length;const ses28=S.length;const ultSes=S[0]?S[0].fecha:null;
+  const cks=ck.data||[];const avgCk=k=>{const v=cks.map(x=>+x[k]).filter(n=>!isNaN(n));return v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):null;};
+  const fatAvg=avgCk('fatiga'),enAvg=avgCk('energia');
+  const alsCli=(typeof ALERTAS!=='undefined'?ALERTAS:[]).filter(a=>String(a.cliente_id)===String(id));
+  let rep=`<div class="card"><h2 style="margin-top:0">Reporte automático · ${esc(nom)}</h2>`;
+  rep+=`<h3 style="margin:8px 0 2px">Cumplimiento de entrenamiento</h3>`;
+  rep+=fila("Sesiones últimos 7 días",ses7+" sesión(es)",ses7===0);
+  rep+=fila("Sesiones últimos 28 días",ses28+" sesión(es)");
+  rep+=fila("Última sesión",ultSes||"Sin registro",!ultSes);
+  rep+=`<h3 style="margin:8px 0 2px">Sensaciones (promedio reciente)</h3>`;
+  if(cks.length){
+    rep+=fila("Fatiga",fatAvg!=null?fatAvg+"/10":"—",fatAvg!=null&&+fatAvg>=7);
+    rep+=fila("Energía",enAvg!=null?enAvg+"/10":"—",enAvg!=null&&+enAvg<=4);
+    rep+=fila("Dolor articular (último)",C&&C.dart!=null?C.dart+"/10":"—",C&&(C.dart||0)>=6);
+    rep+=fila("Sueño (prom. 7d)",sprom!=null?sprom.toFixed(1)+" h":"—",sprom!=null&&sprom<6);
+  } else rep+=`<div class="muted">Sin check-ins aún.</div>`;
+  rep+=`<h3 style="margin:8px 0 2px">Novedades</h3>`;
+  let hayNov=false;
+  if(alsCli.length){rep+=fila("Alertas abiertas",alsCli.length+": "+alsCli.slice(0,3).map(a=>a.tipo).join(", "),true);hayNov=true;}
+  if(dp!=null){rep+=fila("Cambio de peso",(dp>0?'+':'')+dp+" kg");hayNov=true;}
+  if(prom&&o.kcal)rep+=fila("Adherencia calorías",`${prom.k} real vs ${o.kcal} objetivo`,Math.abs(prom.k-o.kcal)>300),hayNov=true;
+  if(J[0]){rep+=`<div style="margin-top:4px"><span class="muted" style="font-size:11px">Último journal (${esc(J[0].fecha)})</span><div>${esc((J[0].texto||'').slice(0,160))}</div></div>`;hayNov=true;}
+  if(!hayNov)rep+=`<div class="muted">Sin novedades.</div>`;
+  rep+=`</div>`;
+
+  let h=rep+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2></div>`;
   h+=fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—");
 
   // EDITOR objetivo/plan
