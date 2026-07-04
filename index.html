@@ -214,7 +214,9 @@ async function verCliente(id){
   SEL=id;renderClientes();$("detalle").innerHTML='<div class="card">Cargando…</div>';
   const wk=weekId(),d7=hace(7);
   const d28=hace(28);
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses]=await Promise.all([
+  // Lunes-domingo de la semana actual (para macros por día / refeeds).
+  const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -233,6 +235,7 @@ async function verCliente(id){
     sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
+    sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
   ]);
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
@@ -394,6 +397,58 @@ async function verCliente(id){
   const F=fts.data||[];h+=`<h3>Fotos comparativas</h3>`;
   if(F.length){h+=`<div class="row"><div><div class="muted" style="font-size:11px">Primera (${esc(F[0].fecha)})</div>${F[0].url?`<img class="foto" src="${esc(F[0].url)}">`:''}</div>${F.length>1?`<div><div class="muted" style="font-size:11px">Última (${esc(F[F.length-1].fecha)})</div>${F[F.length-1].url?`<img class="foto" src="${esc(F[F.length-1].url)}">`:''}</div>`:''}</div>`;}else h+=`<div class="muted">Sin fotos.</div>`;
   h+=`</div>`;
+
+  // Macros por día y refeeds (override del objetivo base por fecha)
+  {
+    const base={kcal:+o.kcal||0,prot:+o.prot||0,carb:+o.carb||0,fat:+o.fat||0};
+    const pesoAct=peso!=null?+peso:(o.peso!=null?+o.peso:null);
+    const act=+o.actividad||1;
+    // Override por fecha
+    const ovr={};(mac.data||[]).forEach(m=>{ovr[m.fecha]=m;});
+    const DIAS=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+    const fechasSem=[];for(let i=0;i<7;i++){const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+i);fechasSem.push(d.toISOString().slice(0,10));}
+    const hoy=hace(0);
+    // Macros efectivos de un día (override o base)
+    const macroDia=f=>{const m=ovr[f];return m?{kcal:+m.kcal||0,prot:+m.prot||0,carb:+m.carb||0,fat:+m.fat||0,tipo:m.tipo,nota:m.nota,over:true}:{...base,over:false};};
+    // Detección de déficit
+    const enDeficit=(o.tipo==='def')||(base.kcal>0&&pesoAct!=null&&base.kcal<(Math.round(pesoAct*22*act)-100));
+    // Señales de refeed
+    const senales=[];
+    if(fatAvg!=null&&+fatAvg>=7)senales.push("fatiga "+fatAvg);
+    if(enAvg!=null&&+enAvg<=4)senales.push("energía "+enAvg);
+    if(sprom!=null&&sprom<6)senales.push("sueño "+sprom.toFixed(1)+"h");
+    const aniAvg=avgCk('animo');
+    if(aniAvg!=null&&+aniAvg<=4)senales.push("ánimo "+aniAvg);
+    const sugiere=enDeficit&&senales.length>=2;
+    // Refeed calculado (previsualización de "Aplicar refeed")
+    const refeedCalc=pesoAct!=null?(()=>{const kc=Math.round(base.kcal*1.25);const pr=Math.round(base.prot);const ft=Math.round(0.55*pesoAct);const cb=Math.round(Math.max(0,kc-pr*4-ft*9)/4);return{kcal:kc,prot:pr,carb:cb,fat:ft};})():null;
+
+    h+=`<div class="card"><h2 style="margin-top:0">Macros por día y refeeds</h2>`;
+    // Banner de sugerencia
+    if(sugiere)h+=`<div style="border:1px solid var(--rojo);background:#2a1414;color:var(--bad);border-radius:8px;padding:8px 10px;margin-bottom:8px">Sugerencia: refeed — señales: ${esc(senales.join(", "))}. Cliente en déficit.</div>`;
+    else h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Sin señales de refeed${enDeficit?'':' (cliente no está en déficit)'}.</div>`;
+    if(!base.kcal)h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">No hay objetivo base de calorías configurado; define kcal/macros arriba para promediar y calcular refeeds.</div>`;
+    // Tabla de los 7 días
+    h+=`<table><tr><th>Día</th><th>Tipo</th><th>Kcal · P/C/G</th></tr>`;
+    const sum={kcal:0,prot:0,carb:0,fat:0};
+    fechasSem.forEach((f,i)=>{
+      const d=macroDia(f);sum.kcal+=d.kcal;sum.prot+=d.prot;sum.carb+=d.carb;sum.fat+=d.fat;
+      const et=d.over?(d.tipo==='refeed'?'<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700">REFEED</span>':d.tipo==='bajo'?'<span class="pill" style="background:#5f7dd0;color:#000;font-weight:700">Bajo</span>':'<span class="pill" style="background:var(--warn);color:#000;font-weight:700">Custom</span>'):'<span class="muted" style="font-size:11px">base</span>';
+      h+=`<tr${f===hoy?' style="background:#1d1d20"':''}><td>${DIAS[i]} <span class="muted" style="font-size:11px">${esc(f.slice(5))}</span></td><td>${et}</td><td>${d.kcal} kcal · P${d.prot}/C${d.carb}/G${d.fat}</td></tr>`;
+    });
+    h+=`</table>`;
+    // Promedio semanal
+    h+=`<div class="fila" style="margin-top:6px"><b>Promedio semanal</b><b>${Math.round(sum.kcal/7)} kcal · P${Math.round(sum.prot/7)}/C${Math.round(sum.carb/7)}/G${Math.round(sum.fat/7)}</b></div>`;
+    // Controles para aplicar
+    h+=`<h3>Aplicar a un día</h3>`;
+    h+=`<label class="lbl">Fecha</label><select id="md_fecha">${fechasSem.map((f,i)=>`<option value="${f}" ${f===hoy?'selected':''}>${DIAS[i]} ${esc(f)}${f===hoy?' (hoy)':''}</option>`).join("")}</select>`;
+    h+=`<div class="row" style="margin-top:6px"><div><button class="sm" onclick="aplicarRefeed('${id}')">Aplicar refeed</button></div><div><button class="sm ghost" onclick="quitarMacrosDia('${id}')">Normal (quitar)</button></div></div>`;
+    if(refeedCalc)h+=`<div class="muted" style="font-size:12px;margin-top:4px">Refeed calculado (peso ${pesoAct} kg): ${refeedCalc.kcal} kcal · P${refeedCalc.prot}/C${refeedCalc.carb}/G${refeedCalc.fat}. Carbohidratos idealmente antes de entrenar.</div>`;
+    else h+=`<div class="muted" style="font-size:12px;margin-top:4px">Falta peso reciente para calcular el refeed.</div>`;
+    h+=`<h3>Custom (macros manuales)</h3>`;
+    h+=`<div class="row"><div><label class="lbl">Kcal</label><input id="md_kcal" type="number" value="${base.kcal||''}"></div><div><label class="lbl">Prot</label><input id="md_prot" type="number" value="${base.prot||''}"></div><div><label class="lbl">Carb</label><input id="md_carb" type="number" value="${base.carb||''}"></div><div><label class="lbl">Grasa</label><input id="md_fat" type="number" value="${base.fat||''}"></div></div>`;
+    h+=`<button class="sm" style="margin-top:6px" onclick="guardarCustomMacros('${id}')">Guardar custom</button> <span id="mdMsg" class="muted"></span></div>`;
+  }
 
   // Informe mensual (automático + seguimiento del entrenador)
   h+=`<div class="card"><h2 style="margin-top:0">Informe mensual</h2>
@@ -629,6 +684,36 @@ async function guardarGestion(id){
   if(error){$("gMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   if(nuevoEntren!==MIID){$("gMsg").textContent="✓ Cliente reasignado a otro entrenador.";SEL=null;$("detalle").innerHTML="";await cargarPrioridad();return;}
   $("gMsg").textContent="✓ Guardado.";const c=CLIENTES.find(x=>x.user_id===id);if(c)c._ticket=upd.ticket;renderClientes();
+}
+// ---- Macros por día / refeeds ----
+async function aplicarRefeed(id){
+  const fecha=$("md_fecha")?$("md_fecha").value:hace(0);
+  $("mdMsg").textContent="Aplicando…";
+  const {data:o,error:eo}=await sb.from("objetivos").select("kcal,prot").eq("user_id",id).maybeSingle();
+  if(eo){$("mdMsg").innerHTML=`<span class="alert">${esc(eo.message)}</span>`;return;}
+  const {data:pe}=await sb.from("pesos").select("peso").eq("user_id",id).order("fecha",{ascending:false}).limit(1);
+  const pesoAct=(pe&&pe[0]&&pe[0].peso!=null)?+pe[0].peso:null;
+  if(pesoAct==null){$("mdMsg").innerHTML=`<span class="alert">Falta peso reciente del cliente para calcular el refeed.</span>`;return;}
+  const baseKcal=+(o&&o.kcal)||0,baseProt=+(o&&o.prot)||0;
+  const kcal=Math.round(baseKcal*1.25);const prot=Math.round(baseProt);const fat=Math.round(0.55*pesoAct);const carb=Math.round(Math.max(0,kcal-prot*4-fat*9)/4);
+  const {error}=await sb.from("macros_dia").upsert({user_id:id,fecha,tipo:'refeed',kcal,prot,carb,fat,nota:'Carbohidratos idealmente antes de entrenar',origen:'entrenador'},{onConflict:"user_id,fecha"});
+  if(error){$("mdMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  await verCliente(id);
+}
+async function guardarCustomMacros(id){
+  const fecha=$("md_fecha")?$("md_fecha").value:hace(0);
+  $("mdMsg").textContent="Guardando…";
+  const kcal=+$("md_kcal").value||0,prot=+$("md_prot").value||0,carb=+$("md_carb").value||0,fat=+$("md_fat").value||0;
+  const {error}=await sb.from("macros_dia").upsert({user_id:id,fecha,tipo:'custom',kcal,prot,carb,fat,origen:'entrenador'},{onConflict:"user_id,fecha"});
+  if(error){$("mdMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  await verCliente(id);
+}
+async function quitarMacrosDia(id){
+  const fecha=$("md_fecha")?$("md_fecha").value:hace(0);
+  $("mdMsg").textContent="Quitando…";
+  const {error}=await sb.from("macros_dia").delete().eq("user_id",id).eq("fecha",fecha);
+  if(error){$("mdMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  await verCliente(id);
 }
 async function addReceta(id){
   const nom=$("r_nom").value.trim();if(!nom){$("recMsg").textContent="Falta el nombre.";return;}
