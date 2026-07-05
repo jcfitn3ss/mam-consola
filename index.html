@@ -88,6 +88,20 @@
 const URL_SB="https://rzonwwqgbckjsqloosyy.supabase.co";
 const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b253d3FnYmNranNxbG9vc3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MzYyNDIsImV4cCI6MjA5NzIxMjI0Mn0.cx6PM3ErIFqmllWIXohNsLlqCvDzhigMA_Sr-bHQDX0";
 const sb=supabase.createClient(URL_SB,ANON);
+// Al escribir en cualquier campo de texto, la PRIMERA letra siempre en mayúscula
+// (no aplica a correo, clave ni números).
+document.addEventListener("input",e=>{
+  const el=e.target;if(!el)return;
+  const esTexto=(el.tagName==="TEXTAREA")||(el.tagName==="INPUT"&&(el.type===""||el.type==="text"||el.type==="search"));
+  if(!esTexto)return;
+  const v=el.value;if(!v)return;
+  const c=v.charAt(0);
+  if(c!==c.toUpperCase()&&c.toLowerCase()!==c.toUpperCase()){
+    const s=el.selectionStart,en=el.selectionEnd;
+    el.value=c.toUpperCase()+v.slice(1);
+    try{el.setSelectionRange(s,en);}catch(_){}
+  }
+});
 const ENFOQUES=["Pecho","Espalda","Hombro","Brazos","Glúteo/Femoral","Cuádriceps","Core"];
 const OBJ=[["def","Definición"],["vol","Volumen"],["rec","Recomposición"],["mant","Mantenimiento"],["tca","Sanar TCA"]];
 const OBJL=Object.fromEntries(OBJ);
