@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Músculo al Máximo · Restablecer contraseña</title>
+<style>
+  :root{--bg:#0c0c0d;--card:#161618;--line:#27272b;--txt:#f3f3f3;--muted:#9a9aa2;--rojo:#e23b3b;--ok:#5fd07f;--bad:#e07a7a}
+  *{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  body{margin:0;background:var(--bg);color:var(--txt);display:flex;min-height:100vh;align-items:center;justify-content:center;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:380px;width:100%}
+  h1{font-size:18px;margin:0 0 4px}
+  p.sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+  label{display:block;color:var(--muted);font-size:12px;margin:10px 0 4px}
+  input{width:100%;background:#0f0f11;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:11px;font-size:15px}
+  button{width:100%;margin-top:14px;background:var(--rojo);color:#fff;border:0;border-radius:8px;padding:12px;font-size:15px;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5}
+  .msg{margin-top:12px;font-size:13px}
+  .ok{color:var(--ok)}.bad{color:var(--bad)}.muted{color:var(--muted)}
+  .hide{display:none}
+  .ver{color:var(--muted);font-size:12px;margin-top:6px;cursor:pointer;display:inline-block}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Restablecer contraseña</h1>
+  <p class="sub">Músculo al Máximo</p>
+
+  <div id="cargando" class="msg muted">Verificando el enlace…</div>
+
+  <div id="form" class="hide">
+    <label>Nueva contraseña</label>
+    <input id="np" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
+    <span class="ver" id="ver">Mostrar contraseña</span>
+    <label>Repite la contraseña</label>
+    <input id="np2" type="password" placeholder="Repite tu contraseña" autocomplete="new-password" />
+    <button id="btn" onclick="guardar()">Guardar contraseña</button>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <div id="invalido" class="hide msg bad">
+    Este enlace no es válido o ya expiró. Vuelve a la app, toca "¿Olvidaste tu contraseña?" y pide uno nuevo.
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_SB="https://rzonwwqgbckjsqloosyy.supabase.co";
+const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b253d3FnYmNranNxbG9vc3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MzYyNDIsImV4cCI6MjA5NzIxMjI0Mn0.cx6PM3ErIFqmllWIXohNsLlqCvDzhigMA_Sr-bHQDX0";
+const sb=supabase.createClient(URL_SB,ANON);
+const $=id=>document.getElementById(id);
+let mostrado=false;
+
+function mostrarForm(){ if(mostrado)return; mostrado=true; $("cargando").classList.add("hide"); $("invalido").classList.add("hide"); $("form").classList.remove("hide"); }
+function invalido(){ if(mostrado)return; $("cargando").classList.add("hide"); $("invalido").classList.remove("hide"); }
+
+// El enlace del correo trae el token de recuperación; supabase-js crea la
+// sesión (evento PASSWORD_RECOVERY). Ahí habilitamos el formulario.
+sb.auth.onAuthStateChange((event, session)=>{ if(event==="PASSWORD_RECOVERY"||session){ mostrarForm(); } });
+
+window.addEventListener("load", async ()=>{
+  await new Promise(r=>setTimeout(r,1000));
+  const {data}=await sb.auth.getSession();
+  if(data.session){ mostrarForm(); } else { invalido(); }
+});
+
+$("ver").onclick=()=>{ const t=$("np").type==="password"?"text":"password"; $("np").type=t; $("np2").type=t; $("ver").textContent=t==="text"?"Ocultar contraseña":"Mostrar contraseña"; };
+
+async function guardar(){
+  const p=$("np").value, p2=$("np2").value;
+  $("msg").textContent=""; $("msg").className="msg";
+  if(p.length<6){ $("msg").textContent="La contraseña debe tener al menos 6 caracteres."; $("msg").className="msg bad"; return; }
+  if(p!==p2){ $("msg").textContent="Las contraseñas no coinciden."; $("msg").className="msg bad"; return; }
+  $("btn").disabled=true; $("msg").textContent="Guardando…"; $("msg").className="msg muted";
+  const {error}=await sb.auth.updateUser({password:p});
+  if(error){ $("msg").textContent=error.message; $("msg").className="msg bad"; $("btn").disabled=false; return; }
+  $("form").classList.add("hide");
+  $("cargando").classList.remove("hide"); $("cargando").className="msg ok";
+  $("cargando").textContent="¡Listo! Tu contraseña quedó cambiada. Vuelve a la app e inicia sesión con la nueva.";
+}
+</script>
+</body>
+</html>
