@@ -84,6 +84,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const URL_SB="https://rzonwwqgbckjsqloosyy.supabase.co";
 const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b253d3FnYmNranNxbG9vc3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MzYyNDIsImV4cCI6MjA5NzIxMjI0Mn0.cx6PM3ErIFqmllWIXohNsLlqCvDzhigMA_Sr-bHQDX0";
@@ -110,7 +111,7 @@ const TECNICAS=[["normal","Normal"],["biserie","Biserie"],["triserie","Triserie"
 const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bíceps","Tríceps","Core","Pantorrilla","Cuello","Dorsal","Aductores","Abductores"];
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
-let MIID=null,CLIENTES=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null;
+let MIID=null,CLIENTES=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[];
 
 const $=id=>document.getElementById(id);
@@ -377,6 +378,13 @@ async function verCliente(id){
   h+=`</div>`;
 
   // PARTE 3: Editor de rutina
+  // Importar rutina desde Excel (IA interpreta -> vista previa -> guardar)
+  h+=`<div class="card"><h2 style="margin-top:0">Importar rutina desde Excel</h2>
+    <div class="muted" style="margin-bottom:8px">Sube el Excel (.xlsx) de la rutina y la IA la interpreta (días, ejercicios, series, reps, RIR, técnicas). Verás una <b>vista previa</b> antes de guardar. Si hay varios mesociclos, toma el más reciente.</div>
+    <input type="file" id="impFile" accept=".xlsx,.xls,.csv" onchange="importarExcel('${id}')">
+    <div id="impMsg" class="muted" style="margin-top:6px"></div>
+    <div id="impPrev" style="margin-top:8px"></div></div>`;
+
   h+=`<div class="card"><h2 style="margin-top:0">Editar rutina (solo entrenador)</h2><div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div><div id="editorRut">${editorRutinaHTML()}</div>`;
   if(RUT&&RUT.dias)h+=`<button style="margin-top:10px" onclick="guardarRutina('${id}')">Guardar rutina</button> <span id="rutMsg" class="muted"></span>`;
   h+=`</div>`;
@@ -643,6 +651,61 @@ function editorRutinaHTML(){
   });
   return h;
 }
+// ---- Importar rutina desde Excel (SheetJS -> IA -> vista previa -> guardar) ----
+async function importarExcel(cli){
+  const f=$("impFile").files[0]; if(!f)return;
+  IMPORT_DIAS=null; $("impPrev").innerHTML=""; $("impMsg").textContent="Leyendo el archivo…";
+  let texto="";
+  try{
+    const buf=await f.arrayBuffer();
+    const wb=XLSX.read(buf,{type:"array"});
+    wb.SheetNames.forEach(n=>{ texto+=XLSX.utils.sheet_to_csv(wb.Sheets[n])+"\n"; });
+  }catch(e){ $("impMsg").textContent="No pude leer el archivo: "+e.message; return; }
+  if(texto.trim().length<20){ $("impMsg").textContent="El archivo está vacío o no se pudo leer."; return; }
+  $("impMsg").textContent="Interpretando la rutina con IA… (unos segundos)";
+  const {data,error}=await sb.functions.invoke("rutina-import",{body:{texto}});
+  if(error||(data&&data.error)){ $("impMsg").textContent="Error: "+((data&&data.error)||error.message); return; }
+  IMPORT_DIAS=data.dias||[];
+  $("impMsg").textContent=(data.nota?esc(data.nota)+" · ":"")+IMPORT_DIAS.length+" día(s) detectado(s). Revisa la vista previa y guarda.";
+  renderImportPrev(cli);
+}
+function renderImportPrev(cli){
+  if(!IMPORT_DIAS||!IMPORT_DIAS.length){$("impPrev").innerHTML="";return;}
+  let h="";
+  IMPORT_DIAS.forEach(d=>{
+    h+=`<div style="margin:8px 0"><b>${esc(d.nombre)}</b> <span class="muted">(${esc((d.grupos||[]).join(", "))})</span>`;
+    (d.ejercicios||[]).forEach(e=>{ h+=`<div class="fila"><span>${esc(e.nombre)}</span><span class="muted">${e.series}x ${e.rep_min}-${e.rep_max} · RIR ${e.rir}${e.tecnica&&e.tecnica!=='normal'?' · '+esc(e.tecnica):''}</span></div>`; });
+    h+=`</div>`;
+  });
+  h+=`<button onclick="guardarRutinaImport('${cli}')">Guardar esta rutina para el cliente</button> <span id="impSave" class="muted"></span>
+     <div class="muted" style="font-size:11px;margin-top:6px">Al guardar se crean los ejercicios y se reemplaza la rutina actual del cliente. Podrás afinar todo abajo en "Editar rutina".</div>`;
+  $("impPrev").innerHTML=h;
+}
+async function guardarRutinaImport(cli){
+  if(!IMPORT_DIAS||!IMPORT_DIAS.length)return;
+  $("impSave").textContent="Guardando…";
+  // 1) Ejercicios únicos por nombre.
+  const uniq={};
+  IMPORT_DIAS.forEach(d=>(d.ejercicios||[]).forEach(e=>{const k=(e.nombre||"").trim().toLowerCase();if(k&&!uniq[k])uniq[k]={nombre:e.nombre.trim(),grupo:e.grupo,rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir};}));
+  const filas=Object.values(uniq).map(e=>({nombre:e.nombre,grupo:e.grupo,equipo:"Máquina",rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir,fatiga:"media",estiramiento:false,entrenador_id:MIID}));
+  const ins=await sb.from("ejercicios").insert(filas).select("id,nombre");
+  if(ins.error){ $("impSave").textContent="Error creando ejercicios: "+ins.error.message; return; }
+  const idmap={}; ins.data.forEach(r=>idmap[(r.nombre||"").trim().toLowerCase()]=r.id);
+  // 2) Construir días + técnicas.
+  const dias=[],tecnicas={};
+  IMPORT_DIAS.forEach((d,di)=>{
+    const orden=[];
+    (d.ejercicios||[]).forEach(e=>{const eid=idmap[(e.nombre||"").trim().toLowerCase()];if(!eid)return;orden.push({id:eid,g:e.grupo,s:e.series});if(e.tecnica&&e.tecnica!=="normal")tecnicas[di+"|"+eid]=e.tecnica;});
+    dias.push({nombre:d.nombre,grupos:d.grupos||[],orden});
+  });
+  // 3) Guardar rutina + ajustar días del plan.
+  const r1=await sb.from("rutinas").upsert({user_id:cli,dias,tecnicas},{onConflict:"user_id"});
+  if(r1.error){ $("impSave").textContent="Error guardando la rutina: "+r1.error.message; return; }
+  await sb.from("planes").update({dias:dias.length}).eq("user_id",cli);
+  $("impSave").textContent="✓ Rutina guardada. El cliente ya puede registrarla.";
+  IMPORT_DIAS=null; setTimeout(()=>verCliente(cli),1000);
+}
+
 // Sincroniza lo escrito en el editor a memoria (RUT) antes de re-renderizar.
 function syncEditorAMemoria(){
   if(!RUT||!RUT.dias)return;
