@@ -62,6 +62,7 @@
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
       <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
+      <button id="t-alimentos" onclick="tab('alimentos')">Alimentos</button>
       <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
       <button id="t-sugerencias" onclick="tab('sugerencias')">Sugerencias</button>
       <button id="t-interno" onclick="tab('interno')">Mejorar consola</button>
@@ -77,6 +78,7 @@
       <div id="detalle"></div>
     </div>
     <div id="v-ejercicios" class="hide"></div>
+    <div id="v-alimentos" class="hide"></div>
     <div id="v-comunidad" class="hide"></div>
     <div id="v-sugerencias" class="hide"></div>
     <div id="v-interno" class="hide"></div>
@@ -135,7 +137,7 @@ async function init(){const {data:{session}}=await sb.auth.getSession();if(sessi
 async function login(){$("loginErr").textContent="";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
-function tab(t){["clientes","ejercicios","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="ejercicios")verEjercicios();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+function tab(t){["clientes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
@@ -166,15 +168,20 @@ async function aprobarCupon(uid,ok){
   await cargarSolicitudes();await cargarPrioridad();
 }
 
+// Umbral (dias sin entrenar) a partir del cual un cliente entra en riesgo de fuga.
+const DIAS_INACTIVO=3;
 async function cargarPrioridad(){
   const d14=hace(14);
-  const [al,su,ck,pl,ob,pf]=await Promise.all([
+  const d60=hace(60);
+  const [al,su,ck,pl,ob,pf,se]=await Promise.all([
     sb.from("alertas").select("id,cliente_id,tipo,texto,created_at").eq("estado","abierta").order("created_at",{ascending:false}),
     sb.from("sueno").select("user_id,horas,fecha").gte("fecha",d14),
     sb.from("checkins").select("user_id,dart,fatiga,energia,fecha").gte("fecha",d14).order("fecha",{ascending:false}),
     sb.from("planes").select("user_id,inicio"),
     sb.from("objetivos").select("user_id,tipo"),
     sb.from("perfiles").select("user_id,ticket,presupuesto_adicional,pago_confirmado"),
+    // Sesiones finalizadas recientes: para detectar al cliente que dejo de entrenar.
+    sb.from("sesiones").select("user_id,fecha").eq("finalizada",true).gte("fecha",d60).order("fecha",{ascending:false}),
   ]);
   const cnt={};(al.data||[]).forEach(a=>cnt[a.cliente_id]=(cnt[a.cliente_id]||0)+1);
   const sl={};(su.data||[]).forEach(s=>{(sl[s.user_id]=sl[s.user_id]||[]).push(+s.horas)});
@@ -182,11 +189,31 @@ async function cargarPrioridad(){
   const ini={};(pl.data||[]).forEach(p=>ini[p.user_id]=p.inicio);
   const obj={};(ob.data||[]).forEach(o=>obj[o.user_id]=o.tipo);
   const gm={};(pf.data||[]).forEach(p=>gm[p.user_id]=p);
+  // Ultima sesion finalizada por usuario (la primera al venir ordenado desc).
+  const ult={};(se.data||[]).forEach(s=>{if(s.user_id&&s.fecha&&!ult[s.user_id])ult[s.user_id]=s.fecha});
   CLIENTES.forEach(c=>{const u=c.user_id;let sc=0;const r=[];
     const G=gm[u]||{};c._ticket=G.ticket||"";c._presu=!!G.presupuesto_adicional;c._pago=!!G.pago_confirmado;
     const na=cnt[u]||0;if(na){sc+=3*na;r.push(na+" alerta"+(na>1?"s":""));}
     const h=sl[u]||[];const sp=h.length?h.reduce((a,x)=>a+x,0)/h.length:null;if(sp!=null&&sp<7){sc+=3;r.push("Duerme "+sp.toFixed(1)+"h");}
     const k=lc[u];if(k){if((k.dart||0)>=6){sc+=3;r.push("Dolor "+k.dart);}if((k.fatiga||0)>=7){sc+=2;r.push("Fatiga "+k.fatiga);}if(k.energia!=null&&k.energia<=3){sc+=2;r.push("Energía "+k.energia);}}
+    // Radar de INACTIVIDAD: solo aplica a clientes con plan iniciado (si no
+    // hay plan, "0 sesiones" es lo esperado, no una fuga). Cuenta los dias
+    // desde la ultima sesion finalizada (o desde el inicio del plan si nunca
+    // ha entrenado). A mas dias, mas alto el score -> el que se esta yendo
+    // NO queda en verde.
+    c._inact=null;
+    if(ini[u]){
+      const inicioDia=new Date(ini[u]+"T00:00:00").getTime();
+      const yaEmpezo=Date.now()>=inicioDia;
+      if(yaEmpezo){
+        const refStr=ult[u]||ini[u];
+        const dds=Math.floor((Date.now()-new Date(refStr+"T00:00:00").getTime())/864e5);
+        if(dds>=DIAS_INACTIVO){
+          const pts=dds>=7?6:dds>=5?4:2; // 3-4d amarillo, 5-6d, 7+d rojo
+          sc+=pts;c._inact=dds;c._nuncaEntreno=!ult[u];
+        }
+      }
+    }
     c._sc=sc;c._r=r;c._obj=OBJL[obj[u]]||"";c._mes=null;
     if(ini[u]){const dd=Math.floor((Date.now()-new Date(ini[u]).getTime())/864e5);if(dd>=30)c._mes=Math.floor(dd/30);}
   });
@@ -213,12 +240,13 @@ function renderClientes(){
   $("clientes").innerHTML=list.map(c=>{
     const ic=c._sc>=5?"🔴":c._sc>=2?"🟡":"🟢";
     const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
+    const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">⚠ En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
     const ms=c._mes?`<div style="font-size:12px;margin-top:3px;color:var(--rojo)">Informe mes ${c._mes} listo</div>`:"";
     const tcol={alto:"#e23b3b",medio:"#e0b84a",bajo:"#5f7dd0"};
     const tk=c._ticket?`<span class="pill" style="background:${tcol[c._ticket]||'#444'};color:#000;font-weight:700">${esc(c._ticket.toUpperCase())}</span>`:"";
     const pa=c._presu?`<span class="pill" style="background:#15391f;color:#5fd07f">presupuesto+</span>`:"";
     const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${tk}${pa}${esc(c._obj||"")}</span>`;
-    return `<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')"><div style="display:flex;justify-content:space-between;align-items:center"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${rs}${ms}</button>`;
+    return `<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')"><div style="display:flex;justify-content:space-between;align-items:center"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${inact}${rs}${ms}</button>`;
   }).join("")||'<div class="muted">Sin clientes aún.</div>';
 }
 
@@ -853,6 +881,52 @@ async function editVid(id){
   const e=EJ.find(x=>String(x.id)===String(id));const url=prompt("Enlace de YouTube para "+cap(e.nombre),e.video_url||"");if(url===null)return;
   const {error}=await sb.from("ejercicios").update({video_url:url.trim()||null}).eq("id",id);
   if(error){alert(error.message);return;}e.video_url=url.trim()||null;renderEj();
+}
+
+// PARTE 4b: Alimentos base (catálogo oficial MAM · guía de alimentación)
+// Es la BASE del registro del cliente: aparecen primero en su búsqueda.
+let AB=[];
+const CATS=[["carbohidrato","Carbohidrato"],["carbohidrato_proteina","Carbohidrato + proteína"],["proteina","Proteína"],["proteina_grasa","Proteína + grasa"],["grasa","Grasa"]];
+function catLabel(c){const f=CATS.find(x=>x[0]===c);return f?f[1]:(c||"—");}
+async function verAlimentos(){
+  $("v-alimentos").innerHTML='<div class="card">Cargando…</div>';
+  const {data,error}=await sb.from("alimentos_base").select("*").order("nombre");
+  if(error){$("v-alimentos").innerHTML=`<div class="card alert">${esc(error.message)}</div>`;return;}
+  AB=data||[];
+  let h=`<div class="card"><h2 style="margin-top:0">Nuevo alimento</h2>
+   <div class="muted" style="margin-bottom:6px">Valores <b>por 100 g</b>, igual que la guía. El cliente lo verá primero al buscar (etiqueta <b>Oficial MAM</b>). Si dejas las kcal en blanco se calculan solas (P×4 + C×4 + G×9).</div>
+   <input id="a_nom" placeholder="Nombre tal cual (ej: Pechuga de pollo)">
+   <label class="lbl">Categoría</label><select id="a_cat">${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
+   <div class="row"><div><label class="lbl">Proteína (g)</label><input id="a_p" type="number" step="0.1" value="0"></div><div><label class="lbl">Carbohidrato (g)</label><input id="a_c" type="number" step="0.1" value="0"></div><div><label class="lbl">Grasa (g)</label><input id="a_f" type="number" step="0.1" value="0"></div><div><label class="lbl">Kcal (opcional)</label><input id="a_k" type="number" step="0.1" placeholder="auto"></div></div>
+   <button style="margin-top:8px" onclick="addAlimento()">Agregar al catálogo</button> <span id="aMsg" class="muted"></span></div>
+   <div class="card"><h2 style="margin-top:0">Catálogo oficial (${AB.length})</h2>
+     <input id="a_buscar" placeholder="Buscar…" oninput="renderAB()">
+     <select id="a_fcat" onchange="renderAB()"><option value="">Todas las categorías</option>${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
+     <div id="ablist"></div></div>`;
+  $("v-alimentos").innerHTML=h;renderAB();
+}
+function renderAB(){
+  const q=($("a_buscar")?$("a_buscar").value:"").toLowerCase();
+  const fc=($("a_fcat")?$("a_fcat").value:"");
+  const list=AB.filter(a=>(!q||(a.nombre||"").toLowerCase().includes(q))&&(!fc||a.categoria===fc));
+  $("ablist").innerHTML=`<table><tr><th>Alimento</th><th>Categoría</th><th>Kcal</th><th>P</th><th>C</th><th>G</th><th></th></tr>${list.map(a=>`<tr><td><b>${esc(a.nombre)}</b></td><td class="muted">${esc(catLabel(a.categoria))}</td><td>${Math.round(a.k||0)}</td><td>${a.p??0}</td><td>${a.c??0}</td><td>${a.f??0}</td><td><button class="sm ghost" onclick="borrarAlimento('${a.id}')" title="Quitar del catálogo">🗑</button></td></tr>`).join("")}</table>`;
+}
+async function addAlimento(){
+  const nom=$("a_nom").value.trim();if(!nom){$("aMsg").textContent="Falta el nombre.";return;}
+  const p=+$("a_p").value||0,c=+$("a_c").value||0,f=+$("a_f").value||0;
+  const kIn=$("a_k").value.trim();const k=kIn!==""?(+kIn||0):Math.round(p*4+c*4+f*9);
+  $("aMsg").textContent="Guardando…";
+  const {data,error}=await sb.from("alimentos_base").insert({nombre:nom,categoria:$("a_cat").value,p,c,f,k,activo:true}).select();
+  if(error){$("aMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  AB.push(data[0]);AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));$("aMsg").textContent="✓ Agregado.";$("a_nom").value=$("a_k").value="";$("a_p").value=$("a_c").value=$("a_f").value="0";renderAB();
+}
+async function borrarAlimento(id){
+  const a=AB.find(x=>String(x.id)===String(id));if(!a)return;
+  if(!confirm('¿Quitar "'+a.nombre+'" del catálogo oficial? El cliente dejará de verlo al buscar.'))return;
+  const {data,error}=await sb.from("alimentos_base").delete().eq("id",id).select();
+  if(error){alert(error.message);return;}
+  if(!data||!data.length){alert('No se pudo borrar (¿permisos?).');return;}
+  AB=AB.filter(x=>String(x.id)!==String(id));renderAB();
 }
 
 // PARTE 9: Comunidad / rankings
