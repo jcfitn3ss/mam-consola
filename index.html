@@ -259,7 +259,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -279,6 +279,7 @@ async function verCliente(id){
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
+    sb.from("atletas").select("*").eq("user_id",id).maybeSingle(),
   ]);
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
@@ -328,6 +329,22 @@ async function verCliente(id){
 
   let h=rep+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2></div>`;
   h+=fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—");
+
+  // ---- Atleta (culturismo): SOLO el entrenador decide ----
+  const A=atl.data;
+  h+=`<h3>Atleta (culturismo)</h3>
+   <label style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer">
+     <input type="checkbox" id="a_es" ${A?'checked':''} onchange="toggleAtleta('${id}',this.checked)"> Marcar como atleta de competencia
+   </label>
+   <div id="a_campos" style="${A?'':'display:none'}">
+     <div class="row">
+       <div><label class="lbl">Fecha de competencia</label><input id="a_fecha" type="date" value="${A&&A.fecha_competencia||''}"></div>
+       <div><label class="lbl">Peso competencia (kg)</label><input id="a_peso" type="number" step="0.1" value="${A&&A.peso_competencia||''}"></div>
+       <div><label class="lbl">Pasos objetivo</label><input id="a_pasos" type="number" value="${A&&A.pasos_objetivo||8000}"></div>
+     </div>
+     <label class="lbl">Nota de preparación (enfoque, recuperación)</label><input id="a_nota" value="${A?esc(A.nota||''):''}">
+     <button class="sm" style="margin-top:6px" onclick="guardarAtleta('${id}')">Guardar atleta</button> <span id="aMsg" class="muted"></span>
+   </div>`;
 
   // EDITOR objetivo/plan
   h+=`<h3>Objetivo, calorías y enfoque (editable)</h3>
@@ -771,6 +788,23 @@ async function guardarRutina(id){
     if(!e2){const e=EJ.find(x=>String(x.id)===String(id2));if(e)Object.assign(e,ejUpd[id2]);nEj++;}
   }
   $("rutMsg").textContent=`✓ Rutina actualizada (series, técnica y ${nEj} ejercicio(s) con reps/RIR aplicados a la app).`;
+}
+async function toggleAtleta(id,on){
+  if(on){
+    const {error}=await sb.from("atletas").upsert({user_id:id,pasos_objetivo:8000},{onConflict:"user_id"});
+    if(error){alert(error.message);return;}
+    const c=$("a_campos");if(c)c.style.display="";
+  } else {
+    if(!confirm("¿Quitar el estado de atleta de este cliente?")){$("a_es").checked=true;return;}
+    const {error}=await sb.from("atletas").delete().eq("user_id",id);
+    if(error){alert(error.message);return;}
+    const c=$("a_campos");if(c)c.style.display="none";
+  }
+}
+async function guardarAtleta(id){
+  const b={user_id:id,fecha_competencia:$("a_fecha").value||null,peso_competencia:+$("a_peso").value||null,pasos_objetivo:+$("a_pasos").value||8000,nota:$("a_nota").value.trim()||null,updated_at:new Date().toISOString()};
+  const {error}=await sb.from("atletas").upsert(b,{onConflict:"user_id"});
+  $("aMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Guardado.";
 }
 async function guardarObj(id){
   $("saveMsg").textContent="Guardando…";
