@@ -535,6 +535,16 @@ async function verCliente(id){
       <iframe id="inf_prev" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
     </div></div>`;
 
+  // Plan de alimentación (PDF, mismo diseño de los informes)
+  h+=`<div class="card"><h2 style="margin-top:0">Plan de alimentación</h2>
+    <div class="muted" style="margin-bottom:6px">Genera el plan de comidas del cliente (alimentos, gramos, macros y guía por IA) con el diseño de los informes. Revísalo aquí al instante; puedes verlo/descargarlo como PDF o marcarlo como enviado.</div>
+    <button onclick="generarPlanAlim('${id}')">Generar / revisar plan</button>
+    <button class="ghost" onclick="descargarPlanPDF()">Ver / descargar PDF</button>
+    <button class="ghost" onclick="marcarPlanEnviado('${id}')">Marcar enviado</button>
+    <span id="planMsg" class="muted"></span>
+    <iframe id="plan_prev" class="hide" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
+  </div>`;
+
   $("detalle").innerHTML=h;
   recetaRender();rcInit();hacerColapsables();
 }
@@ -641,6 +651,23 @@ async function publicarInforme(id){
   INF_HTML=data.html||INF_HTML;infPreview();$("infMsg").textContent="✓ Publicado. Al cliente le llegó la notificación.";
 }
 function descargarInformePDF(){if(!INF_HTML){alert("Genera el informe primero.");return;}const w=window.open("","_blank");w.document.write(INF_HTML);w.document.close();setTimeout(()=>w.print(),600);}
+
+// ---------- Plan de alimentación ----------
+let PLAN_HTML=null;
+async function generarPlanAlim(id){
+  $("planMsg").textContent="Generando plan (comidas + guía por IA)…";
+  const {data,error}=await sb.functions.invoke("plan-alimentacion",{body:{action:"generar",user_id:id}});
+  if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
+  PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}
+  $("planMsg").textContent="✓ Generado";
+}
+function descargarPlanPDF(){if(!PLAN_HTML){alert("Genera el plan primero.");return;}const w=window.open("","_blank");w.document.write(PLAN_HTML);w.document.close();setTimeout(()=>w.print(),600);}
+async function marcarPlanEnviado(id){
+  $("planMsg").textContent="Marcando…";
+  const {data,error}=await sb.functions.invoke("plan-alimentacion",{body:{action:"enviar",user_id:id}});
+  if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
+  $("planMsg").textContent="✓ "+(data.nota||"Marcado como enviado.");
+}
 
 // Constructor de recetas interactivo (a partir de alimentos ya registrados).
 function recetaAdd(i){const a=REGALIM[i];if(a){RECETA.push({...a});recetaRender();}}
