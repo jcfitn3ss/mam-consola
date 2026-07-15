@@ -907,13 +907,33 @@ function verEjercicios(){
 }
 const FATCOL={alta:"#e23b3b",media:"#e0b84a",baja:"#5fd07f"};
 function fatPill(e){const f=e.fatiga||'media';return `<span class="pill" style="background:${FATCOL[f]||'#444'};color:#000;font-weight:700">${esc(f)}</span>${e.estiramiento?' <span class="pill" style="background:#3a2a5a;color:#cdbff0">estira</span>':''}`;}
+let EJ_EDIT=null;
 function renderEj(){
   const q=($("x_buscar")?$("x_buscar").value:"").toLowerCase();
   const ff=($("x_ffat")?$("x_ffat").value:"");const fe=($("x_festir")?$("x_festir").value:"");
   const list=EJ.filter(e=>(!q||(e.nombre||"").toLowerCase().includes(q))&&(!ff||(e.fatiga||'media')===ff)&&(!fe||(fe==="si"?!!e.estiramiento:!e.estiramiento)));
   const selFat=e=>`<select onchange="setClasif('${e.id}','fatiga',this.value)" style="padding:3px;font-size:12px;width:auto;margin:0">${['baja','media','alta'].map(f=>`<option value="${f}" ${(e.fatiga||'media')===f?'selected':''}>${f}</option>`).join("")}</select>`;
   const selEst=e=>`<select onchange="setClasif('${e.id}','estiramiento',this.value)" style="padding:3px;font-size:12px;width:auto;margin:0"><option value="no" ${!e.estiramiento?'selected':''}>sin estir.</option><option value="si" ${e.estiramiento?'selected':''}>estira</option></select>`;
-  $("ejlist").innerHTML=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Fatiga</th><th>Estiramiento</th><th>Video</th></tr>${list.map(e=>`<tr><td>${esc(cap(e.nombre))}</td><td class="muted">${esc(e.grupo||'')}</td><td>${selFat(e)}</td><td>${selEst(e)}</td><td>${e.video_url?'✅':'<span class="muted">—</span>'} <button class="sm ghost" onclick="editVid('${e.id}')">${e.video_url?'video':'+ link'}</button> <button class="sm ghost" onclick="borrarEjercicio('${e.id}')" title="Borrar de la biblioteca">🗑</button></td></tr>`).join("")}</table>`;
+  // Formulario de edición inline (TODOS los campos) para un ejercicio.
+  const editForm=e=>`<tr><td colspan="6" style="background:#14141b">
+     <div class="row"><div style="flex:2"><label class="lbl">Nombre</label><input id="ee_nom" value="${esc(e.nombre||'')}"></div></div>
+     <div class="row"><div><label class="lbl">Grupo</label><select id="ee_grupo">${GRUPOS.map(g=>`<option ${g===e.grupo?'selected':''}>${g}</option>`).join("")}</select></div><div><label class="lbl">Equipo</label><select id="ee_eq">${EQUIPOS.map(x=>`<option ${x===(e.equipo||'')?'selected':''}>${x}</option>`).join("")}</select></div></div>
+     <div class="row"><div><label class="lbl">Reps min</label><input id="ee_rmin" type="number" value="${e.rep_min??8}"></div><div><label class="lbl">Reps max</label><input id="ee_rmax" type="number" value="${e.rep_max??12}"></div><div><label class="lbl">RIR</label><input id="ee_rir" type="number" value="${e.rir??2}"></div></div>
+     <label class="lbl">Enlace de YouTube</label><input id="ee_vid" value="${esc(e.video_url||'')}">
+     <div style="margin-top:8px"><button onclick="guardarEjEdit('${e.id}')">Guardar cambios</button> <button class="ghost" onclick="EJ_EDIT=null;renderEj()">Cancelar</button> <span id="eeMsg" class="muted"></span></div>
+   </td></tr>`;
+  $("ejlist").innerHTML=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Reps · RIR</th><th>Fatiga</th><th>Estir.</th><th>Acciones</th></tr>${list.map(e=>`<tr><td>${esc(cap(e.nombre))}</td><td class="muted">${esc(e.grupo||'')}</td><td class="muted">${e.rep_min??'-'}-${e.rep_max??'-'} · RIR ${e.rir??'-'}</td><td>${selFat(e)}</td><td>${selEst(e)}</td><td><button class="sm ghost" onclick="EJ_EDIT=(EJ_EDIT==='${e.id}'?null:'${e.id}');renderEj()">✏️ Editar</button> <button class="sm ghost" onclick="editVid('${e.id}')">${e.video_url?'🎬':'+ link'}</button> <button class="sm ghost" onclick="borrarEjercicio('${e.id}')" title="Borrar">🗑</button></td></tr>${EJ_EDIT===String(e.id)?editForm(e):''}`).join("")}</table>`;
+}
+// Guarda TODOS los campos editables de un ejercicio (solo los que creó este entrenador; RLS).
+async function guardarEjEdit(id){
+  const nom=$("ee_nom").value.trim();if(!nom){$("eeMsg").textContent="Falta el nombre.";return;}
+  const patch={nombre:nom,grupo:$("ee_grupo").value,equipo:$("ee_eq").value,rep_min:+$("ee_rmin").value||8,rep_max:+$("ee_rmax").value||12,rir:+$("ee_rir").value||2,video_url:$("ee_vid").value.trim()||null};
+  $("eeMsg").textContent="Guardando…";
+  const {data,error}=await sb.from("ejercicios").update(patch).eq("id",id).select();
+  if(error){$("eeMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  if(!data||!data.length){$("eeMsg").textContent="Solo puedes editar los ejercicios que creaste tú.";return;}
+  const e=EJ.find(x=>String(x.id)===String(id));if(e)Object.assign(e,patch);
+  EJ.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));EJ_EDIT=null;renderEj();
 }
 // Cambiar fatiga/estiramiento de un ejercicio (guarda al instante).
 async function setClasif(id,campo,valor){
