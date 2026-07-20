@@ -279,7 +279,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -304,6 +304,7 @@ async function verCliente(id){
     sb.from("series").select("ejercicio_id,peso,reps,rir,rpe,semana,fecha").eq("user_id",id),
     sb.from("comidas").select("fecha,kcal").eq("user_id",id).gte("fecha",hace(35)),
     sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:true}),
+    sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
   ]);
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
@@ -634,6 +635,12 @@ async function verCliente(id){
   AN={series:(serHist.data||[]),inicio:(ini||null),sem:(sem||12),ejById:{},grById:{}};
   EJ.forEach(e=>{AN.ejById[String(e.id)]=cap(e.nombre||'');AN.grById[String(e.id)]=e.grupo||'';});
   h+=anCardHTML();
+
+  // ===== Calendario de atleta =====
+  CAL=cal.data||null;
+  CAL_CTX={userId:id,nombre:nom,pesoActual:(peso!=null?+peso:null),kcalActual:(prom?prom.k:null),
+    volRutina:(()=>{const v={};((RUT&&RUT.dias)||[]).forEach(d=>{(d.orden||[]).forEach(it=>{const g=gmap[String(it.id)]||it.g||'Otros';const s=+it.s||0;if(s>0)v[g]=(v[g]||0)+s;});});return v;})()};
+  h+=calCardHTML();
 
   $("detalle").innerHTML=h;
   recetaRender();rcInit();hacerColapsables();
@@ -1219,6 +1226,68 @@ async function generarConsolaDigest(){
   if(data&&data.n===0){if(el)el.textContent="Sin notas nuevas para analizar todavía.";return;}
   verInterno();
 }
+
+// ===== Calendario de atleta =====
+let CAL=null,CAL_CTX={};
+const CAL_MUS=['Pectoral','Espalda','Hombros','Bíceps','Tríceps','Abdomen','Cuádriceps','Aductor','Glúteo medio','Glúteo','Isquiosurales','Pantorrilla'];
+function calDefault(){return {anio:new Date().getFullYear(),objetivo_general:'',fecha_show:'',fases:[{nombre:'Holding',color:'#4c8dff'},{nombre:'Volumen',color:'#22c55e'},{nombre:'Definición',color:'#e23b3b'},{nombre:'Peak Week',color:'#f59e0b'}],semanas:[],volumen:{}};}
+function calCur(){if(!CAL||!CAL.semanas)return -1;const t=hace(0);return CAL.semanas.findIndex(s=>s.ini&&s.fin&&t>=s.ini&&t<=s.fin);}
+function calFaseColor(n){const f=(CAL.fases||[]).find(x=>x.nombre===n);return f?f.color:null;}
+function calCardHTML(){return `<div class="card"><h2 style="margin-top:0">Calendario de atleta</h2><div class="muted" style="font-size:12px;margin-bottom:6px">Reemplaza el Excel: timeline por semanas con fases de color, comparativo automático de la semana actual y volumen semanal. El usuario lo ve desde su perfil.</div><div id="calCard">${calInnerHTML()}</div></div>`;}
+function calRefresh(){const el=$("calCard");if(el)el.innerHTML=calInnerHTML();}
+function calInnerHTML(){
+  if(!CAL)CAL=calDefault();
+  CAL.fases=CAL.fases||[];CAL.semanas=CAL.semanas||[];CAL.volumen=CAL.volumen||{};
+  const cur=calCur();
+  const faseOpts=s=>['',...CAL.fases.map(f=>f.nombre)].map(n=>`<option value="${esc(n)}" ${s.fase===n?'selected':''}>${esc(n||'—')}</option>`).join('');
+  let h=`<div class="row">
+    <div><label class="lbl">Año del proceso</label><input type="number" value="${CAL.anio||''}" onchange="CAL.anio=+this.value"></div>
+    <div><label class="lbl">Fecha del show/evento</label><input type="date" value="${CAL.fecha_show||''}" onchange="CAL.fecha_show=this.value"></div>
+  </div>
+  <label class="lbl">Objetivo general (texto libre, personalizado)</label>
+  <textarea rows="2" style="width:100%;box-sizing:border-box" onchange="CAL.objetivo_general=this.value" placeholder="Escríbelo para este atleta…">${esc(CAL.objetivo_general||'')}</textarea>`;
+  h+=`<h3>Fases (colores del timeline)</h3><div>`;
+  CAL.fases.forEach((f,i)=>{h+=`<span style="display:inline-flex;align-items:center;gap:4px;margin:0 8px 6px 0"><input type="color" value="${f.color||'#888888'}" onchange="CAL.fases[${i}].color=this.value;calRefresh()" style="width:28px;height:24px;padding:0;border:none;background:none"><input value="${esc(f.nombre||'')}" onchange="CAL.fases[${i}].nombre=this.value;calRefresh()" style="width:120px" placeholder="Fase"><button class="sm ghost" onclick="CAL.fases.splice(${i},1);calRefresh()">×</button></span>`;});
+  h+=`</div><button class="sm ghost" onclick="CAL.fases.push({nombre:'Nueva',color:'#888888'});calRefresh()">+ Fase</button>`;
+  h+=`<h3>Timeline anual por semanas</h3>
+    <div class="row" style="align-items:flex-end;margin-bottom:6px">
+      <div><label class="lbl">Desde (inicio)</label><input id="cal_gen_ini" type="date"></div>
+      <div><label class="lbl"># semanas</label><input id="cal_gen_n" type="number" value="16" style="width:80px"></div>
+      <div><button class="sm" onclick="calGenerar()">Generar semanas</button></div>
+      <div><button class="sm ghost" onclick="calAddSemana()">+ Semana</button></div>
+    </div>`;
+  h+=`<div style="overflow-x:auto"><table style="font-size:12px;min-width:840px;width:100%"><tr><th>Sem</th><th>Fecha ini</th><th>Fecha fin</th><th>Fase</th><th>Peso obj</th><th>Kcal obj</th><th>Notas</th><th></th></tr>`;
+  CAL.semanas.forEach((s,i)=>{const col=calFaseColor(s.fase);const hi=i===cur;h+=`<tr style="background:${col?col+'22':'transparent'};${hi?'outline:2px solid var(--rojo);outline-offset:-2px':''}">
+    <td><input value="${esc(String(s.semana||i+1))}" onchange="CAL.semanas[${i}].semana=this.value" style="width:42px;text-align:center"></td>
+    <td><input type="date" value="${s.ini||''}" onchange="CAL.semanas[${i}].ini=this.value;calRefresh()" style="width:132px"></td>
+    <td><input type="date" value="${s.fin||''}" onchange="CAL.semanas[${i}].fin=this.value;calRefresh()" style="width:132px"></td>
+    <td><select onchange="CAL.semanas[${i}].fase=this.value;calRefresh()">${faseOpts(s)}</select></td>
+    <td><input type="number" value="${s.peso_obj!=null?s.peso_obj:''}" onchange="CAL.semanas[${i}].peso_obj=this.value===''?null:+this.value" style="width:62px;text-align:center"></td>
+    <td><input type="number" value="${s.kcal_obj!=null?s.kcal_obj:''}" onchange="CAL.semanas[${i}].kcal_obj=this.value===''?null:+this.value" style="width:72px;text-align:center"></td>
+    <td><input value="${esc(s.notas||'')}" onchange="CAL.semanas[${i}].notas=this.value" style="width:100%;min-width:120px"></td>
+    <td><button class="sm ghost" onclick="CAL.semanas.splice(${i},1);calRefresh()">×</button></td></tr>`;});
+  h+=`</table></div>`;
+  h+=`<h3>Semana actual — comparativo</h3>`;
+  if(cur>=0)h+=calComparativo(CAL.semanas[cur]);
+  else h+=`<div class="muted" style="font-size:12px">Hoy no cae en ninguna semana del timeline (genera o ajusta las fechas).</div>`;
+  h+=`<h3>Volumen de entrenamiento semanal (series por músculo)</h3>`;
+  h+=`<div class="muted" style="font-size:11px;margin-bottom:4px">Edítalo o usa "Traer de la rutina" para prellenar desde la rutina asignada.</div><button class="sm ghost" onclick="calVolAuto()" style="margin-bottom:6px">Traer de la rutina</button>`;
+  let tot=0,rows='';CAL_MUS.forEach(m=>{const v=CAL.volumen[m]!=null?CAL.volumen[m]:'';if(v!=='')tot+=+v||0;rows+=`<tr><td>${m}</td><td><input type="number" value="${v}" onchange="CAL.volumen['${m}']=this.value===''?null:+this.value;calVolTotal()" style="width:70px;text-align:center"></td></tr>`;});
+  h+=`<table style="font-size:12px;width:100%"><tr><th>Músculo</th><th>Series/sem</th></tr>${rows}<tr><td><b>Total</b></td><td id="calVolTot"><b>${tot}</b></td></tr></table>`;
+  h+=`<div style="margin-top:12px"><button onclick="calSave()">Guardar calendario</button> <button class="ghost" onclick="calDuplicar()">Duplicar a otro usuario…</button> <span id="calMsg" class="muted"></span></div>`;
+  return h;
+}
+function calComparativo(s){
+  const pa=CAL_CTX.pesoActual,ka=CAL_CTX.kcalActual;
+  const row=(lbl,obj,act,u)=>{const o=(obj!=null&&obj!=='')?+obj:null;const a=act!=null?Math.round(act*10)/10:null;let dif='—',est='—',col='#888';if(o!=null&&a!=null){const d=Math.round((a-o)*10)/10;dif=(d>0?'+':'')+d+' '+u;const tol=u==='kg'?0.4:80;if(Math.abs(d)<=tol){est='En objetivo';col='#22c55e';}else if(d>0){est='Por encima';col='#e23b3b';}else{est='Por debajo';col='#4c8dff';}}return `<tr><td>${lbl}</td><td>${o!=null?o+' '+u:'—'}</td><td>${a!=null?a+' '+u:'—'}</td><td>${dif}</td><td style="color:${col};font-weight:700">${est}</td></tr>`;};
+  return `<table style="font-size:12px;width:100%"><tr><th>Métrica</th><th>Objetivo</th><th>Actual</th><th>Diferencia</th><th>Estado</th></tr>${row('Peso (kg)',s.peso_obj,pa,'kg')}${row('Kcal diarias',s.kcal_obj,ka,'kcal')}</table>`;
+}
+function calVolTotal(){let t=0;CAL_MUS.forEach(m=>{t+=+CAL.volumen[m]||0;});const el=$("calVolTot");if(el)el.innerHTML='<b>'+t+'</b>';}
+function calVolAuto(){const map={Pecho:'Pectoral',Espalda:'Espalda',Hombro:'Hombros','Bíceps':'Bíceps','Tríceps':'Tríceps',Core:'Abdomen','Cuádriceps':'Cuádriceps','Femoral/Glúteo':'Glúteo',Pantorrilla:'Pantorrilla'};const v={};Object.keys(CAL_CTX.volRutina||{}).forEach(g=>{const m=map[g];if(m)v[m]=(v[m]||0)+CAL_CTX.volRutina[g];});CAL.volumen=Object.assign({},CAL.volumen,v);calRefresh();}
+function calGenerar(){const ini=$("cal_gen_ini").value,n=+$("cal_gen_n").value||12;if(!ini){alert('Elige la fecha de inicio.');return;}CAL.semanas=[];let d=new Date(ini+'T00:00:00');for(let i=0;i<n;i++){const f0=new Date(d),f1=new Date(d);f1.setDate(f1.getDate()+6);CAL.semanas.push({semana:i+1,ini:f0.toISOString().slice(0,10),fin:f1.toISOString().slice(0,10),fase:'',peso_obj:null,kcal_obj:null,notas:''});d.setDate(d.getDate()+7);}calRefresh();}
+function calAddSemana(){CAL.semanas=CAL.semanas||[];CAL.semanas.push({semana:CAL.semanas.length+1,ini:'',fin:'',fase:'',peso_obj:null,kcal_obj:null,notas:''});calRefresh();}
+async function calSave(){const row={user_id:CAL_CTX.userId,anio:CAL.anio||null,objetivo_general:CAL.objetivo_general||null,fecha_show:CAL.fecha_show||null,fases:CAL.fases||[],semanas:CAL.semanas||[],volumen:CAL.volumen||{},updated_at:new Date().toISOString()};const {error}=await sb.from("calendario_atleta").upsert(row,{onConflict:"user_id"});$("calMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Calendario guardado.";}
+async function calDuplicar(){const dest=prompt('user_id del usuario destino (cópialo de la lista de clientes):');if(!dest)return;const row={user_id:dest.trim(),anio:CAL.anio||null,objetivo_general:CAL.objetivo_general||null,fecha_show:CAL.fecha_show||null,fases:CAL.fases||[],semanas:CAL.semanas||[],volumen:CAL.volumen||{},updated_at:new Date().toISOString()};const {error}=await sb.from("calendario_atleta").upsert(row,{onConflict:"user_id"});$("calMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:("✓ Duplicado a "+esc(dest.trim())+". Ábrelo desde su perfil para ajustar fechas.");}
 
 // ===== Análisis de entreno (gráficas SVG, tema oscuro) =====
 const AN_COLORS=['#e23b3b','#4c8dff','#22c55e','#f59e0b','#a855f7','#14b8a6','#ec4899'];
