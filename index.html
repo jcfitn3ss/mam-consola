@@ -805,27 +805,33 @@ function editorRutinaHTML(){
     const items=d.orden||[];
     h+=`<div style="margin:10px 0"><b>${esc(d.nombre||('Día '+(di+1)))}</b>`;
     if(items.length){
-      // Grid real: ejercicio | series | r.mín | r.máx | RIR | técnica | etiquetas | ×
-      const GRID='display:grid;grid-template-columns:minmax(300px,1fr) 70px 70px 70px 70px 140px 160px 40px;gap:8px;align-items:center';
+      // Tabla real: ejercicio | series | reps (mín–máx) | RIR | técnica | etiquetas | ×
+      const GRID='display:grid;grid-template-columns:minmax(280px,1fr) 66px 122px 60px 130px 150px 36px;gap:8px;align-items:center';
       const NUM='width:100%;box-sizing:border-box;text-align:center;margin:0';
+      const SMALL='width:46px;box-sizing:border-box;text-align:center;margin:0';
       const SEL='width:100%;min-width:0;margin:0;text-overflow:ellipsis;overflow:hidden;white-space:nowrap';
-      let inner=`<div style="${GRID};font-size:11px;color:var(--muted);padding:0 2px 4px"><span>Ejercicio</span><span style="text-align:center">Series</span><span style="text-align:center">R.mín</span><span style="text-align:center">R.máx</span><span style="text-align:center">RIR</span><span style="text-align:center">Técnica</span><span>Etiquetas</span><span></span></div>`;
+      const HEAD=`${GRID};font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;padding:8px;background:var(--card2);border-bottom:1px solid var(--line)`;
+      let inner=`<div style="${HEAD}"><span>Ejercicio</span><span style="text-align:center">Series</span><span style="text-align:center">Reps (mín–máx)</span><span style="text-align:center">RIR</span><span style="text-align:center">Técnica</span><span>Etiquetas</span><span></span></div>`;
       items.forEach((it,ii)=>{
         const tk=(RUT.tecnicas||{})[di+"|"+it.id]||"normal";
         const ex=EJ.find(e=>String(e.id)===String(it.id))||{};
-        inner+=`<div style="${GRID};margin-top:8px">
+        const bg=ii%2?'transparent':'rgba(255,255,255,.03)';
+        inner+=`<div style="${GRID};padding:7px 8px;border-bottom:1px solid var(--line);background:${bg}">
           <select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="${SEL}">${opcionesEj(it.id,it.g)}</select>
           <input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="${NUM}">
-          <input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="${NUM}">
-          <input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="${NUM}">
-          <input class="rutRir" type="number" placeholder="RIR" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="${NUM}">
+          <div style="display:flex;align-items:center;justify-content:center;gap:5px">
+            <input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="${SMALL}">
+            <span style="color:var(--muted)">–</span>
+            <input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="${SMALL}">
+          </div>
+          <input class="rutRir" type="number" placeholder="—" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="${NUM}">
           <select data-d="${di}" data-i="${ii}" class="rutTec" style="width:100%;min-width:0;margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select>
           <span style="font-size:11px;text-align:left;overflow:hidden;white-space:nowrap">${fatPill(ex)}</span>
           <button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:4px 6px;margin:0">×</button>
         </div>`;
       });
-      // En pantallas angostas: scroll horizontal del bloque, sin romper la alineación.
-      h+=`<div style="overflow-x:auto;margin:4px 0"><div style="min-width:960px">${inner}</div></div>`;
+      // Contenedor con borde + scroll horizontal en pantallas angostas.
+      h+=`<div style="overflow-x:auto;margin:6px 0;border:1px solid var(--line);border-radius:8px"><div style="min-width:900px">${inner}</div></div>`;
     } else { h+=`<div class="muted" style="font-size:12px;margin:4px 0">Sin ejercicios en este día.</div>`; }
     h+=`<button class="sm ghost" onclick="rutAgregar(${di})" style="margin-top:2px">+ Agregar ejercicio</button>`;
     h+=`</div>`;
