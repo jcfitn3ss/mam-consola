@@ -917,18 +917,21 @@ async function guardarRutina(id){
   // Reps (mín/máx) y RIR: se guardan en el ejercicio (aplican en la app).
   const ejUpd={};
   document.querySelectorAll(".rutSel").forEach(s=>{
-    const row=s.parentElement, exId=s.value, patch={};
+    const row=s.parentElement, exId=s.value;
+    const ex=EJ.find(x=>String(x.id)===String(exId))||{};
     const rmin=row.querySelector('.rutRmin'), rmax=row.querySelector('.rutRmax'), rir=row.querySelector('.rutRir');
-    if(rmin&&rmin.value!=='')patch.rep_min=parseInt(rmin.value);
-    if(rmax&&rmax.value!=='')patch.rep_max=parseInt(rmax.value);
-    if(rir&&rir.value!=='')patch.rir=parseInt(rir.value);
+    const patch=ejUpd[exId]||{};
+    // Solo actualizamos lo que REALMENTE cambió (evita escrituras inútiles).
+    if(rmin&&rmin.value!==''&&parseInt(rmin.value)!==ex.rep_min)patch.rep_min=parseInt(rmin.value);
+    if(rmax&&rmax.value!==''&&parseInt(rmax.value)!==ex.rep_max)patch.rep_max=parseInt(rmax.value);
+    if(rir&&rir.value!==''&&parseInt(rir.value)!==ex.rir)patch.rir=parseInt(rir.value);
     if(Object.keys(patch).length)ejUpd[exId]=patch;
   });
+  // Todos los ejercicios EN PARALELO (antes era uno por uno = lento).
+  const entries=Object.entries(ejUpd);
+  const res=await Promise.all(entries.map(([id2,patch])=>sb.from("ejercicios").update(patch).eq("id",id2)));
   let nEj=0;
-  for(const id2 of Object.keys(ejUpd)){
-    const {error:e2}=await sb.from("ejercicios").update(ejUpd[id2]).eq("id",id2);
-    if(!e2){const e=EJ.find(x=>String(x.id)===String(id2));if(e)Object.assign(e,ejUpd[id2]);nEj++;}
-  }
+  res.forEach((r,i)=>{if(!r.error){const [id2,patch]=entries[i];const e=EJ.find(x=>String(x.id)===String(id2));if(e)Object.assign(e,patch);nEj++;}});
   $("rutMsg").textContent=`✓ Rutina actualizada (series, técnica y ${nEj} ejercicio(s) con reps/RIR aplicados a la app).`;
 }
 async function toggleAtleta(id,on){
