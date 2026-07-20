@@ -464,8 +464,8 @@ async function verCliente(id){
       else{const asg=RUT.asign||{};Object.keys(asg).forEach(k=>{if(k.indexOf(di+"|")===0)ids.push(...asg[k]);});}
       h+=`<div style="margin:8px 0"><b>${esc(d.nombre||('Día '+(di+1)))}</b>`;
       if(ids.length){
-        h+=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Fatiga</th><th>Reps</th><th>RIR</th><th>Series sem</th></tr>`;
-        ids.forEach(id=>{const e=EJ.find(x=>String(x.id)===String(id))||{};h+=`<tr><td>${esc(cap(e.nombre||'(ejercicio)'))}${e.video_url?' 🎬':''}</td><td class="muted">${esc(e.grupo||'')}</td><td>${fatPill(e)}</td><td>${e.rep_min!=null?e.rep_min+'-'+e.rep_max:'-'}</td><td>${e.rir!=null?e.rir:'-'}</td><td><b>${serEj[String(id)]||0}</b></td></tr>`;});
+        h+=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Reps</th><th>RIR</th><th>Series sem</th></tr>`;
+        ids.forEach(id=>{const e=EJ.find(x=>String(x.id)===String(id))||{};h+=`<tr><td>${esc(cap(e.nombre||'(ejercicio)'))}${e.video_url?' 🎬':''}</td><td class="muted">${esc(e.grupo||'')}</td><td>${e.rep_min!=null?e.rep_min+'-'+e.rep_max:'-'}</td><td>${e.rir!=null?e.rir:'-'}</td><td><b>${serEj[String(id)]||0}</b></td></tr>`;});
         h+=`</table>`;
       }else h+=`<div class="muted" style="font-size:12px">${(d.grupos||[]).join(", ")}</div>`;
       h+=`</div>`;
@@ -800,10 +800,9 @@ function opcionesEj(selId, slotGrupo){
 // Al cambiar el ejercicio, rellena reps/RIR de la fila con los de ese ejercicio.
 function ejChange(sel){
   const e=EJ.find(x=>String(x.id)===String(sel.value))||{};
-  const row=sel.parentElement;
+  const row=sel.closest('tr')||sel.parentElement;
   const set=(cls,v)=>{const el=row.querySelector('.'+cls);if(el)el.value=(v!=null?v:'');};
   set('rutRmin',e.rep_min);set('rutRmax',e.rep_max);set('rutRir',e.rir);
-  const pill=row.querySelector('span');if(pill)pill.innerHTML=fatPill(e);
 }
 function editorRutinaHTML(){
   if(!RUT||!RUT.dias||!RUT.dias.length)return '<div class="muted">Este cliente no tiene rutina con orden de ejercicios.</div>';
@@ -1030,13 +1029,10 @@ function verEjercicios(){
    <input id="x_nom" placeholder="Nombre del ejercicio">
    <div class="row"><div><label class="lbl">Grupo</label><select id="x_grupo">${GRUPOS.map(g=>`<option>${g}</option>`).join("")}</select></div><div><label class="lbl">Equipo</label><select id="x_eq">${EQUIPOS.map(e=>`<option>${e}</option>`).join("")}</select></div></div>
    <div class="row"><div><label class="lbl">Reps min</label><input id="x_rmin" type="number" value="8"></div><div><label class="lbl">Reps max</label><input id="x_rmax" type="number" value="12"></div><div><label class="lbl">RIR</label><input id="x_rir" type="number" value="2"></div></div>
-   <div class="row"><div><label class="lbl">Fatiga que genera</label><select id="x_fat"><option value="baja">Baja</option><option value="media" selected>Media</option><option value="alta">Alta</option></select></div><div><label class="lbl">Énfasis en estiramiento</label><select id="x_estir"><option value="no">No</option><option value="si">Sí (más fatiga/agujetas)</option></select></div></div>
    <label class="lbl">Enlace de YouTube</label><input id="x_vid" placeholder="https://youtu.be/...">
    <button style="margin-top:8px" onclick="addEjercicio()">Agregar a la biblioteca</button> <span id="xMsg" class="muted"></span></div>
    <div class="card"><h2 style="margin-top:0">Biblioteca (${EJ.length})</h2>
-     <div class="muted" style="font-size:12px;margin-bottom:6px">Para subir <b>frecuencia</b> prefiere fatiga <b>baja</b> y sin énfasis de estiramiento (recuperan más rápido). Si detectas mucha fatiga, cambia por una variante de menor fatiga.</div>
      <input id="x_buscar" placeholder="Buscar…" oninput="renderEj()">
-     <div class="row"><div><select id="x_ffat" onchange="renderEj()"><option value="">Toda fatiga</option><option value="baja">Fatiga baja</option><option value="media">Fatiga media</option><option value="alta">Fatiga alta</option></select></div><div><select id="x_festir" onchange="renderEj()"><option value="">Estiramiento: todos</option><option value="si">Enfatiza estiramiento</option><option value="no">Sin énfasis</option></select></div></div>
      <div id="ejlist"></div></div>`;
   $("v-ejercicios").innerHTML=h;renderEj();
 }
@@ -1045,19 +1041,16 @@ function fatPill(e){const f=e.fatiga||'media';return `<span class="pill" style="
 let EJ_EDIT=null;
 function renderEj(){
   const q=($("x_buscar")?$("x_buscar").value:"").toLowerCase();
-  const ff=($("x_ffat")?$("x_ffat").value:"");const fe=($("x_festir")?$("x_festir").value:"");
-  const list=EJ.filter(e=>(!q||(e.nombre||"").toLowerCase().includes(q))&&(!ff||(e.fatiga||'media')===ff)&&(!fe||(fe==="si"?!!e.estiramiento:!e.estiramiento)));
-  const selFat=e=>`<select onchange="setClasif('${e.id}','fatiga',this.value)" style="padding:3px;font-size:12px;width:auto;margin:0">${['baja','media','alta'].map(f=>`<option value="${f}" ${(e.fatiga||'media')===f?'selected':''}>${f}</option>`).join("")}</select>`;
-  const selEst=e=>`<select onchange="setClasif('${e.id}','estiramiento',this.value)" style="padding:3px;font-size:12px;width:auto;margin:0"><option value="no" ${!e.estiramiento?'selected':''}>sin estir.</option><option value="si" ${e.estiramiento?'selected':''}>estira</option></select>`;
+  const list=EJ.filter(e=>(!q||(e.nombre||"").toLowerCase().includes(q)));
   // Formulario de edición inline (TODOS los campos) para un ejercicio.
-  const editForm=e=>`<tr><td colspan="6" style="background:#14141b">
+  const editForm=e=>`<tr><td colspan="4" style="background:#14141b">
      <div class="row"><div style="flex:2"><label class="lbl">Nombre</label><input id="ee_nom" value="${esc(e.nombre||'')}"></div></div>
      <div class="row"><div><label class="lbl">Grupo</label><select id="ee_grupo">${GRUPOS.map(g=>`<option ${g===e.grupo?'selected':''}>${g}</option>`).join("")}</select></div><div><label class="lbl">Equipo</label><select id="ee_eq">${EQUIPOS.map(x=>`<option ${x===(e.equipo||'')?'selected':''}>${x}</option>`).join("")}</select></div></div>
      <div class="row"><div><label class="lbl">Reps min</label><input id="ee_rmin" type="number" value="${e.rep_min??8}"></div><div><label class="lbl">Reps max</label><input id="ee_rmax" type="number" value="${e.rep_max??12}"></div><div><label class="lbl">RIR</label><input id="ee_rir" type="number" value="${e.rir??2}"></div></div>
      <label class="lbl">Enlace de YouTube</label><input id="ee_vid" value="${esc(e.video_url||'')}">
      <div style="margin-top:8px"><button onclick="guardarEjEdit('${e.id}')">Guardar cambios</button> <button class="ghost" onclick="EJ_EDIT=null;renderEj()">Cancelar</button> <span id="eeMsg" class="muted"></span></div>
    </td></tr>`;
-  $("ejlist").innerHTML=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Reps · RIR</th><th>Fatiga</th><th>Estir.</th><th>Acciones</th></tr>${list.map(e=>`<tr><td>${esc(cap(e.nombre))}</td><td class="muted">${esc(e.grupo||'')}</td><td class="muted">${e.rep_min??'-'}-${e.rep_max??'-'} · RIR ${e.rir??'-'}</td><td>${selFat(e)}</td><td>${selEst(e)}</td><td><button class="sm ghost" onclick="EJ_EDIT=(EJ_EDIT==='${e.id}'?null:'${e.id}');renderEj()">✏️ Editar</button> <button class="sm ghost" onclick="editVid('${e.id}')">${e.video_url?'🎬':'+ link'}</button> <button class="sm ghost" onclick="borrarEjercicio('${e.id}')" title="Borrar">🗑</button></td></tr>${EJ_EDIT===String(e.id)?editForm(e):''}`).join("")}</table>`;
+  $("ejlist").innerHTML=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Reps · RIR</th><th>Acciones</th></tr>${list.map(e=>`<tr><td>${esc(cap(e.nombre))}</td><td class="muted">${esc(e.grupo||'')}</td><td class="muted">${e.rep_min??'-'}-${e.rep_max??'-'} · RIR ${e.rir??'-'}</td><td><button class="sm ghost" onclick="EJ_EDIT=(EJ_EDIT==='${e.id}'?null:'${e.id}');renderEj()">✏️ Editar</button> <button class="sm ghost" onclick="editVid('${e.id}')">${e.video_url?'🎬':'+ link'}</button> <button class="sm ghost" onclick="borrarEjercicio('${e.id}')" title="Borrar">🗑</button></td></tr>${EJ_EDIT===String(e.id)?editForm(e):''}`).join("")}</table>`;
 }
 // Guarda TODOS los campos editables de un ejercicio (solo los que creó este entrenador; RLS).
 async function guardarEjEdit(id){
@@ -1080,7 +1073,7 @@ async function setClasif(id,campo,valor){
 async function addEjercicio(){
   const nom=$("x_nom").value.trim();if(!nom){$("xMsg").textContent="Falta el nombre.";return;}
   $("xMsg").textContent="Guardando…";
-  const {data,error}=await sb.from("ejercicios").insert({entrenador_id:MIID,nombre:nom,grupo:$("x_grupo").value,equipo:$("x_eq").value,rep_min:+$("x_rmin").value||8,rep_max:+$("x_rmax").value||12,rir:+$("x_rir").value||2,video_url:$("x_vid").value.trim()||null,fatiga:$("x_fat").value,estiramiento:$("x_estir").value==="si"}).select();
+  const {data,error}=await sb.from("ejercicios").insert({entrenador_id:MIID,nombre:nom,grupo:$("x_grupo").value,equipo:$("x_eq").value,rep_min:+$("x_rmin").value||8,rep_max:+$("x_rmax").value||12,rir:+$("x_rir").value||2,video_url:$("x_vid").value.trim()||null}).select();
   if(error){$("xMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   EJ.push(data[0]);EJ.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));$("xMsg").textContent="✓ Agregado.";$("x_nom").value=$("x_vid").value="";renderEj();
 }
