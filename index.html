@@ -301,7 +301,7 @@ async function verCliente(id){
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
     sb.from("atletas").select("*").eq("user_id",id).maybeSingle(),
     sb.from("especializacion").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("series").select("ejercicio_id,peso,reps,fecha").eq("user_id",id),
+    sb.from("series").select("ejercicio_id,peso,reps,rir,rpe,semana,fecha").eq("user_id",id),
   ]);
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
@@ -605,8 +605,14 @@ async function verCliente(id){
     <iframe id="plan_prev" class="hide" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
   </div>`;
 
+  // ===== Análisis de entreno (gráficas) =====
+  AN={series:(serHist.data||[]),inicio:(ini||null),sem:(sem||12),ejById:{},grById:{}};
+  EJ.forEach(e=>{AN.ejById[String(e.id)]=cap(e.nombre||'');AN.grById[String(e.id)]=e.grupo||'';});
+  h+=anCardHTML();
+
   $("detalle").innerHTML=h;
   recetaRender();rcInit();hacerColapsables();
+  try{anRender();}catch(e){}
 }
 // Hace cada tarjeta del detalle un desplegable (clic en el título) para no verse invasivo.
 function hacerColapsables(){
@@ -1187,6 +1193,113 @@ async function generarConsolaDigest(){
   if(error){if(el)el.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   if(data&&data.n===0){if(el)el.textContent="Sin notas nuevas para analizar todavía.";return;}
   verInterno();
+}
+
+// ===== Análisis de entreno (gráficas SVG, tema oscuro) =====
+const AN_COLORS=['#e23b3b','#4c8dff','#22c55e','#f59e0b','#a855f7','#14b8a6','#ec4899'];
+let AN={series:[],inicio:null,sem:12,ejById:{},grById:{}};
+function anEfectivas(){return (AN.series||[]).filter(s=>(+s.peso>0)&&(+s.reps>0)&&s.fecha);}
+function anSemanaDeFecha(f){if(!AN.inicio||!f)return null;const d=Math.floor((new Date(f+'T00:00:00').getTime()-new Date(AN.inicio+'T00:00:00').getTime())/(7*864e5));return d<0?null:d+1;}
+function epley1RM(p,r){p=+p||0;r=+r||0;return (p<=0||r<=0)?0:p*(1+r/30);}
+function anEjerciciosConDatos(){const c={};anEfectivas().forEach(s=>{const k=String(s.ejercicio_id);c[k]=(c[k]||0)+1;});return Object.keys(c).sort((a,b)=>c[b]-c[a]).map(id=>({id,nombre:AN.ejById[id]||('#'+id.slice(0,6)),n:c[id]}));}
+// Peso por semana del ejercicio en un mesociclo (máx o promedio de efectivas).
+function anCargaSemana(ejId,meso,metrica){
+  const out={};
+  anEfectivas().filter(s=>String(s.ejercicio_id)===String(ejId)).forEach(s=>{const w=anSemanaDeFecha(s.fecha);if(w==null||w<meso.ini||w>meso.fin)return;(out[w]=out[w]||{pesos:[],sets:[]});out[w].pesos.push(+s.peso);out[w].sets.push({peso:+s.peso,reps:+s.reps});});
+  const pts=[];
+  for(let w=meso.ini;w<=meso.fin;w++){const o=out[w];if(!o)continue;const val=metrica==='avg'?(o.pesos.reduce((a,b)=>a+b,0)/o.pesos.length):Math.max(...o.pesos);const best=o.sets.reduce((a,b)=>b.peso>a.peso?b:a,o.sets[0]);pts.push({x:w,y:Math.round(val*10)/10,tip:`Sem ${w} · ${Math.round(val)}kg · ${o.sets.length}×${best.reps}r`});}
+  return pts;
+}
+// Gráfica de líneas SVG. datasets:[{label,color,pts:[{x,y,tip}]}]; xLabels: números de semana.
+function svgChart(datasets,xLabels,yLabel){
+  datasets=(datasets||[]).filter(d=>d.pts&&d.pts.length);
+  const all=datasets.flatMap(d=>d.pts.map(p=>p.y));
+  if(!all.length||!xLabels.length)return '<div class="muted" style="font-size:12px">Aún no hay datos suficientes.</div>';
+  const W=Math.max(340,xLabels.length*70+70),H=230,pl=46,pr=14,pt=14,pb=28;
+  let ymin=Math.min(...all),ymax=Math.max(...all);if(ymin===ymax){ymin-=1;ymax+=1;}const pd=(ymax-ymin)*0.12;ymin-=pd;ymax+=pd;
+  const xs=xLabels.map((_,i)=>pl+(xLabels.length===1?(W-pl-pr)/2:i*((W-pl-pr)/(xLabels.length-1))));
+  const xOf=w=>{const i=xLabels.indexOf(w);return i<0?pl:xs[i];};
+  const yOf=v=>pt+(H-pt-pb)*(1-(v-ymin)/(ymax-ymin));
+  let s=`<svg viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none;height:${H}px;font-family:inherit">`;
+  for(let k=0;k<=4;k++){const v=ymin+(ymax-ymin)*k/4,y=yOf(v);s+=`<line x1="${pl}" y1="${y.toFixed(1)}" x2="${W-pr}" y2="${y.toFixed(1)}" stroke="#2a2a2e"/><text x="${pl-6}" y="${(y+3).toFixed(1)}" fill="#888" font-size="9" text-anchor="end">${Math.round(v)}</text>`;}
+  xLabels.forEach((w,i)=>{s+=`<text x="${xs[i].toFixed(1)}" y="${H-9}" fill="#888" font-size="9" text-anchor="middle">S${w}</text>`;});
+  datasets.forEach((d,di)=>{const col=d.color||AN_COLORS[di%AN_COLORS.length];const path=d.pts.map((p,i)=>`${i?'L':'M'}${xOf(p.x).toFixed(1)},${yOf(p.y).toFixed(1)}`).join(' ');s+=`<path d="${path}" fill="none" stroke="${col}" stroke-width="2"/>`;d.pts.forEach(p=>{s+=`<circle cx="${xOf(p.x).toFixed(1)}" cy="${yOf(p.y).toFixed(1)}" r="3.6" fill="${col}"><title>${esc(p.tip||'')}</title></circle>`;});});
+  s+=`</svg>`;
+  const leg=datasets.map((d,di)=>`<span style="color:${d.color||AN_COLORS[di%AN_COLORS.length]};font-size:11px;margin-right:12px">■ ${esc(d.label||'')}</span>`).join('');
+  return `<div style="overflow-x:auto">${s}</div><div style="margin-top:4px">${leg}</div>`;
+}
+// Δ% por ejercicio (1RM 1ª vs última semana con datos del mesociclo).
+function anDeltas(meso){
+  const byEj={};
+  anEfectivas().forEach(s=>{const w=anSemanaDeFecha(s.fecha);if(w==null||w<meso.ini||w>meso.fin)return;const k=String(s.ejercicio_id),e=epley1RM(s.peso,s.reps);(byEj[k]=byEj[k]||{});if(e>(byEj[k][w]||0))byEj[k][w]=e;});
+  const out=[];
+  Object.keys(byEj).forEach(k=>{const ws=Object.keys(byEj[k]).map(Number).sort((a,b)=>a-b);if(ws.length<2)return;const a=byEj[k][ws[0]],b=byEj[k][ws[ws.length-1]];const pct=a>0?Math.round((b-a)/a*1000)/10:0;out.push({id:k,nombre:AN.ejById[k]||'',grupo:AN.grById[k]||'',pct});});
+  return out.sort((a,b)=>b.pct-a.pct);
+}
+function anTablaDelta(rows){if(!rows.length)return '<div class="muted" style="font-size:12px">Sin datos suficientes.</div>';return `<table style="font-size:12px;width:100%"><tr><th>Ejercicio</th><th>Músculo</th><th>Δ%</th></tr>${rows.map(r=>`<tr><td>${esc(r.nombre)}</td><td class="muted">${esc(r.grupo)}</td><td style="color:${r.pct>0?'#22c55e':'#e23b3b'};font-weight:700">${r.pct>0?'+':''}${r.pct}%</td></tr>`).join('')}</table>`;}
+function anFatiga(meso){
+  const wk={};
+  anEfectivas().forEach(s=>{const w=anSemanaDeFecha(s.fecha);if(w==null||w<meso.ini||w>meso.fin)return;(wk[w]=wk[w]||{rpe:[],rir:[]});if(s.rpe!=null&&s.rpe!=='')wk[w].rpe.push(+s.rpe);if(s.rir!=null&&s.rir!=='')wk[w].rir.push(+s.rir);});
+  const xs=[];for(let w=meso.ini;w<=meso.fin;w++)if(wk[w])xs.push(w);
+  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const rpe={label:'RPE prom',color:'#e23b3b',pts:xs.filter(w=>wk[w].rpe.length).map(w=>({x:w,y:Math.round(avg(wk[w].rpe)*10)/10,tip:`Sem ${w} · RPE ${Math.round(avg(wk[w].rpe)*10)/10}`}))};
+  const rir={label:'RIR prom',color:'#4c8dff',pts:xs.filter(w=>wk[w].rir.length).map(w=>({x:w,y:Math.round(avg(wk[w].rir)*10)/10,tip:`Sem ${w} · RIR ${Math.round(avg(wk[w].rir)*10)/10}`}))};
+  return svgChart([rpe,rir],xs,'');
+}
+function an1RM(meso,keyIds){
+  if(!keyIds||!keyIds.length)return '<div class="muted" style="font-size:12px">Elige al menos un ejercicio clave arriba.</div>';
+  const xs=[];for(let w=meso.ini;w<=meso.fin;w++)xs.push(w);
+  const datasets=keyIds.map((k,i)=>{const byW={};anEfectivas().filter(s=>String(s.ejercicio_id)===String(k)).forEach(s=>{const w=anSemanaDeFecha(s.fecha);if(w==null||w<meso.ini||w>meso.fin)return;const e=epley1RM(s.peso,s.reps);if(e>(byW[w]||0))byW[w]=e;});const pts=xs.filter(w=>byW[w]).map(w=>({x:w,y:Math.round(byW[w]),tip:`Sem ${w} · 1RM ${Math.round(byW[w])}kg`}));return {label:AN.ejById[k]||'',color:AN_COLORS[i%AN_COLORS.length],pts};}).filter(d=>d.pts.length);
+  const xl=xs.filter(w=>datasets.some(d=>d.pts.find(p=>p.x===w)));
+  return svgChart(datasets,xl.length?xl:xs,'kg');
+}
+function anCardHTML(){
+  const ejs=anEjerciciosConDatos();
+  if(!ejs.length)return `<div class="card"><h2 style="margin-top:0">Análisis de entreno</h2><div class="muted">Aún no hay registros de entrenamiento suficientes para analizar.</div></div>`;
+  const ms=mesos(AN.sem),cur=semanaActual(AN.inicio,AN.sem),curMeso=ms.find(m=>cur>=m.ini&&cur<=m.fin)||ms[0];
+  const ejOpts=ejs.map(e=>`<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+  const mesoOpts=ms.map(m=>`<option value="${m.n}" ${m.n===curMeso.n?'selected':''}>Bloque ${m.n} (sem ${m.ini}-${m.fin})</option>`).join('');
+  const key=ejs.slice(0,4).map(e=>e.id);
+  const keyChk=ejs.map(e=>`<label style="font-size:12px;margin-right:12px;white-space:nowrap;display:inline-block"><input type="checkbox" class="an_key" value="${e.id}" ${key.includes(e.id)?'checked':''} onchange="anRender()"> ${esc(e.nombre)}</label>`).join('');
+  return `<div class="card"><h2 style="margin-top:0">Análisis de entreno</h2>
+    <div class="row" style="align-items:flex-end">
+      <div><label class="lbl">Ejercicio</label><select id="an_ej" onchange="anRender()">${ejOpts}</select></div>
+      <div><label class="lbl">Mesociclo</label><select id="an_meso" onchange="anRender()">${mesoOpts}</select></div>
+      <div><label class="lbl">Métrica</label><select id="an_metrica" onchange="anRender()"><option value="max">Peso máximo</option><option value="avg">Promedio efectivas</option></select></div>
+      <div style="flex:0"><label style="font-size:12px;white-space:nowrap"><input type="checkbox" id="an_cmp" onchange="anRender()"> Comparar mesociclos</label></div>
+    </div>
+    <h3 style="margin:10px 0 2px">Progresión de cargas</h3>
+    <div id="an_sum" class="muted" style="font-size:12px;margin-bottom:4px"></div>
+    <div id="an_cargas"></div>
+    <div class="row" style="margin-top:12px">
+      <div style="flex:1;min-width:230px"><h3 style="margin:6px 0">Top — Más progresaron</h3><div id="an_top"></div></div>
+      <div style="flex:1;min-width:230px"><h3 style="margin:6px 0">Foco — Estancados / retroceso</h3><div id="an_foco"></div></div>
+    </div>
+    <h3 style="margin:10px 0 2px">Fatiga (RPE y RIR por semana)</h3>
+    <div id="an_fatiga"></div>
+    <h3 style="margin:10px 0 2px">Progresión 1RM estimado — levantamientos clave</h3>
+    <div style="max-height:76px;overflow:auto;margin-bottom:6px">${keyChk}</div>
+    <div id="an_1rm"></div>
+  </div>`;
+}
+function anRender(){
+  if(!$("an_ej"))return;
+  const ms=mesos(AN.sem);
+  const ejId=$("an_ej").value,mesoN=+$("an_meso").value,metrica=$("an_metrica").value,cmp=$("an_cmp")&&$("an_cmp").checked;
+  const meso=ms.find(m=>m.n===mesoN)||ms[0];
+  let datasets,xLabels;
+  if(cmp){datasets=ms.map((m,i)=>({label:'Bloque '+m.n,color:AN_COLORS[i%AN_COLORS.length],pts:anCargaSemana(ejId,m,metrica).map(p=>({x:p.x-m.ini+1,y:p.y,tip:p.tip}))})).filter(d=>d.pts.length);const maxLen=Math.max(1,...datasets.map(d=>d.pts.length));xLabels=Array.from({length:maxLen},(_,i)=>i+1);}
+  else{const pts=anCargaSemana(ejId,meso,metrica);datasets=[{label:AN.ejById[ejId]||'',color:AN_COLORS[0],pts}];xLabels=[];for(let w=meso.ini;w<=meso.fin;w++)xLabels.push(w);}
+  $("an_cargas").innerHTML=svgChart(datasets,xLabels,'kg');
+  const spts=anCargaSemana(ejId,meso,metrica);
+  if(spts.length>=2){const a=spts[0].y,b=spts[spts.length-1].y,pct=a>0?Math.round((b-a)/a*1000)/10:0;$("an_sum").innerHTML=`Inicial <b>${a} kg</b> · actual <b>${b} kg</b> · <b style="color:${pct>=0?'#22c55e':'#e23b3b'}">${pct>=0?'+':''}${pct}%</b>`;}
+  else $("an_sum").textContent='Aún no hay datos suficientes en este mesociclo.';
+  const deltas=anDeltas(meso);
+  $("an_top").innerHTML=anTablaDelta(deltas.filter(d=>d.pct>0).slice(0,6));
+  $("an_foco").innerHTML=anTablaDelta(deltas.filter(d=>d.pct<=0).sort((a,b)=>a.pct-b.pct).slice(0,6));
+  $("an_fatiga").innerHTML=anFatiga(meso);
+  const keyIds=[...document.querySelectorAll('.an_key:checked')].map(c=>c.value);
+  $("an_1rm").innerHTML=an1RM(meso,keyIds);
 }
 
 // ===== Visor de fotos (lightbox) =====
