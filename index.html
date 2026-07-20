@@ -35,6 +35,18 @@
   .bar>i{display:block;height:100%}
   table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 4px;border-bottom:1px solid #1d1d20;font-size:13px}
   .pill{font-size:11px;padding:1px 7px;border-radius:10px}
+  /* Visor de fotos (lightbox) */
+  .thumb{width:82px;height:82px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer;background:#1d1d20}
+  #lb{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:1000;display:none;align-items:center;justify-content:center}
+  #lb.on{display:flex}
+  #lb .lbWrap{max-width:100vw;max-height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center;touch-action:none}
+  #lb img{max-width:100vw;max-height:100vh;object-fit:contain;user-select:none;-webkit-user-drag:none;will-change:transform}
+  #lb .lbClose{position:fixed;top:12px;right:18px;font-size:34px;color:#fff;cursor:pointer;line-height:1;background:none;border:none;z-index:1002}
+  #lb .lbNav{position:fixed;top:50%;transform:translateY(-50%);font-size:42px;color:#fff;cursor:pointer;background:rgba(0,0,0,.35);border:none;padding:2px 16px;border-radius:10px;z-index:1002}
+  #lb .lbPrev{left:12px}#lb .lbNext{right:12px}
+  #lb .lbCap{position:fixed;bottom:16px;left:0;right:0;text-align:center;color:#fff;font-size:14px;z-index:1002;text-shadow:0 1px 3px #000}
+  #lb .lbSpin{position:fixed;width:44px;height:44px;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:lbspin .8s linear infinite;z-index:1001}
+  @keyframes lbspin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -85,6 +97,14 @@
   </div>
 </div>
 
+<div id="lb">
+  <button class="lbClose" onclick="lbClose()" title="Cerrar (Esc)">×</button>
+  <button class="lbNav lbPrev" onclick="event.stopPropagation();lbGo(-1)" title="Anterior (←)">‹</button>
+  <button class="lbNav lbNext" onclick="event.stopPropagation();lbGo(1)" title="Siguiente (→)">›</button>
+  <div class="lbSpin" id="lbSpin" style="display:none"></div>
+  <div class="lbWrap" id="lbWrap"><img id="lbImg" alt="foto de progreso"></div>
+  <div class="lbCap" id="lbCap"></div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
@@ -498,8 +518,12 @@ async function verCliente(id){
   h+=`<h3>Journal reciente (personal)</h3>`;
   h+=J.length?J.map(j=>`<div style="border-left:2px solid var(--line);padding-left:10px;margin:6px 0"><div class="muted" style="font-size:11px">${esc(j.fecha)}</div>${esc(j.texto)}</div>`).join(""):`<div class="muted">Sin entradas.</div>`;
   // Fotos
-  const F=fts.data||[];h+=`<h3>Fotos comparativas</h3>`;
-  if(F.length){h+=`<div class="row"><div><div class="muted" style="font-size:11px">Primera (${esc(F[0].fecha)})</div>${F[0].url?`<img class="foto" src="${esc(F[0].url)}">`:''}</div>${F.length>1?`<div><div class="muted" style="font-size:11px">Última (${esc(F[F.length-1].fecha)})</div>${F[F.length-1].url?`<img class="foto" src="${esc(F[F.length-1].url)}">`:''}</div>`:''}</div>`;}else h+=`<div class="muted">Sin fotos.</div>`;
+  const F=fts.data||[];window.__fotos=F;h+=`<h3>Fotos comparativas</h3>`;
+  if(F.length){
+    h+=`<div class="row"><div><div class="muted" style="font-size:11px">Primera (${esc(F[0].fecha)})</div>${F[0].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,0)" src="${esc(F[0].url)}">`:''}</div>${F.length>1?`<div><div class="muted" style="font-size:11px">Última (${esc(F[F.length-1].fecha)})</div>${F[F.length-1].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,${F.length-1})" src="${esc(F[F.length-1].url)}">`:''}</div>`:''}</div>`;
+    // Galería completa: todas las fotos, clic para abrir el visor (lightbox).
+    h+=`<div class="muted" style="font-size:11px;margin-top:8px">Todas las fotos (clic para ampliar)</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${F.map((f,i)=>f.url?`<div style="text-align:center"><img class="thumb" onclick="lbOpen(window.__fotos,${i})" src="${esc(f.url)}"><div class="muted" style="font-size:10px;max-width:82px">${esc(f.fecha||'')}${f.tipo?'<br>'+esc(f.tipo):''}</div></div>`:'').join("")}</div>`;
+  } else h+=`<div class="muted">Sin fotos.</div>`;
   h+=`</div>`;
 
   // Macros por día y refeeds (override del objetivo base por fecha)
@@ -737,22 +761,27 @@ function editorRutinaHTML(){
     const items=d.orden||[];
     h+=`<div style="margin:10px 0"><b>${esc(d.nombre||('Día '+(di+1)))}</b>`;
     if(items.length){
-      const GRID='display:grid;grid-template-columns:minmax(140px,2fr) 62px 50px 50px 50px 108px 42px 30px;gap:6px;align-items:center;margin:4px 2px';
-      h+=`<div style="${GRID};font-size:11px;color:var(--muted)"><span>Ejercicio</span><span style="text-align:center">Series</span><span style="text-align:center">R.mín</span><span style="text-align:center">R.máx</span><span style="text-align:center">RIR</span><span style="text-align:center">Técnica</span><span></span><span></span></div>`;
+      // Grid real: ejercicio | series | r.mín | r.máx | RIR | técnica | etiquetas | ×
+      const GRID='display:grid;grid-template-columns:minmax(300px,1fr) 70px 70px 70px 70px 140px 160px 40px;gap:8px;align-items:center';
+      const NUM='width:100%;box-sizing:border-box;text-align:center;margin:0';
+      const SEL='width:100%;min-width:0;margin:0;text-overflow:ellipsis;overflow:hidden;white-space:nowrap';
+      let inner=`<div style="${GRID};font-size:11px;color:var(--muted);padding:0 2px 4px"><span>Ejercicio</span><span style="text-align:center">Series</span><span style="text-align:center">R.mín</span><span style="text-align:center">R.máx</span><span style="text-align:center">RIR</span><span style="text-align:center">Técnica</span><span>Etiquetas</span><span></span></div>`;
       items.forEach((it,ii)=>{
         const tk=(RUT.tecnicas||{})[di+"|"+it.id]||"normal";
         const ex=EJ.find(e=>String(e.id)===String(it.id))||{};
-        h+=`<div style="${GRID}">
-          <select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="min-width:0;margin:0">${opcionesEj(it.id,it.g)}</select>
-          <input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="margin:0;text-align:center">
-          <input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="margin:0;text-align:center">
-          <input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="margin:0;text-align:center">
-          <input class="rutRir" type="number" placeholder="RIR" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="margin:0;text-align:center">
-          <select data-d="${di}" data-i="${ii}" class="rutTec" style="min-width:0;margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select>
-          <span style="font-size:11px;text-align:center;overflow:hidden">${fatPill(ex)}</span>
+        inner+=`<div style="${GRID};margin-top:8px">
+          <select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="${SEL}">${opcionesEj(it.id,it.g)}</select>
+          <input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="${NUM}">
+          <input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="${NUM}">
+          <input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="${NUM}">
+          <input class="rutRir" type="number" placeholder="RIR" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="${NUM}">
+          <select data-d="${di}" data-i="${ii}" class="rutTec" style="width:100%;min-width:0;margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select>
+          <span style="font-size:11px;text-align:left;overflow:hidden;white-space:nowrap">${fatPill(ex)}</span>
           <button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:4px 6px;margin:0">×</button>
         </div>`;
       });
+      // En pantallas angostas: scroll horizontal del bloque, sin romper la alineación.
+      h+=`<div style="overflow-x:auto;margin:4px 0"><div style="min-width:960px">${inner}</div></div>`;
     } else { h+=`<div class="muted" style="font-size:12px;margin:4px 0">Sin ejercicios en este día.</div>`; }
     h+=`<button class="sm ghost" onclick="rutAgregar(${di})" style="margin-top:2px">+ Agregar ejercicio</button>`;
     h+=`</div>`;
@@ -1159,6 +1188,44 @@ async function generarConsolaDigest(){
   if(data&&data.n===0){if(el)el.textContent="Sin notas nuevas para analizar todavía.";return;}
   verInterno();
 }
+
+// ===== Visor de fotos (lightbox) =====
+let LB_F=[],LB_I=0,LB_s=1,LB_tx=0,LB_ty=0,LB_drag=null,LB_touch=null;
+function lbApply(){const im=$("lbImg");if(!im)return;im.style.transform=`translate(${LB_tx}px,${LB_ty}px) scale(${LB_s})`;im.style.cursor=LB_s>1?'grab':'default';}
+function lbRender(){
+  const f=LB_F[LB_I];if(!f)return;
+  LB_s=1;LB_tx=0;LB_ty=0;
+  const im=$("lbImg"),sp=$("lbSpin");
+  sp.style.display="block";im.style.opacity=".25";
+  im.onload=()=>{sp.style.display="none";im.style.opacity="1";lbApply();};
+  im.onerror=()=>{sp.style.display="none";im.style.opacity="1";};
+  im.src=f.url||"";
+  $("lbCap").textContent=(f.fecha||"")+(f.tipo?(" · "+f.tipo):"")+"  ("+(LB_I+1)+"/"+LB_F.length+")";
+  const multi=LB_F.length>1;
+  document.querySelector('#lb .lbPrev').style.display=multi?'block':'none';
+  document.querySelector('#lb .lbNext').style.display=multi?'block':'none';
+  lbApply();
+}
+function lbOpen(list,i){LB_F=(list||[]).filter(x=>x&&x.url);if(!LB_F.length)return;LB_I=Math.max(0,Math.min(LB_F.length-1,i||0));$("lb").classList.add('on');lbRender();}
+function lbClose(){$("lb").classList.remove('on');$("lbImg").src="";}
+function lbGo(d){if(!LB_F.length)return;LB_I=(LB_I+d+LB_F.length)%LB_F.length;lbRender();}
+// clic en fondo (no en la imagen) cierra
+$("lb").addEventListener('click',e=>{if(e.target.id==='lb'||e.target.id==='lbWrap')lbClose();});
+// teclado: Esc cierra, flechas navegan
+document.addEventListener('keydown',e=>{if(!$("lb").classList.contains('on'))return;if(e.key==='Escape')lbClose();else if(e.key==='ArrowRight')lbGo(1);else if(e.key==='ArrowLeft')lbGo(-1);});
+// rueda = zoom
+$("lb").addEventListener('wheel',e=>{if(!$("lb").classList.contains('on'))return;e.preventDefault();LB_s=Math.min(5,Math.max(1,LB_s+(e.deltaY<0?.2:-.2)));if(LB_s===1){LB_tx=0;LB_ty=0;}lbApply();},{passive:false});
+// doble clic = zoom in/out
+$("lbImg").addEventListener('dblclick',e=>{e.preventDefault();LB_s=LB_s>1?1:2.5;if(LB_s===1){LB_tx=0;LB_ty=0;}lbApply();});
+// arrastrar para mover cuando está ampliada
+$("lbImg").addEventListener('mousedown',e=>{if(LB_s<=1)return;e.preventDefault();LB_drag={x:e.clientX-LB_tx,y:e.clientY-LB_ty};$("lbImg").style.cursor='grabbing';});
+window.addEventListener('mousemove',e=>{if(!LB_drag)return;LB_tx=e.clientX-LB_drag.x;LB_ty=e.clientY-LB_drag.y;lbApply();});
+window.addEventListener('mouseup',()=>{if(LB_drag){LB_drag=null;lbApply();}});
+// móvil: deslizar para cambiar, pellizcar para zoom
+function lbDist(t){return Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);}
+$("lb").addEventListener('touchstart',e=>{if(e.touches.length===2)LB_touch={pinch:lbDist(e.touches),s0:LB_s};else if(e.touches.length===1)LB_touch={x:e.touches[0].clientX,y:e.touches[0].clientY,dx:0,tx0:LB_tx,ty0:LB_ty};},{passive:true});
+$("lb").addEventListener('touchmove',e=>{if(!LB_touch)return;if(e.touches.length===2&&LB_touch.pinch){LB_s=Math.min(5,Math.max(1,LB_touch.s0*lbDist(e.touches)/LB_touch.pinch));lbApply();}else if(e.touches.length===1){const dx=e.touches[0].clientX-LB_touch.x,dy=e.touches[0].clientY-LB_touch.y;if(LB_s>1){LB_tx=LB_touch.tx0+dx;LB_ty=LB_touch.ty0+dy;lbApply();}else{LB_touch.dx=dx;}}},{passive:true});
+$("lb").addEventListener('touchend',()=>{if(LB_touch&&LB_s<=1&&Math.abs(LB_touch.dx||0)>60)lbGo(LB_touch.dx<0?1:-1);LB_touch=null;},{passive:true});
 
 init();
 </script>
