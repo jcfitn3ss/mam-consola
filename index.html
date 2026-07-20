@@ -634,6 +634,12 @@ async function verCliente(id){
   // ===== Análisis de entreno (gráficas) =====
   AN={series:(serHist.data||[]),inicio:(ini||null),sem:(sem||12),ejById:{},grById:{}};
   EJ.forEach(e=>{AN.ejById[String(e.id)]=cap(e.nombre||'');AN.grById[String(e.id)]=e.grupo||'';});
+  // ===== Asistente IA (contexto del cliente) =====
+  IA_CTX={userId:id,nombre:nom,peso:(peso!=null?+peso:null),
+    objetivo:{tipo:o.tipo||null,kcal:+o.kcal||null,prot:+o.prot||null,carb:+o.carb||null,fat:+o.fat||null},
+    fase:(plan.fase||null),enfoque:(plan.enfoque||[]),nivel:((per.data&&per.data.nivel)||null),
+    especializacion:(esp.data?{activa:esp.data.activa,objetivo:esp.data.objetivo,series_objetivo:esp.data.series_objetivo,series_resto:esp.data.series_resto}:null)};
+  h+=iaCardHTML();
   h+=anCardHTML();
 
   // ===== Calendario de atleta =====
@@ -1225,6 +1231,52 @@ async function generarConsolaDigest(){
   if(error){if(el)el.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   if(data&&data.n===0){if(el)el.textContent="Sin notas nuevas para analizar todavía.";return;}
   verInterno();
+}
+
+// ===== Asistente IA de la consola =====
+let IA_CTX={},IA_ACC=[];
+function iaCardHTML(){return `<div class="card"><h2 style="margin-top:0">Asistente IA (ajustes rápidos)</h2>
+  <div class="muted" style="font-size:12px;margin-bottom:6px">Escribe en lenguaje natural qué quieres cambiarle a este cliente (calorías, macros, fase/enfoque, refeed, especialización, nivel). La IA propone los cambios y TÚ los aplicas.</div>
+  <textarea id="ia_inp" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: súbele 200 kcal y ponle un refeed el domingo · actívale especialización de espalda · bájalo a definición"></textarea>
+  <div style="margin-top:6px"><button onclick="iaInterpretar()" id="ia_btn">Interpretar</button> <span id="ia_msg" class="muted"></span></div>
+  <div id="ia_out" style="margin-top:8px"></div>
+</div>`;}
+function iaAccionTxt(a){
+  if(a.tipo==='kcal')return `Calorías → ${a.kcal} kcal · P${a.prot}/C${a.carb}/G${a.fat}`;
+  if(a.tipo==='objetivo')return `Objetivo → ${a.objetivo_tipo||'—'}${a.fase?(' · fase '+a.fase):''}${a.enfoque&&a.enfoque.length?(' · enfoque '+a.enfoque.join(', ')):''}`;
+  if(a.tipo==='macros_dia')return `Día ${a.fecha} (${a.kind}) → ${a.kcal} kcal · P${a.prot}/C${a.carb}/G${a.fat}`;
+  if(a.tipo==='especializacion')return `Especialización → ${a.activa?('activar '+a.objetivo+' ('+a.series_objetivo+' series, resto '+a.series_resto+')'):'desactivar'}`;
+  if(a.tipo==='nivel')return `Nivel → ${a.nivel}`;
+  if(a.tipo==='nota')return `Nota: ${a.texto}`;
+  return JSON.stringify(a);
+}
+async function iaInterpretar(){
+  const inp=($("ia_inp").value||'').trim();if(!inp){$("ia_msg").textContent="Escribe algo.";return;}
+  $("ia_btn").disabled=true;$("ia_msg").textContent="Pensando…";$("ia_out").innerHTML="";
+  try{
+    const {data,error}=await sb.functions.invoke("consola-ia",{body:{instruccion:inp,contexto:IA_CTX}});
+    if(error||(data&&data.error)){$("ia_msg").textContent=(data&&data.error)||error.message;return;}
+    $("ia_msg").textContent="";IA_ACC=data.acciones||[];
+    let h=`<div style="border:1px solid var(--line);border-radius:8px;padding:10px">`;
+    h+=`<div style="margin-bottom:6px">${esc(data.resumen||'')}</div>`;
+    if(!IA_ACC.length)h+=`<div class="muted" style="font-size:12px">No hay cambios aplicables.</div>`;
+    else{h+=IA_ACC.map(a=>`<div class="fila"><span style="font-size:12px">${esc(iaAccionTxt(a))}</span></div>`).join('');const aplicables=IA_ACC.filter(a=>a.tipo!=='nota').length;if(aplicables)h+=`<button style="margin-top:8px" onclick="iaAplicar()">Aplicar ${aplicables} cambio(s)</button>`;}
+    h+=`</div>`;$("ia_out").innerHTML=h;
+  }catch(e){$("ia_msg").textContent="Error: "+((e&&e.message)||e);}
+  finally{$("ia_btn").disabled=false;}
+}
+async function iaAplicar(){
+  const id=IA_CTX.userId;let ok=0,fail=0;
+  const OBJG={pecho:["Pecho"],dorsal:["Espalda"],espalda_alta:["Espalda"],deltoides:["Hombro"],brazos:["Bíceps","Tríceps"],biceps:["Bíceps"],triceps:["Tríceps"],cuadriceps:["Cuádriceps"],femoral:["Femoral/Glúteo"],gluteo:["Femoral/Glúteo"],pantorrilla:["Pantorrilla"]};
+  for(const a of IA_ACC){try{
+    if(a.tipo==='kcal'){const {error}=await sb.from("objetivos").upsert({user_id:id,kcal:+a.kcal,prot:+a.prot,carb:+a.carb,fat:+a.fat},{onConflict:"user_id"});error?fail++:ok++;}
+    else if(a.tipo==='objetivo'){if(a.objetivo_tipo)await sb.from("objetivos").upsert({user_id:id,tipo:a.objetivo_tipo},{onConflict:"user_id"});const up={};if(a.fase!==undefined)up.fase=a.fase||null;if(a.enfoque)up.enfoque=a.enfoque;if(Object.keys(up).length)await sb.from("planes").upsert({user_id:id,...up},{onConflict:"user_id"});ok++;}
+    else if(a.tipo==='macros_dia'){const {error}=await sb.from("macros_dia").upsert({user_id:id,fecha:a.fecha,tipo:a.kind||'custom',kcal:+a.kcal,prot:+a.prot,carb:+a.carb,fat:+a.fat,origen:'entrenador'},{onConflict:"user_id,fecha"});error?fail++:ok++;}
+    else if(a.tipo==='especializacion'){const hoy=new Date().toISOString().slice(0,10);const {error}=await sb.from("especializacion").upsert({user_id:id,activa:!!a.activa,objetivo:a.objetivo,grupos:OBJG[a.objetivo]||[],series_objetivo:+a.series_objetivo||11,series_resto:+a.series_resto||5,inicio:hoy,ultimo_ajuste:hoy,updated_at:new Date().toISOString()},{onConflict:"user_id"});error?fail++:ok++;}
+    else if(a.tipo==='nivel'){const {error}=await sb.from("perfiles").update({nivel:a.nivel}).eq("user_id",id);error?fail++:ok++;}
+  }catch(e){fail++;}}
+  $("ia_msg").innerHTML=`✓ Aplicado (${ok} cambio(s)${fail?(', '+fail+' con error'):''}). Recargando…`;
+  setTimeout(()=>verCliente(id),900);
 }
 
 // ===== Calendario de atleta =====
