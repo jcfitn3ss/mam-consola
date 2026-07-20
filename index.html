@@ -643,6 +643,12 @@ async function verCliente(id){
   h+=iaCardHTML();
   h+=anCardHTML();
 
+  // ===== Programación por bloques y semanas =====
+  PROG={inicio:ini,semanas:sem,fase:(plan.fase||null),enfoque:(plan.enfoque||[]),
+    esp:(esp.data&&esp.data.activa?{grupos:esp.data.grupos||[],seriesObjetivo:esp.data.series_objetivo,seriesResto:esp.data.series_resto}:null),
+    grupos:(()=>{const set=new Set();((RUT&&RUT.dias)||[]).forEach(d=>(d.grupos||[]).forEach(g=>set.add(g)));return [...set];})()};
+  h+=progCardHTML();
+
   // ===== Calendario de atleta =====
   CAL=cal.data||null;
   CAL_CTX={userId:id,nombre:nom,pesoActual:(peso!=null?+peso:null),kcalActual:(prom?prom.k:null),
@@ -1232,6 +1238,37 @@ async function generarConsolaDigest(){
   if(error){if(el)el.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   if(data&&data.n===0){if(el)el.textContent="Sin notas nuevas para analizar todavía.";return;}
   verInterno();
+}
+
+// ===== Programación por bloques y semanas (motor de volumen portado) =====
+let PROG=null;
+const VOLC={'Cuádriceps':[8,16,20],'Femoral/Glúteo':[6,14,18],'Pecho':[8,16,22],'Espalda':[10,18,22],'Hombro':[8,16,22],'Bíceps':[6,14,20],'Tríceps':[6,14,18],'Core':[0,12,16],'Pantorrilla':[8,12,18],'Cuello':[4,6,10],'Dorsal':[2,3,4],'Aductores':[2,3,4],'Abductores':[2,3,4]};
+const ACTIVC=['Dorsal','Aductores','Abductores','Core'];
+const ENFC={'Pecho':['Pecho'],'Espalda':['Espalda'],'Hombro':['Hombro'],'Brazos':['Bíceps','Tríceps'],'Glúteo/Femoral':['Femoral/Glúteo'],'Cuádriceps':['Cuádriceps'],'Core':['Core']};
+function focoSetC(enf){const s=new Set();(enf||[]).forEach(e=>(ENFC[e]||[]).forEach(g=>s.add(g)));return s;}
+// Series/semana de un grupo en la semana w (misma lógica que src/domain/entrenamiento.ts).
+function seriesSemGrupoW(grupo,w,ctx){
+  const ms=mesos(ctx.semanas),m=ms.find(x=>w>=x.ini&&w<=x.fin)||ms[0];
+  if(ctx.esp){ if((ctx.esp.grupos||[]).includes(grupo))return Math.round(ctx.esp.seriesObjetivo);
+    if(ACTIVC.includes(grupo))return (VOLC[grupo]||[2,3,4])[0];
+    return Math.max(2,Math.round(ctx.esp.seriesResto||5)); }
+  const v=VOLC[grupo]||[6,14,18],foco=focoSetC(ctx.enfoque).has(grupo),bump=x=>foco?Math.round(x*1.2):x;
+  if(ctx.fase==='minicut'||ctx.fase==='cut')return bump(v[0]);
+  const wb=w-m.ini;let s=v[0]+Math.floor(wb/3);s=Math.min(s,v[1]);return bump(Math.round(s));
+}
+function progCardHTML(){
+  const ctx=PROG;if(!ctx||!ctx.grupos||!ctx.grupos.length)return '';
+  const ms=mesos(ctx.semanas),cur=semanaActual(ctx.inicio,ctx.semanas);
+  let h=`<div class="card"><h2 style="margin-top:0">Programación por bloques y semanas</h2><div class="muted" style="font-size:12px;margin-bottom:6px">Series por grupo/semana que la app aplica automáticamente según la prioridad (enfoque${ctx.esp?' + especialización':''}) y la progresión. La semana actual va resaltada; ↓ = descarga (devolume).</div>`;
+  ms.forEach(m=>{
+    const weeks=[];for(let w=m.ini;w<=m.fin;w++)weeks.push(w);
+    const act=cur>=m.ini&&cur<=m.fin;
+    h+=`<div style="margin:10px 0 4px"><b>Bloque ${m.n}</b> <span class="muted" style="font-size:12px">· semanas ${m.ini}-${m.fin}${act?' · actual':''}</span></div>`;
+    h+=`<div style="overflow-x:auto"><table style="font-size:12px;min-width:${140+weeks.length*44}px"><tr><th>Grupo</th>${weeks.map(w=>`<th style="text-align:center;${w===cur?'color:var(--rojo)':''}">S${w}${w===m.deload?'↓':''}</th>`).join('')}</tr>`;
+    ctx.grupos.forEach(g=>{h+=`<tr><td>${esc(g)}</td>${weeks.map(w=>{const s=seriesSemGrupoW(g,w,ctx);return `<td style="text-align:center;${w===cur?'background:rgba(181,23,24,.18);font-weight:700':''}">${s}</td>`;}).join('')}</tr>`;});
+    h+=`</table></div>`;
+  });
+  return h+`</div>`;
 }
 
 // ===== Asistente IA de la consola =====
