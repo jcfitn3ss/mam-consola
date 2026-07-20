@@ -319,7 +319,8 @@ async function verCliente(id){
   const C=(ck.data||[])[0];const J=jr.data||[];
   const pesos=pes.data||[];const peso=pesos[0]?pesos[0].peso:null;const peso0=pesos[pesos.length-1]?pesos[pesos.length-1].peso:null;const dp=(peso!=null&&peso0!=null)?(peso-peso0).toFixed(1):null;
   const md=meds.data||[];const cint=md[0]?md[0].cintura:null;
-  const sue7=(sue.data||[]).slice(0,7);const sprom=sue7.length?(sue7.reduce((a,x)=>a+(+x.horas||0),0)/sue7.length):null;
+  // Promedio de sueño = SOLO sobre las noches REGISTRADas (÷ nº de registros, no ÷ días).
+  const suRec=(sue.data||[]).filter(s=>s.horas!=null);const sNoches=suRec.length;const sprom=sNoches?(suRec.reduce((a,x)=>a+(+x.horas||0),0)/sNoches):null;
   const fila=(l,v,bad)=>`<div class="fila"><span class="muted">${l}</span><b style="${bad?'color:var(--rojo)':''}">${v==null||v===''?'—':esc(v)}</b></div>`;
   const nom=(CLIENTES.find(c=>c.user_id===id)||{}).nombre||"Cliente";
 
@@ -341,7 +342,7 @@ async function verCliente(id){
     rep+=fila("Fatiga",fatAvg!=null?fatAvg+"/10":"—",fatAvg!=null&&+fatAvg>=7);
     rep+=fila("Energía",enAvg!=null?enAvg+"/10":"—",enAvg!=null&&+enAvg<=4);
     rep+=fila("Dolor articular (último)",C&&C.dart!=null?C.dart+"/10":"—",C&&(C.dart||0)>=6);
-    rep+=fila("Sueño (prom. 7d)",sprom!=null?sprom.toFixed(1)+" h":"—",sprom!=null&&sprom<6);
+    rep+=fila(`Sueño (prom. ${sNoches} noche${sNoches===1?"":"s"})`,sprom!=null?sprom.toFixed(1)+" h":"—",sprom!=null&&sprom<6);
   } else rep+=`<div class="muted">Sin check-ins aún.</div>`;
   rep+=`<h3 style="margin:8px 0 2px">Novedades</h3>`;
   let hayNov=false;
@@ -475,7 +476,7 @@ async function verCliente(id){
   h+=`<h3>Fatiga, dolor y sueño (recientes)</h3>`;
   if(C){h+=fila("Último check-in",C.fecha||"—")+fila("Dolor articular",C.dart,(C.dart||0)>=6)+fila("Dolor muscular",C.dmusc)+fila("Energía",C.energia,(C.energia||10)<=3)+fila("Fatiga",C.fatiga,(C.fatiga||0)>=7)+fila("Ánimo",C.animo)+fila("Estrés",C.estres,(C.estres||0)>=7);}
   else h+=`<div class="muted">Sin check-ins.</div>`;
-  h+=fila("Sueño prom. 7d",sprom!=null?`${sprom.toFixed(1)} h`:"—",sprom!=null&&sprom<7);
+  h+=fila(`Sueño prom. (${sNoches} noche${sNoches===1?"":"s"})`,sprom!=null?`${sprom.toFixed(1)} h`:"—",sprom!=null&&sprom<7);
   // Ciclo menstrual (mujeres): fase actual + síntomas para ajustar el plan.
   const cd=cic.data;
   if(cd&&cd.fecha_inicio){const fi=faseCicloJS(cd.fecha_inicio,cd.duracion,cd.periodo);const sens=fi&&(fi.fase==='Menstrual'||fi.fase==='Lútea')&&(cd.sintomas==='moderado'||cd.sintomas==='fuerte');h+=fila("Ciclo menstrual",fi?`${fi.fase} · día ${fi.dia} · síntomas ${cd.sintomas||'leve'}`:`síntomas ${cd.sintomas||'leve'}`,sens);if(sens)h+=`<div class="muted" style="font-size:12px;color:var(--warn)">Fase sensible + síntomas altos: considera sugerir bajar carga o priorizar recuperación.</div>`;}
@@ -805,33 +806,24 @@ function editorRutinaHTML(){
     const items=d.orden||[];
     h+=`<div style="margin:10px 0"><b>${esc(d.nombre||('Día '+(di+1)))}</b>`;
     if(items.length){
-      // Tabla real: ejercicio | series | reps (mín–máx) | RIR | técnica | etiquetas | ×
-      const GRID='display:grid;grid-template-columns:minmax(280px,1fr) 66px 122px 60px 130px 150px 36px;gap:8px;align-items:center';
-      const NUM='width:100%;box-sizing:border-box;text-align:center;margin:0';
-      const SMALL='width:46px;box-sizing:border-box;text-align:center;margin:0';
-      const SEL='width:100%;min-width:0;margin:0;text-overflow:ellipsis;overflow:hidden;white-space:nowrap';
-      const HEAD=`${GRID};font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;padding:8px;background:var(--card2);border-bottom:1px solid var(--line)`;
-      let inner=`<div style="${HEAD}"><span>Ejercicio</span><span style="text-align:center">Series</span><span style="text-align:center">Reps (mín–máx)</span><span style="text-align:center">RIR</span><span style="text-align:center">Técnica</span><span>Etiquetas</span><span></span></div>`;
+      // Tabla HTML real: header y columnas alinean nativamente.
+      let rows='';
       items.forEach((it,ii)=>{
         const tk=(RUT.tecnicas||{})[di+"|"+it.id]||"normal";
         const ex=EJ.find(e=>String(e.id)===String(it.id))||{};
-        const bg=ii%2?'transparent':'rgba(255,255,255,.03)';
-        inner+=`<div style="${GRID};padding:7px 8px;border-bottom:1px solid var(--line);background:${bg}">
-          <select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="${SEL}">${opcionesEj(it.id,it.g)}</select>
-          <input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="${NUM}">
-          <div style="display:flex;align-items:center;justify-content:center;gap:5px">
-            <input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="${SMALL}">
-            <span style="color:var(--muted)">–</span>
-            <input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="${SMALL}">
-          </div>
-          <input class="rutRir" type="number" placeholder="—" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="${NUM}">
-          <select data-d="${di}" data-i="${ii}" class="rutTec" style="width:100%;min-width:0;margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select>
-          <span style="font-size:11px;text-align:left;overflow:hidden;white-space:nowrap">${fatPill(ex)}</span>
-          <button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:4px 6px;margin:0">×</button>
-        </div>`;
+        rows+=`<tr>
+          <td><select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="margin:0;text-overflow:ellipsis">${opcionesEj(it.id,it.g)}</select></td>
+          <td><input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="text-align:center;margin:0"></td>
+          <td><div style="display:flex;align-items:center;justify-content:center;gap:5px"><input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="width:52px;text-align:center;margin:0"><span style="color:var(--muted)">–</span><input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="width:52px;text-align:center;margin:0"></div></td>
+          <td><input class="rutRir" type="number" placeholder="—" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="text-align:center;margin:0"></td>
+          <td><select data-d="${di}" data-i="${ii}" class="rutTec" style="margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select></td>
+          <td style="text-align:center"><button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:4px 6px;margin:0">×</button></td>
+        </tr>`;
       });
-      // Contenedor con borde + scroll horizontal en pantallas angostas.
-      h+=`<div style="overflow-x:auto;margin:6px 0;border:1px solid var(--line);border-radius:8px"><div style="min-width:900px">${inner}</div></div>`;
+      h+=`<div style="overflow-x:auto;margin:6px 0"><table style="min-width:700px">
+        <colgroup><col><col style="width:78px"><col style="width:150px"><col style="width:66px"><col style="width:150px"><col style="width:38px"></colgroup>
+        <thead><tr><th>Ejercicio</th><th style="text-align:center">Series</th><th style="text-align:center">Reps (mín–máx)</th><th style="text-align:center">RIR</th><th style="text-align:center">Técnica</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
     } else { h+=`<div class="muted" style="font-size:12px;margin:4px 0">Sin ejercicios en este día.</div>`; }
     h+=`<button class="sm ghost" onclick="rutAgregar(${di})" style="margin-top:2px">+ Agregar ejercicio</button>`;
     h+=`</div>`;
@@ -917,7 +909,7 @@ async function guardarRutina(id){
   // Reps (mín/máx) y RIR: se guardan en el ejercicio (aplican en la app).
   const ejUpd={};
   document.querySelectorAll(".rutSel").forEach(s=>{
-    const row=s.parentElement, exId=s.value;
+    const row=s.closest('tr')||s.parentElement, exId=s.value;
     const ex=EJ.find(x=>String(x.id)===String(exId))||{};
     const rmin=row.querySelector('.rutRmin'), rmax=row.querySelector('.rutRmax'), rir=row.querySelector('.rutRir');
     const patch=ejUpd[exId]||{};
