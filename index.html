@@ -279,7 +279,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -302,6 +302,8 @@ async function verCliente(id){
     sb.from("atletas").select("*").eq("user_id",id).maybeSingle(),
     sb.from("especializacion").select("*").eq("user_id",id).maybeSingle(),
     sb.from("series").select("ejercicio_id,peso,reps,rir,rpe,semana,fecha").eq("user_id",id),
+    sb.from("comidas").select("fecha,kcal").eq("user_id",id).gte("fecha",hace(35)),
+    sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:true}),
   ]);
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
@@ -525,6 +527,29 @@ async function verCliente(id){
     h+=`<div class="muted" style="font-size:11px;margin-top:8px">Todas las fotos (clic para ampliar)</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${F.map((f,i)=>f.url?`<div style="text-align:center"><img class="thumb" onclick="lbOpen(window.__fotos,${i})" src="${esc(f.url)}"><div class="muted" style="font-size:10px;max-width:82px">${esc(f.fecha||'')}${f.tipo?'<br>'+esc(f.tipo):''}</div></div>`:'').join("")}</div>`;
   } else h+=`<div class="muted">Sin fotos.</div>`;
   h+=`</div>`;
+
+  // ===== Comparativa y gráficas (kcal, peso, sueño, medidas) =====
+  {
+    const fmtF=f=>String(f).slice(5);
+    const kByDay={};(cm30.data||[]).forEach(c=>{if(!c.fecha)return;kByDay[c.fecha]=(kByDay[c.fecha]||0)+(+c.kcal||0);});
+    const kdates=Object.keys(kByDay).sort();
+    const kcalDs=[{label:'Consumido',color:'#e23b3b',pts:kdates.map(f=>({x:f,y:Math.round(kByDay[f]),tip:fmtF(f)+' · '+Math.round(kByDay[f])+' kcal'}))}];
+    if(o.kcal)kcalDs.push({label:'Objetivo',color:'#4c8dff',pts:kdates.map(f=>({x:f,y:+o.kcal,tip:'Objetivo '+o.kcal+' kcal'}))});
+    const pesAsc=[...(pes.data||[])].reverse().filter(p=>p.peso!=null);
+    const pesoDs=[{label:'Peso (kg)',color:'#22c55e',pts:pesAsc.map(p=>({x:p.fecha,y:+p.peso,tip:fmtF(p.fecha)+' · '+p.peso+' kg'}))}];
+    const sueAsc=[...(sue.data||[])].reverse().filter(s=>s.horas!=null);
+    const sueDs=[{label:'Sueño (h)',color:'#a855f7',pts:sueAsc.map(s=>({x:s.fecha,y:+s.horas,tip:fmtF(s.fecha)+' · '+s.horas+' h'}))}];
+    const M=medsAll.data||[];const m0=M[0],m1=M[M.length-1];
+    const medRow=(lbl,k,u)=>{if(!m0)return'';const a=m0[k],b=m1?m1[k]:null;if(a==null&&b==null)return'';const d=(a!=null&&b!=null&&M.length>1)?Math.round((b-a)*10)/10:null;return `<tr><td>${lbl}</td><td>${a!=null?a+' '+u:'—'}</td><td>${b!=null?b+' '+u:'—'}</td><td class="muted">${d==null?'—':(d>0?'+':'')+d+' '+u}</td></tr>`;};
+    h+=`<div class="card"><h2 style="margin-top:0">Comparativa y gráficas</h2>`;
+    h+=`<h3>Calorías (últimos días) vs objetivo</h3>${svgChart(kcalDs,kdates,'kcal',fmtF)}`;
+    h+=`<h3>Peso</h3>${svgChart(pesoDs,pesAsc.map(p=>p.fecha),'kg',fmtF)}`;
+    h+=`<h3>Sueño</h3>${svgChart(sueDs,sueAsc.map(s=>s.fecha),'h',fmtF)}`;
+    h+=`<h3>Medidas — primera vs última</h3>`;
+    if(M.length){h+=`<table style="font-size:12px;width:100%"><tr><th>Medida</th><th>Primera<br><span class="muted" style="font-size:10px">${esc(m0?m0.fecha||'':'')}</span></th><th>Última<br><span class="muted" style="font-size:10px">${esc(m1?m1.fecha||'':'')}</span></th><th>Δ</th></tr>${medRow('Cintura','cintura','cm')}${medRow('Cadera','cadera','cm')}${medRow('Pecho','pecho','cm')}${medRow('Brazo','brazo','cm')}${medRow('Muslo','muslo','cm')}</table>`;}
+    else h+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
+    h+=`</div>`;
+  }
 
   // Macros por día y refeeds (override del objetivo base por fecha)
   {
@@ -1211,7 +1236,8 @@ function anCargaSemana(ejId,meso,metrica){
   return pts;
 }
 // Gráfica de líneas SVG. datasets:[{label,color,pts:[{x,y,tip}]}]; xLabels: números de semana.
-function svgChart(datasets,xLabels,yLabel){
+function svgChart(datasets,xLabels,yLabel,xFmt){
+  xFmt=xFmt||(w=>'S'+w);
   datasets=(datasets||[]).filter(d=>d.pts&&d.pts.length);
   const all=datasets.flatMap(d=>d.pts.map(p=>p.y));
   if(!all.length||!xLabels.length)return '<div class="muted" style="font-size:12px">Aún no hay datos suficientes.</div>';
@@ -1222,7 +1248,7 @@ function svgChart(datasets,xLabels,yLabel){
   const yOf=v=>pt+(H-pt-pb)*(1-(v-ymin)/(ymax-ymin));
   let s=`<svg viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none;height:${H}px;font-family:inherit">`;
   for(let k=0;k<=4;k++){const v=ymin+(ymax-ymin)*k/4,y=yOf(v);s+=`<line x1="${pl}" y1="${y.toFixed(1)}" x2="${W-pr}" y2="${y.toFixed(1)}" stroke="#2a2a2e"/><text x="${pl-6}" y="${(y+3).toFixed(1)}" fill="#888" font-size="9" text-anchor="end">${Math.round(v)}</text>`;}
-  xLabels.forEach((w,i)=>{s+=`<text x="${xs[i].toFixed(1)}" y="${H-9}" fill="#888" font-size="9" text-anchor="middle">S${w}</text>`;});
+  xLabels.forEach((w,i)=>{if(xLabels.length>10&&i%2)return;s+=`<text x="${xs[i].toFixed(1)}" y="${H-9}" fill="#888" font-size="9" text-anchor="middle">${esc(String(xFmt(w)))}</text>`;});
   datasets.forEach((d,di)=>{const col=d.color||AN_COLORS[di%AN_COLORS.length];const path=d.pts.map((p,i)=>`${i?'L':'M'}${xOf(p.x).toFixed(1)},${yOf(p.y).toFixed(1)}`).join(' ');s+=`<path d="${path}" fill="none" stroke="${col}" stroke-width="2"/>`;d.pts.forEach(p=>{s+=`<circle cx="${xOf(p.x).toFixed(1)}" cy="${yOf(p.y).toFixed(1)}" r="3.6" fill="${col}"><title>${esc(p.tip||'')}</title></circle>`;});});
   s+=`</svg>`;
   const leg=datasets.map((d,di)=>`<span style="color:${d.color||AN_COLORS[di%AN_COLORS.length]};font-size:11px;margin-right:12px">■ ${esc(d.label||'')}</span>`).join('');
