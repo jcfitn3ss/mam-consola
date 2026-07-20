@@ -259,7 +259,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -275,11 +275,13 @@ async function verCliente(id){
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("comidas").select("descripcion,kcal,prot,carb,fat").eq("user_id",id).order("id",{ascending:false}).limit(120),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
     sb.from("atletas").select("*").eq("user_id",id).maybeSingle(),
+    sb.from("especializacion").select("*").eq("user_id",id).maybeSingle(),
+    sb.from("series").select("ejercicio_id,peso,reps,fecha").eq("user_id",id),
   ]);
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
@@ -345,6 +347,41 @@ async function verCliente(id){
      <label class="lbl">Nota de preparación (enfoque, recuperación)</label><input id="a_nota" value="${A?esc(A.nota||''):''}">
      <button class="sm" style="margin-top:6px" onclick="guardarAtleta('${id}')">Guardar atleta</button> <span id="aMsg" class="muted"></span>
    </div>`;
+
+  // ---- Nivel + Etapa de especialización (segundo modo de progresión) ----
+  // Nivel SUGERIDO por la velocidad de progresión real (sesiones por subida):
+  //  progresa casi cada sesión = principiante; consistente pero más lento =
+  //  intermedio; le toma varias sesiones subir = avanzado. Lo DECIDE el entrenador.
+  const porEjSes={};
+  (serHist.data||[]).forEach(s=>{const k=String(s.ejercicio_id);const f=s.fecha;if(!f)return;const t=(+s.peso||0)*(+s.reps||0);porEjSes[k]=porEjSes[k]||{};if(t>(porEjSes[k][f]||0))porEjSes[k][f]=t;});
+  const spsArr=[];
+  Object.values(porEjSes).forEach(byF=>{const fx=Object.keys(byF).sort();if(fx.length<4)return;let sub=0;for(let i=1;i<fx.length;i++){if(byF[fx[i]]>byF[fx[i-1]]*1.01)sub++;}spsArr.push(sub>0?(fx.length-1)/sub:fx.length);});
+  spsArr.sort((a,b)=>a-b);
+  const medSps=spsArr.length?spsArr[Math.floor(spsArr.length/2)]:0;
+  function clasNivel(s){if(!s||s<=0)return{n:'—',t:'Aún no hay progresiones suficientes para estimar el nivel.'};const x=s.toFixed(1);if(s<=1.6)return{n:'principiante',t:'Progresa casi cada sesión (~'+x+' sesiones por subida): ganancias de principiante.'};if(s<=3.5)return{n:'intermedio',t:'Progresa consistente pero más lento (~'+x+' sesiones por subida): intermedio.'};return{n:'avanzado',t:'Le toma varias sesiones progresar (~'+x+' sesiones por subida): candidato a especialización.'};}
+  const nv=clasNivel(medSps);
+  const curNivel=(per.data&&per.data.nivel)||'';
+  const E=esp.data;
+  const ESP_OBJ=[["pecho","Pecho"],["dorsal","Dorsal / espalda (dominadas, jalón)"],["espalda_alta","Espalda alta (remo, trapecio)"],["deltoides","Deltoides (hombro)"],["brazos","Brazos (bíceps + tríceps)"],["biceps","Bíceps"],["triceps","Tríceps"],["cuadriceps","Cuádriceps"],["femoral","Femoral / isquios"],["gluteo","Glúteo"],["pantorrilla","Pantorrilla"]];
+  h+=`<h3>Nivel y especialización</h3>`;
+  h+=`<div class="fila"><span class="muted">Nivel sugerido (por progresión real)</span><b>${nv.n}</b></div>`;
+  h+=`<div class="muted" style="font-size:11px;margin-bottom:6px">${nv.t}</div>`;
+  h+=`<label class="lbl">Nivel del atleta (lo decides tú)</label>
+     <select id="e_nivel">${['','principiante','intermedio','avanzado'].map(x=>`<option value="${x}" ${curNivel===x?'selected':''}>${x||'— sin fijar —'}</option>`).join('')}</select>
+     <button class="sm" style="margin-top:6px" onclick="setNivel('${id}')">Guardar nivel</button> <span id="nvMsg" class="muted"></span>`;
+  h+=`<label style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;cursor:pointer">
+       <input type="checkbox" id="e_act" ${E&&E.activa?'checked':''} onchange="document.getElementById('e_campos').style.display=this.checked?'':'none'"> Activar etapa de especialización (avanzados)
+     </label>
+     <div id="e_campos" style="${E&&E.activa?'':'display:none'}">
+       <label class="lbl">Músculo objetivo</label>
+       <select id="e_obj">${ESP_OBJ.map(([k,l])=>`<option value="${k}" ${E&&E.objetivo===k?'selected':''}>${l}</option>`).join('')}</select>
+       <div class="row">
+         <div><label class="lbl">Series/semana objetivo (arranca 10-12)</label><input id="e_so" type="number" value="${E&&E.series_objetivo||11}"></div>
+         <div><label class="lbl">Mantenimiento del resto (4-6)</label><input id="e_sr" type="number" value="${E&&E.series_resto||5}"></div>
+       </div>
+       ${E&&E.activa?`<div class="muted" style="font-size:11px">Bloque ${E.bloque||0} · último ajuste ${E.ultimo_ajuste||'—'} · series actuales ${E.series_objetivo||'—'}. +20% automático cada 4 semanas si el rendimiento sube (techo dinámico).</div>`:'<div class="muted" style="font-size:11px">El grupo objetivo arranca en 10-12 series/semana; el resto baja a mantenimiento. Cada 4 semanas la app sube +20% si el rendimiento sigue subiendo.</div>'}
+       <button class="sm" style="margin-top:6px" onclick="guardarEsp('${id}')">Guardar especialización</button> <span id="eMsg" class="muted"></span>
+     </div>`;
 
   // EDITOR objetivo/plan
   h+=`<h3>Objetivo, calorías y enfoque (editable)</h3>
@@ -831,6 +868,24 @@ async function guardarAtleta(id){
   const b={user_id:id,fecha_competencia:$("a_fecha").value||null,peso_competencia:+$("a_peso").value||null,pasos_objetivo:+$("a_pasos").value||8000,nota:$("a_nota").value.trim()||null,updated_at:new Date().toISOString()};
   const {error}=await sb.from("atletas").upsert(b,{onConflict:"user_id"});
   $("aMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Guardado.";
+}
+async function setNivel(id){
+  const nivel=$("e_nivel").value||null;
+  const {error}=await sb.from("perfiles").update({nivel}).eq("user_id",id);
+  $("nvMsg").textContent=error?error.message:"✓ Nivel guardado.";
+}
+async function guardarEsp(id){
+  const activa=$("e_act").checked;
+  const OBJG={pecho:["Pecho"],dorsal:["Espalda"],espalda_alta:["Espalda"],deltoides:["Hombro"],brazos:["Bíceps","Tríceps"],biceps:["Bíceps"],triceps:["Tríceps"],cuadriceps:["Cuádriceps"],femoral:["Femoral/Glúteo"],gluteo:["Femoral/Glúteo"],pantorrilla:["Pantorrilla"]};
+  const objetivo=$("e_obj").value;const grupos=OBJG[objetivo]||[];
+  const so=+$("e_so").value||11,sr=+$("e_sr").value||5;
+  const hoy=new Date().toISOString().slice(0,10);
+  const {data:cur}=await sb.from("especializacion").select("inicio,activa").eq("user_id",id).maybeSingle();
+  const row={user_id:id,activa,objetivo,grupos,series_objetivo:so,series_resto:sr,updated_at:new Date().toISOString()};
+  // Al ACTIVAR de nuevo (o por primera vez) reiniciamos el ciclo del +20%.
+  if(activa&&(!cur||!cur.activa)){row.inicio=hoy;row.ultimo_ajuste=hoy;row.bloque=0;row.ton_ref=null;}
+  const {error}=await sb.from("especializacion").upsert(row,{onConflict:"user_id"});
+  $("eMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Especialización guardada.";
 }
 async function guardarObj(id){
   $("saveMsg").textContent="Guardando…";
