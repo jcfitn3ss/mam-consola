@@ -568,15 +568,23 @@ async function verCliente(id){
   h+=fila("Peso actual",peso!=null?`${peso} kg${dp!=null?` (${dp>0?'+':''}${dp})`:''}`:"—")+fila("Cintura",cint!=null?`${cint} cm`:"—");
   // PARTE 6 nutrición: preferencias + plan + alerta alimentos
   const pref=(plan.dieta&&"")||"";
-  h+=`<h3>Comidas del cliente (aparecen en su app)</h3>`;
+  h+=`<h3>Plan de comidas del cliente</h3>`;
+  h+=`<div class="muted" style="font-size:12px;margin-bottom:6px">Es lo que el cliente ve en su app (modo Plan), por comida. Puedes generarlo/regenerarlo con IA usando sus calorías, macros y gustos.</div>`;
+  h+=`<button class="sm" onclick="generarPlanComidas('${id}')">Generar plan por comidas (IA)</button> <span id="pcMsg" class="muted" style="font-size:12px"></span>`;
   const PC=(pc.data||[]);
   if(PC.length){
     const ORD={Desayuno:0,Snack:1,Almuerzo:2,Cena:3};
     PC.sort((a,b)=>(a.orden!=null&&b.orden!=null?a.orden-b.orden:((ORD[a.momento]??9)-(ORD[b.momento]??9))));
-    h+=PC.map(x=>`<div class="fila"><span><b>${esc(x.momento||'Comida')}</b> <span class="muted" style="font-size:12px">${esc(x.descripcion||'')}</span></span><span style="white-space:nowrap"><span class="muted" style="font-size:12px">${Math.round(x.kcal||0)} kcal · P${Math.round(x.prot||0)}/C${Math.round(x.carb||0)}/G${Math.round(x.fat||0)}</span> <button class="sm ghost" onclick="borrarComidaPlan('${x.id}','${id}')">×</button></span></div>`).join("");
+    h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">`;
+    h+=PC.map(x=>`<div style="border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${esc(x.momento||'Comida')}</b><span class="muted" style="font-size:11px;white-space:nowrap">${Math.round(x.kcal||0)} kcal · P${Math.round(x.prot||0)}/C${Math.round(x.carb||0)}/G${Math.round(x.fat||0)}</span></div>
+      <div style="font-size:13px;margin-top:4px">${esc(x.descripcion||'')}</div>
+      <button class="sm ghost" style="margin-top:6px;padding:3px 8px" onclick="borrarComidaPlan('${x.id}','${id}')">Quitar</button>
+    </div>`).join("");
+    h+=`</div>`;
     const tot=PC.reduce((a,x)=>({k:a.k+(+x.kcal||0),p:a.p+(+x.prot||0),c:a.c+(+x.carb||0),f:a.f+(+x.fat||0)}),{k:0,p:0,c:0,f:0});
-    h+=`<div class="fila"><b>Total del día</b><b>${Math.round(tot.k)} kcal · P${Math.round(tot.p)}/C${Math.round(tot.c)}/G${Math.round(tot.f)}</b></div>`;
-  } else h+=`<div class="muted">Sin comidas aún. Créalas abajo por momento (desayuno, almuerzo, etc.).</div>`;
+    h+=`<div class="fila" style="margin-top:8px"><b>Total del día</b><b>${Math.round(tot.k)} kcal · P${Math.round(tot.p)}/C${Math.round(tot.c)}/G${Math.round(tot.f)}</b></div>`;
+  } else h+=`<div class="muted" style="margin-top:6px">Sin plan aún. Genera uno con IA (botón de arriba) o créalo abajo por momento.</div>`;
   RECUID=id;
   h+=`<h3>Crear receta / comida (ingredientes + gramaje)</h3>
    <div class="muted" style="font-size:12px;margin-bottom:6px">Escribe los ingredientes y sus gramos; la plataforma calcula kcal y macros automáticamente. Luego guárdala como receta o agrégala al plan del cliente (aparece en su app).</div>
@@ -1072,6 +1080,12 @@ async function guardarAtleta(id){
   $("aMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Guardado.";
 }
 async function setModulo(id,campo,val){const {error}=await sb.from("perfiles").update({[campo]:val}).eq("user_id",id);const m=$("modMsg");if(m)m.textContent=error?("Error: "+error.message):("✓ Guardado");}
+async function generarPlanComidas(id){
+  const m=$("pcMsg");if(m)m.textContent="Generando plan con IA… (unos segundos)";
+  const {data,error}=await sb.functions.invoke("plan-comidas-ia",{body:{target:id}});
+  if(error||(data&&data.error)){if(m)m.textContent="Error: "+((data&&data.error)||error.message);return;}
+  if(m)m.textContent="✓ Plan generado. Recargando…";setTimeout(()=>verCliente(id),700);
+}
 async function toggleEntrenador(clienteId,entrenadorId,el){
   const on=el.classList.contains('on'),m=$("asigMsg");
   let error;
