@@ -324,7 +324,7 @@ async function verCliente(id){
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("comidas").select("descripcion,kcal,prot,carb,fat").eq("user_id",id).order("id",{ascending:false}).limit(120),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,ver_entreno,ver_comida,ver_pasos").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
@@ -1056,8 +1056,10 @@ async function guardarAtleta(id){
 async function setModulo(id,campo,val){const {error}=await sb.from("perfiles").update({[campo]:val}).eq("user_id",id);const m=$("modMsg");if(m)m.textContent=error?("Error: "+error.message):("✓ Guardado");}
 async function setNivel(id){
   const nivel=$("e_nivel").value||null;
-  const {error}=await sb.from("perfiles").update({nivel}).eq("user_id",id);
-  $("nvMsg").textContent=error?error.message:"✓ Nivel guardado.";
+  // Si el entrenador fija un nivel -> lo bloquea (nivel_auto=false). Si lo deja
+  // en blanco -> vuelve a automático por rendimiento (nivel_auto=true).
+  const {error}=await sb.from("perfiles").update({nivel,nivel_auto:!nivel}).eq("user_id",id);
+  $("nvMsg").textContent=error?error.message:(nivel?"✓ Nivel fijado (automático desactivado).":"✓ En automático por rendimiento.");
 }
 async function guardarEsp(id){
   const activa=$("e_act").checked;
