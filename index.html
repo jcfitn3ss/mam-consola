@@ -161,7 +161,7 @@ const TECNICAS=[["normal","Normal"],["biserie","Biserie"],["triserie","Triserie"
 const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bíceps","Tríceps","Core","Pantorrilla","Cuello","Dorsal","Aductores","Abductores"];
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
-let MIID=null,CLIENTES=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
+let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[];
 
 const $=id=>document.getElementById(id);
@@ -189,8 +189,9 @@ function tab(t){["clientes","ejercicios","alimentos","comunidad","sugerencias","
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
-  const {data:p}=await sb.from("perfiles").select("rol").eq("user_id",MIID).maybeSingle();
+  const {data:p}=await sb.from("perfiles").select("rol,es_principal").eq("user_id",MIID).maybeSingle();
   if(!p||p.rol!=="entrenador"){show("login",true);$("loginErr").textContent="Esta cuenta no es de entrenador.";await sb.auth.signOut();return;}
+  MI_PRINCIPAL=!!p.es_principal; // entrenador principal: puede asignar clientes a otros entrenadores
   show("login",false);show("app",true);show("logout",true);
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
   const {data}=await sb.from("perfiles").select("user_id,nombre,rol").order("nombre");CLIENTES=data||[];
@@ -417,6 +418,15 @@ async function verCliente(id){
   const E=esp.data;
   const ESP_OBJ=[["pecho","Pecho"],["dorsal","Dorsal / espalda (dominadas, jalón)"],["espalda_alta","Espalda alta (remo, trapecio)"],["deltoides","Deltoides (hombro)"],["brazos","Brazos (bíceps + tríceps)"],["biceps","Bíceps"],["triceps","Tríceps"],["cuadriceps","Cuádriceps"],["femoral","Femoral / isquios"],["gluteo","Glúteo"],["pantorrilla","Pantorrilla"]];
   // Módulos visibles en la app del cliente (el entrenador los activa/desactiva).
+  // Multi-entrenador: SOLO el principal asigna el cliente a varios entrenadores.
+  if(MI_PRINCIPAL){
+    const {data:asig}=await sb.from("entrenador_cliente").select("entrenador_id").eq("cliente_id",id);
+    const asignados=new Set((asig||[]).map(a=>a.entrenador_id));
+    h+=`<h3>Entrenadores asignados</h3>
+      <div class="muted" style="font-size:11px;margin-bottom:6px">Marca quién atiende a este cliente (pueden ser varios). Tú, como principal, siempre lo ves.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${TRAINERS.map(t=>`<span class="chip ${asignados.has(t.user_id)?'on':''}" onclick="toggleEntrenador('${id}','${t.user_id}',this)">${esc(t.nombre||t.user_id.slice(0,6))}</span>`).join("")}</div>
+      <span id="asigMsg" class="muted" style="font-size:12px"></span>`;
+  }
   const pm=per.data||{};
   h+=`<h3>Módulos de la app (visibles para el cliente)</h3>
     <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
@@ -1062,6 +1072,13 @@ async function guardarAtleta(id){
   $("aMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Guardado.";
 }
 async function setModulo(id,campo,val){const {error}=await sb.from("perfiles").update({[campo]:val}).eq("user_id",id);const m=$("modMsg");if(m)m.textContent=error?("Error: "+error.message):("✓ Guardado");}
+async function toggleEntrenador(clienteId,entrenadorId,el){
+  const on=el.classList.contains('on'),m=$("asigMsg");
+  let error;
+  if(on){({error}=await sb.from("entrenador_cliente").delete().eq("cliente_id",clienteId).eq("entrenador_id",entrenadorId));if(!error)el.classList.remove('on');}
+  else{({error}=await sb.from("entrenador_cliente").upsert({entrenador_id:entrenadorId,cliente_id:clienteId}));if(!error)el.classList.add('on');}
+  if(m)m.textContent=error?("Error: "+error.message):"✓ Asignación actualizada";
+}
 async function regenInforme(id){
   const m=$("infIniMsg");if(m)m.textContent="Generando…";
   const {data:ik}=await sb.from("intake").select("*").eq("user_id",id).maybeSingle();
