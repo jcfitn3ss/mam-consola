@@ -47,6 +47,15 @@
   #lb .lbCap{position:fixed;bottom:16px;left:0;right:0;text-align:center;color:#fff;font-size:14px;z-index:1002;text-shadow:0 1px 3px #000}
   #lb .lbSpin{position:fixed;width:44px;height:44px;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:lbspin .8s linear infinite;z-index:1001}
   @keyframes lbspin{to{transform:rotate(360deg)}}
+  /* Botón flotante + modal del Asistente IA */
+  #iaFab{position:fixed;right:20px;bottom:20px;z-index:900;background:var(--rojo);color:#fff;border:none;border-radius:30px;padding:14px 20px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+  #iaModal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:950;display:none;align-items:flex-end;justify-content:center}
+  #iaModal.on{display:flex}
+  #iaModal .iaBox{background:var(--bg,#0f0f11);border:1px solid var(--line);border-radius:14px 14px 0 0;width:100%;max-width:620px;max-height:82vh;overflow:auto;padding:16px}
+  @media(min-width:640px){#iaModal{align-items:center}#iaModal .iaBox{border-radius:14px}}
+  #iaModal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  #iaModal header b{font-size:16px}
+  #iaModal .iaClose{background:none;border:none;color:var(--txt);font-size:26px;cursor:pointer;line-height:1}
 </style>
 </head>
 <body>
@@ -104,6 +113,16 @@
   <div class="lbSpin" id="lbSpin" style="display:none"></div>
   <div class="lbWrap" id="lbWrap"><img id="lbImg" alt="foto de progreso"></div>
   <div class="lbCap" id="lbCap"></div>
+</div>
+<button id="iaFab" class="hide" onclick="iaAbrir()" title="Asistente IA">🤖 IA</button>
+<div id="iaModal">
+  <div class="iaBox">
+    <header><b>Asistente IA <span id="iaCliente" class="muted" style="font-size:13px;font-weight:400"></span></b><button class="iaClose" onclick="iaCerrar()">×</button></header>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Dile en lenguaje natural qué ajustar (calorías, macros, fase, refeed, especialización, nivel, series y técnicas por ejercicio). Propone → tú aplicas.</div>
+    <textarea id="ia_inp" rows="3" style="width:100%;box-sizing:border-box" placeholder="Ej: a este cliente ponle dropset en press banca, súbele una serie a sentadilla porque anda con poco tiempo, y bájalo 150 kcal"></textarea>
+    <div style="margin-top:6px"><button onclick="iaInterpretar()" id="ia_btn">Interpretar</button> <span id="ia_msg" class="muted"></span></div>
+    <div id="ia_out" style="margin-top:8px"></div>
+  </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -164,6 +183,7 @@ async function trasLogin(){
   const {data:p}=await sb.from("perfiles").select("rol").eq("user_id",MIID).maybeSingle();
   if(!p||p.rol!=="entrenador"){show("login",true);$("loginErr").textContent="Esta cuenta no es de entrenador.";await sb.auth.signOut();return;}
   show("login",false);show("app",true);show("logout",true);
+  const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
   const {data}=await sb.from("perfiles").select("user_id,nombre,rol").order("nombre");CLIENTES=data||[];
   const {data:tr}=await sb.from("perfiles").select("user_id,nombre").eq("rol","entrenador").order("nombre");TRAINERS=tr||[];
   const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
@@ -491,7 +511,7 @@ async function verCliente(id){
     <div id="impMsg" class="muted" style="margin-top:6px"></div>
     <div id="impPrev" style="margin-top:8px"></div></div>`;
 
-  h+=`<div class="card"><h2 style="margin-top:0">Editar rutina (solo entrenador)</h2><div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div><div id="editorRut">${editorRutinaHTML()}</div>`;
+  h+=`<div class="card"><h2 style="margin-top:0">Editar rutina (solo entrenador)</h2><div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>${rutGruposHTML()}<div id="editorRut">${editorRutinaHTML()}</div>`;
   if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">↩ Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><span id="rutMsg" class="muted"></span></div>`;
   h+=`</div>`;
 
@@ -642,7 +662,6 @@ async function verCliente(id){
     especializacion:(esp.data?{activa:esp.data.activa,objetivo:esp.data.objetivo,series_objetivo:esp.data.series_objetivo,series_resto:esp.data.series_resto}:null),
     // Rutina (para que la IA referencie ejercicios por nombre al ajustar series/técnica).
     rutina:((RUT&&RUT.dias)||[]).map(d=>({dia:d.nombre,ejercicios:(d.orden||[]).map(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};return {nombre:cap(e.nombre||''),series:it.s||null,tecnica:(RUT.tecnicas||{})[((RUT.dias.indexOf(d))+"|"+it.id)]||'normal'};})}))};
-  h+=iaCardHTML();
   h+=anCardHTML();
 
   // ===== Programación por bloques y semanas =====
@@ -901,6 +920,26 @@ function syncEditorAMemoria(){
   document.querySelectorAll(".rutTec").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii];if(it){const key=di+"|"+it.id;if(s.value&&s.value!=="normal")RUT.tecnicas[key]=s.value;else delete RUT.tecnicas[key];}});
 }
 function rutRefrescar(){const el=$("editorRut");if(el)el.innerHTML=editorRutinaHTML();}
+// Panel: series semanales por grupo muscular -> reparte automáticamente en la rutina.
+function rutGruposHTML(){
+  if(!RUT||!RUT.dias)return '';
+  const cnt={};RUT.dias.forEach(d=>(d.orden||[]).forEach(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};const g=e.grupo||it.g||'Otros';cnt[g]=(cnt[g]||0)+1;}));
+  const groups=Object.keys(cnt).sort();if(!groups.length)return '';
+  return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:12px">
+    <b style="font-size:13px">Series por grupo muscular (semanal)</b>
+    <div class="muted" style="font-size:11px;margin:4px 0 8px">Pon las series semanales que quieres por grupo y dale <b>Distribuir</b>: la app las reparte sola entre los ejercicios de ese grupo. Luego afinas y Guardas.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px">${groups.map(g=>`<div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;min-width:96px">${esc(g)} <span class="muted">(${cnt[g]})</span></span><input type="number" class="rutGrp" data-g="${esc(g)}" placeholder="—" style="width:62px;text-align:center;margin:0"></div>`).join('')}</div>
+    <button class="sm" style="margin-top:10px" onclick="rutDistribuirGrupos()">Distribuir en la rutina</button> <span id="rutGrpMsg" class="muted" style="font-size:12px"></span>
+  </div>`;
+}
+function rutDistribuirGrupos(){
+  syncEditorAMemoria();rutSnapshot();
+  const targets={};document.querySelectorAll('.rutGrp').forEach(inp=>{const v=parseInt(inp.value);if(v>0)targets[inp.dataset.g]=v;});
+  if(!Object.keys(targets).length){$("rutGrpMsg").textContent="Pon al menos una meta de series.";return;}
+  const porGrupo={};RUT.dias.forEach(d=>(d.orden||[]).forEach(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};const g=e.grupo||it.g||'Otros';(porGrupo[g]=porGrupo[g]||[]).push(it);}));
+  let n=0;Object.keys(targets).forEach(g=>{const items=porGrupo[g]||[];if(!items.length)return;const base=Math.max(1,Math.floor(targets[g]/items.length));let resto=Math.max(0,targets[g]-base*items.length);items.forEach(it=>{it.s=base+(resto>0?1:0);if(resto>0)resto--;n++;});});
+  rutRefrescar();$("rutGrpMsg").textContent=`Distribuido en ${n} ejercicio(s). Revisa y Guarda rutina.`;
+}
 // Pila de deshacer: guarda el estado ANTES de cada cambio (con lo que haya en las celdas).
 let RUT_UNDO=[];
 function rutSnapshot(){syncEditorAMemoria();RUT_UNDO.push(JSON.stringify({dias:RUT.dias,tecnicas:RUT.tecnicas||{}}));if(RUT_UNDO.length>40)RUT_UNDO.shift();}
@@ -1292,7 +1331,10 @@ function iaAccionTxt(a){
   if(a.tipo==='nota')return `Nota: ${a.texto}`;
   return JSON.stringify(a);
 }
+function iaAbrir(){$("iaCliente").textContent=IA_CTX.userId?('· '+(IA_CTX.nombre||'cliente')):'· abre un cliente primero';$("iaModal").classList.add('on');}
+function iaCerrar(){$("iaModal").classList.remove('on');}
 async function iaInterpretar(){
+  if(!IA_CTX.userId){$("ia_msg").textContent="Abre un cliente en la lista para poder ajustarlo.";return;}
   const inp=($("ia_inp").value||'').trim();if(!inp){$("ia_msg").textContent="Escribe algo.";return;}
   $("ia_btn").disabled=true;$("ia_msg").textContent="Pensando…";$("ia_out").innerHTML="";
   try{
