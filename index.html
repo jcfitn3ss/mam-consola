@@ -492,7 +492,7 @@ async function verCliente(id){
     <div id="impPrev" style="margin-top:8px"></div></div>`;
 
   h+=`<div class="card"><h2 style="margin-top:0">Editar rutina (solo entrenador)</h2><div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div><div id="editorRut">${editorRutinaHTML()}</div>`;
-  if(RUT&&RUT.dias)h+=`<button style="margin-top:10px" onclick="guardarRutina('${id}')">Guardar rutina</button> <span id="rutMsg" class="muted"></span>`;
+  if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">↩ Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><span id="rutMsg" class="muted"></span></div>`;
   h+=`</div>`;
 
   // Calorías + progreso + journal + fotos
@@ -822,12 +822,12 @@ function editorRutinaHTML(){
           <td><div style="display:flex;align-items:center;justify-content:center;gap:5px"><input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="width:52px;text-align:center;margin:0"><span style="color:var(--muted)">–</span><input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="width:52px;text-align:center;margin:0"></div></td>
           <td><input class="rutRir" type="number" placeholder="—" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="text-align:center;margin:0"></td>
           <td><select data-d="${di}" data-i="${ii}" class="rutTec" style="margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select></td>
-          <td style="text-align:center"><button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:4px 6px;margin:0">×</button></td>
+          <td style="text-align:center;white-space:nowrap"><button class="sm ghost" onclick="rutMover(${di},${ii},-1)" title="Subir" style="padding:3px 6px;margin:0"${ii===0?' disabled':''}>↑</button> <button class="sm ghost" onclick="rutMover(${di},${ii},1)" title="Bajar" style="padding:3px 6px;margin:0"${ii===items.length-1?' disabled':''}>↓</button> <button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:3px 6px;margin:0">×</button></td>
         </tr>`;
       });
-      h+=`<div style="overflow-x:auto;margin:6px 0"><table style="min-width:700px">
-        <colgroup><col><col style="width:78px"><col style="width:150px"><col style="width:66px"><col style="width:150px"><col style="width:38px"></colgroup>
-        <thead><tr><th>Ejercicio</th><th style="text-align:center">Series</th><th style="text-align:center">Reps (mín–máx)</th><th style="text-align:center">RIR</th><th style="text-align:center">Técnica</th><th></th></tr></thead>
+      h+=`<div style="overflow-x:auto;margin:6px 0"><table style="min-width:760px">
+        <colgroup><col><col style="width:78px"><col style="width:150px"><col style="width:66px"><col style="width:140px"><col style="width:118px"></colgroup>
+        <thead><tr><th>Ejercicio</th><th style="text-align:center">Series</th><th style="text-align:center">Reps (mín–máx)</th><th style="text-align:center">RIR</th><th style="text-align:center">Técnica</th><th style="text-align:center">Orden / quitar</th></tr></thead>
         <tbody>${rows}</tbody></table></div>`;
     } else { h+=`<div class="muted" style="font-size:12px;margin:4px 0">Sin ejercicios en este día.</div>`; }
     h+=`<button class="sm ghost" onclick="rutAgregar(${di})" style="margin-top:2px">+ Agregar ejercicio</button>`;
@@ -899,8 +899,15 @@ function syncEditorAMemoria(){
   document.querySelectorAll(".rutTec").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii];if(it){const key=di+"|"+it.id;if(s.value&&s.value!=="normal")RUT.tecnicas[key]=s.value;else delete RUT.tecnicas[key];}});
 }
 function rutRefrescar(){const el=$("editorRut");if(el)el.innerHTML=editorRutinaHTML();}
-function rutQuitar(di,ii){syncEditorAMemoria();if(RUT.dias[di]&&RUT.dias[di].orden)RUT.dias[di].orden.splice(ii,1);rutRefrescar();$("rutMsg").textContent="Quitaste un ejercicio. Recuerda Guardar rutina.";}
-function rutAgregar(di){syncEditorAMemoria();if(!RUT.dias[di].orden)RUT.dias[di].orden=[];const g=(RUT.dias[di].grupos&&RUT.dias[di].grupos[0])||'';const first=EJ[0];RUT.dias[di].orden.push({id:first?first.id:'',g});rutRefrescar();$("rutMsg").textContent="Agregaste un ejercicio. Elígelo y Guarda rutina.";}
+// Pila de deshacer: guarda el estado ANTES de cada cambio (con lo que haya en las celdas).
+let RUT_UNDO=[];
+function rutSnapshot(){syncEditorAMemoria();RUT_UNDO.push(JSON.stringify({dias:RUT.dias,tecnicas:RUT.tecnicas||{}}));if(RUT_UNDO.length>40)RUT_UNDO.shift();}
+function rutDeshacer(){if(!RUT_UNDO.length){$("rutMsg").textContent="No hay más cambios que deshacer.";return;}const prev=JSON.parse(RUT_UNDO.pop());RUT.dias=prev.dias;RUT.tecnicas=prev.tecnicas;rutRefrescar();$("rutMsg").textContent="↩ Cambio deshecho. Recuerda Guardar si quieres conservarlo.";}
+async function rutDescartar(id){if(!confirm("¿Descartar TODOS los cambios sin guardar y volver a la rutina guardada? (recupera lo que hayas borrado sin guardar)"))return;RUT_UNDO=[];await verCliente(id);}
+function rutQuitar(di,ii){rutSnapshot();if(RUT.dias[di]&&RUT.dias[di].orden)RUT.dias[di].orden.splice(ii,1);rutRefrescar();$("rutMsg").textContent="Quitaste un ejercicio. Puedes Deshacer. Recuerda Guardar rutina.";}
+function rutAgregar(di){rutSnapshot();if(!RUT.dias[di].orden)RUT.dias[di].orden=[];const g=(RUT.dias[di].grupos&&RUT.dias[di].grupos[0])||'';const first=EJ[0];RUT.dias[di].orden.push({id:first?first.id:'',g});rutRefrescar();$("rutMsg").textContent="Agregaste un ejercicio. Elígelo y Guarda rutina.";}
+// Mover un ejercicio arriba/abajo dentro del día (reordenar).
+function rutMover(di,ii,dir){const or=RUT.dias[di]&&RUT.dias[di].orden;if(!or)return;const j=ii+dir;if(j<0||j>=or.length)return;rutSnapshot();const t=or[ii];or[ii]=or[j];or[j]=t;rutRefrescar();$("rutMsg").textContent="Reordenaste un ejercicio. Recuerda Guardar rutina.";}
 async function guardarRutina(id){
   $("rutMsg").textContent="Guardando…";
   const dias=JSON.parse(JSON.stringify(RUT.dias));
