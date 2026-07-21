@@ -126,6 +126,9 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";</script>
 <script>
 const URL_SB="https://rzonwwqgbckjsqloosyy.supabase.co";
 const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b253d3FnYmNranNxbG9vc3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MzYyNDIsImV4cCI6MjA5NzIxMjI0Mn0.cx6PM3ErIFqmllWIXohNsLlqCvDzhigMA_Sr-bHQDX0";
@@ -505,9 +508,11 @@ async function verCliente(id){
 
   // PARTE 3: Editor de rutina
   // Importar rutina desde Excel (IA interpreta -> vista previa -> guardar)
-  h+=`<div class="card"><h2 style="margin-top:0">Importar rutina desde Excel</h2>
-    <div class="muted" style="margin-bottom:8px">Sube el Excel (.xlsx) de la rutina y la IA la interpreta (días, ejercicios, series, reps, RIR, técnicas). Verás una <b>vista previa</b> antes de guardar. Si hay varios mesociclos, toma el más reciente.</div>
-    <input type="file" id="impFile" accept=".xlsx,.xls,.csv" onchange="importarExcel('${id}')">
+  h+=`<div class="card"><h2 style="margin-top:0">Importar rutina</h2>
+    <div class="muted" style="margin-bottom:8px">Sube un archivo (<b>Excel, Word, PDF o CSV</b>), pega el texto, o pega un <b>enlace público</b> (Google Drive/Docs). La IA la interpreta (días, ejercicios, series, reps, RIR, técnicas) y verás una <b>vista previa</b> antes de guardar.</div>
+    <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.docx,.pdf,.txt" onchange="importarRutina('${id}')">
+    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><input id="impLink" placeholder="Enlace público (Google Drive/Docs o URL del archivo)" style="flex:1;min-width:200px"><button class="sm ghost" onclick="importarLink('${id}')">Importar del enlace</button></div>
+    <div style="margin-top:8px"><textarea id="impTexto" rows="3" placeholder="…o pega aquí el texto de la rutina" style="width:100%;box-sizing:border-box"></textarea><button class="sm ghost" onclick="importarTexto('${id}')" style="margin-top:4px">Importar del texto pegado</button></div>
     <div id="impMsg" class="muted" style="margin-top:6px"></div>
     <div id="impPrev" style="margin-top:8px"></div></div>`;
 
@@ -857,22 +862,51 @@ function editorRutinaHTML(){
   return h;
 }
 // ---- Importar rutina desde Excel (SheetJS -> IA -> vista previa -> guardar) ----
-async function importarExcel(cli){
-  const f=$("impFile").files[0]; if(!f)return;
-  IMPORT_DIAS=null; $("impPrev").innerHTML=""; $("impMsg").textContent="Leyendo el archivo…";
-  let texto="";
-  try{
-    const buf=await f.arrayBuffer();
-    const wb=XLSX.read(buf,{type:"array"});
-    wb.SheetNames.forEach(n=>{ texto+=XLSX.utils.sheet_to_csv(wb.Sheets[n])+"\n"; });
-  }catch(e){ $("impMsg").textContent="No pude leer el archivo: "+e.message; return; }
-  if(texto.trim().length<20){ $("impMsg").textContent="El archivo está vacío o no se pudo leer."; return; }
+async function extraerTextoArchivo(f){
+  const nom=(f.name||'').toLowerCase();const buf=await f.arrayBuffer();
+  if(nom.endsWith('.xlsx')||nom.endsWith('.xls')||nom.endsWith('.csv')){const wb=XLSX.read(buf,{type:"array"});let t="";wb.SheetNames.forEach(n=>{t+=XLSX.utils.sheet_to_csv(wb.Sheets[n])+"\n";});return t;}
+  if(nom.endsWith('.docx')){const r=await mammoth.extractRawText({arrayBuffer:buf});return r.value||"";}
+  if(nom.endsWith('.pdf')){const pdf=await pdfjsLib.getDocument({data:buf}).promise;let t="";for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const c=await pg.getTextContent();t+=c.items.map(x=>x.str).join(' ')+"\n";}return t;}
+  return new TextDecoder().decode(buf);
+}
+async function procesarImport(cli,texto){
+  if(!texto||texto.trim().length<20){$("impMsg").textContent="No encontré texto suficiente para interpretar la rutina.";return;}
   $("impMsg").textContent="Interpretando la rutina con IA… (unos segundos)";
   const {data,error}=await sb.functions.invoke("rutina-import",{body:{texto}});
-  if(error||(data&&data.error)){ $("impMsg").textContent="Error: "+((data&&data.error)||error.message); return; }
+  if(error||(data&&data.error)){$("impMsg").textContent="Error: "+((data&&data.error)||error.message);return;}
   IMPORT_DIAS=data.dias||[];
   $("impMsg").textContent=(data.nota?esc(data.nota)+" · ":"")+IMPORT_DIAS.length+" día(s) detectado(s). Revisa la vista previa y guarda.";
   renderImportPrev(cli);
+}
+async function importarRutina(cli){
+  const f=$("impFile").files[0];if(!f)return;
+  IMPORT_DIAS=null;$("impPrev").innerHTML="";$("impMsg").textContent="Leyendo el archivo…";
+  let texto="";try{texto=await extraerTextoArchivo(f);}catch(e){$("impMsg").textContent="No pude leer el archivo: "+e.message;return;}
+  await procesarImport(cli,texto);
+}
+async function importarTexto(cli){
+  const t=($("impTexto").value||'').trim();if(!t){$("impMsg").textContent="Pega el texto de la rutina primero.";return;}
+  IMPORT_DIAS=null;$("impPrev").innerHTML="";await procesarImport(cli,t);
+}
+function driveDirecto(url){
+  let m=url.match(/drive\.google\.com\/file\/d\/([^/]+)/);if(m)return "https://drive.google.com/uc?export=download&id="+m[1];
+  m=url.match(/docs\.google\.com\/document\/d\/([^/]+)/);if(m)return "https://docs.google.com/document/d/"+m[1]+"/export?format=txt";
+  m=url.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/);if(m)return "https://docs.google.com/spreadsheets/d/"+m[1]+"/export?format=csv";
+  return url;
+}
+async function importarLink(cli){
+  const raw=($("impLink").value||'').trim();if(!raw){$("impMsg").textContent="Pega un enlace primero.";return;}
+  IMPORT_DIAS=null;$("impPrev").innerHTML="";$("impMsg").textContent="Descargando del enlace…";
+  const url=driveDirecto(raw);
+  try{
+    const r=await fetch(url);if(!r.ok)throw new Error("HTTP "+r.status);
+    const ct=(r.headers.get('content-type')||'').toLowerCase(),lu=url.toLowerCase();let texto="";
+    if(ct.includes('pdf')||lu.includes('.pdf')){const buf=await r.arrayBuffer();const pdf=await pdfjsLib.getDocument({data:buf}).promise;for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const c=await pg.getTextContent();texto+=c.items.map(x=>x.str).join(' ')+"\n";}}
+    else if(ct.includes('word')||lu.includes('.docx')){const buf=await r.arrayBuffer();const rr=await mammoth.extractRawText({arrayBuffer:buf});texto=rr.value||"";}
+    else if(ct.includes('spreadsheet')||ct.includes('excel')||lu.includes('.xlsx')){const buf=await r.arrayBuffer();const wb=XLSX.read(buf,{type:"array"});wb.SheetNames.forEach(n=>{texto+=XLSX.utils.sheet_to_csv(wb.Sheets[n])+"\n";});}
+    else{texto=await r.text();}
+    await procesarImport(cli,texto);
+  }catch(e){$("impMsg").innerHTML=`No pude leer el enlace (${esc(e.message)}). Si es de Google Drive, ábrelo, <b>descárgalo</b> y súbelo con "Elegir archivo" (o pega el texto). Muchos enlaces bloquean la descarga directa desde el navegador.`;}
 }
 function renderImportPrev(cli){
   if(!IMPORT_DIAS||!IMPORT_DIAS.length){$("impPrev").innerHTML="";return;}
