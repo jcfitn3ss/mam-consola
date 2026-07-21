@@ -474,6 +474,14 @@ async function verCliente(id){
     h+=blk("5. Quién cocina", ik.q5_quien_cocina)+blk("6. Día de alimentación", ik.q6_dia_alimentacion)+blk("7. Tiempo y gustos", ik.q7_tiempo_gustos)+blk("8. Alergias", ik.q8_alergias)+blk("9. Lesiones", ik.q9_lesiones);
     const subs=(Array.isArray(ik.q10_sustancias)?ik.q10_sustancias:[]).concat(ik.q10_otros?["Otros: "+ik.q10_otros]:[]);
     h+=fila("10. Sustancias/medicamentos", subs.length?subs.join(", "):"—");
+    // 4a: rutina adjunta + fotos iniciales + informe de la IA.
+    if(ik.rutina_ref)h+=blk("Rutina adjunta (enlace/texto)", ik.rutina_ref);
+    const fi=Array.isArray(ik.fotos_iniciales)?ik.fotos_iniciales:[];
+    if(fi.length){window.__fotosIni=fi.map(x=>({url:x}));h+=`<div class="muted" style="font-size:11px;margin-top:6px">Fotos iniciales (clic para ampliar)</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${fi.map((u,i)=>`<img class="thumb" onclick="lbOpen(window.__fotosIni,${i})" src="${esc(u)}">`).join("")}</div>`;}
+    h+=`<h3 style="margin-bottom:2px">Informe inicial (IA)</h3>`;
+    if(ik.informe_inicial){try{const inf=JSON.parse(ik.informe_inicial);const lista=(t,a,col)=>a&&a.length?`<div style="margin-top:8px"><b style="color:${col};font-size:12px">${t}</b><ul style="margin:4px 0 0 18px;padding:0;font-size:12px">${a.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:"";h+=`<div style="border:1px solid var(--line);border-radius:8px;padding:12px">${inf.resumen?`<div style="font-size:13px;margin-bottom:2px">${esc(inf.resumen)}</div>`:""}${lista("Está bien",inf.bien,"#5fd07f")}${lista("A mejorar",inf.mejorar,"#e0b84a")}${lista("Ajustes que haremos",inf.ajustes,"#4c8dff")}</div>`;}catch(e){h+=`<div class="muted" style="font-size:12px">Informe guardado (formato antiguo).</div>`;}}
+    else h+=`<div class="muted" style="font-size:12px">Aún sin informe.</div>`;
+    h+=`<button class="sm ghost" style="margin-top:6px" onclick="regenInforme('${id}')">Regenerar informe con IA</button> <span id="infIniMsg" class="muted" style="font-size:12px"></span>`;
   } else { h+=`<div class="muted">Formulario de ingreso sin completar.</div>`; }
   h+=`</div>`;
 
@@ -1054,6 +1062,15 @@ async function guardarAtleta(id){
   $("aMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Guardado.";
 }
 async function setModulo(id,campo,val){const {error}=await sb.from("perfiles").update({[campo]:val}).eq("user_id",id);const m=$("modMsg");if(m)m.textContent=error?("Error: "+error.message):("✓ Guardado");}
+async function regenInforme(id){
+  const m=$("infIniMsg");if(m)m.textContent="Generando…";
+  const {data:ik}=await sb.from("intake").select("*").eq("user_id",id).maybeSingle();
+  if(!ik){if(m)m.textContent="Sin formulario de ingreso.";return;}
+  const {data,error}=await sb.functions.invoke("informe-inicial",{body:{rutina:[ik.q2_rutina||"",ik.rutina_ref||""].filter(Boolean).join("\n"),contexto:{meta:ik.q1_meta,disponibilidad:ik.q3_disponibilidad,lesiones:ik.q9_lesiones,gustos:ik.q7_tiempo_gustos}}});
+  if(error||(data&&data.error)){if(m)m.textContent="Error: "+((data&&data.error)||error.message);return;}
+  await sb.from("intake").update({informe_inicial:JSON.stringify(data),informe_inicial_en:new Date().toISOString()}).eq("user_id",id);
+  if(m)m.textContent="✓ Informe generado. Recargando…";setTimeout(()=>verCliente(id),700);
+}
 async function setNivel(id){
   const nivel=$("e_nivel").value||null;
   // Si el entrenador fija un nivel -> lo bloquea (nivel_auto=false). Si lo deja
