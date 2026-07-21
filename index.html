@@ -324,7 +324,7 @@ async function verCliente(id){
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("comidas").select("descripcion,kcal,prot,carb,fat").eq("user_id",id).order("id",{ascending:false}).limit(120),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,ver_entreno,ver_comida,ver_pasos").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
@@ -416,6 +416,15 @@ async function verCliente(id){
   const curNivel=(per.data&&per.data.nivel)||'';
   const E=esp.data;
   const ESP_OBJ=[["pecho","Pecho"],["dorsal","Dorsal / espalda (dominadas, jalón)"],["espalda_alta","Espalda alta (remo, trapecio)"],["deltoides","Deltoides (hombro)"],["brazos","Brazos (bíceps + tríceps)"],["biceps","Bíceps"],["triceps","Tríceps"],["cuadriceps","Cuádriceps"],["femoral","Femoral / isquios"],["gluteo","Glúteo"],["pantorrilla","Pantorrilla"]];
+  // Módulos visibles en la app del cliente (el entrenador los activa/desactiva).
+  const pm=per.data||{};
+  h+=`<h3>Módulos de la app (visibles para el cliente)</h3>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${pm.ver_entreno!==false?'checked':''} onchange="setModulo('${id}','ver_entreno',this.checked)"> Pestaña Entreno</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${pm.ver_comida!==false?'checked':''} onchange="setModulo('${id}','ver_comida',this.checked)"> Pestaña Comida</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${pm.ver_pasos!==false?'checked':''} onchange="setModulo('${id}','ver_pasos',this.checked)"> Monitoreo de pasos</label>
+      <span id="modMsg" class="muted" style="font-size:12px"></span>
+    </div>`;
   h+=`<h3>Nivel y especialización</h3>`;
   const NIVCOL={principiante:'#5fd07f',intermedio:'#e0b84a',avanzado:'#e23b3b'};
   const nivBadge=(n)=>(n&&n!=='—')?`<span class="pill" style="background:${NIVCOL[n]||'#444'};color:#000;font-weight:700;font-size:13px">${cap(n)}</span>`:`<span class="muted" style="font-size:13px">— sin fijar —</span>`;
@@ -1044,6 +1053,7 @@ async function guardarAtleta(id){
   const {error}=await sb.from("atletas").upsert(b,{onConflict:"user_id"});
   $("aMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Guardado.";
 }
+async function setModulo(id,campo,val){const {error}=await sb.from("perfiles").update({[campo]:val}).eq("user_id",id);const m=$("modMsg");if(m)m.textContent=error?("Error: "+error.message):("✓ Guardado");}
 async function setNivel(id){
   const nivel=$("e_nivel").value||null;
   const {error}=await sb.from("perfiles").update({nivel}).eq("user_id",id);
