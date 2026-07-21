@@ -441,7 +441,7 @@ async function verCliente(id){
   // EDITOR objetivo/plan
   h+=`<h3>Objetivo, calorías y enfoque (editable)</h3>
    <label class="lbl">Objetivo</label><select id="e_tipo">${OBJ.map(([v,l])=>`<option value="${v}" ${o.tipo===v?'selected':''}>${l}</option>`).join("")}</select>
-   <label class="lbl">Fase</label><select id="e_fase">${FASES.map(f=>`<option value="${f}" ${plan.fase===f?'selected':''}>${f||'(sin fase)'}</option>`).join("")}</select>
+   <label class="lbl">Fase</label><select id="e_fase">${FASES.map(f=>`<option value="${f}" ${plan.fase===f?'selected':''}>${f?cap(f):'(sin fase)'}</option>`).join("")}</select>
    <div class="row"><div><label class="lbl">Kcal</label><input id="e_kcal" type="number" value="${o.kcal||''}"></div><div><label class="lbl">Prot</label><input id="e_prot" type="number" value="${o.prot||''}"></div><div><label class="lbl">Carb</label><input id="e_carb" type="number" value="${o.carb||''}"></div><div><label class="lbl">Grasa</label><input id="e_fat" type="number" value="${o.fat||''}"></div></div>
    <label class="lbl">Enfoque</label><div id="e_enf">${ENFOQUES.map(e=>`<span class="chip ${enf.includes(e)?'on':''}" onclick="this.classList.toggle('on')">${e}</span>`).join("")}</div>
    <button style="margin-top:10px" onclick="guardarObj('${id}')">Guardar</button> <span id="saveMsg" class="muted"></span></div>`;
