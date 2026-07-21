@@ -411,11 +411,19 @@ async function verCliente(id){
   const E=esp.data;
   const ESP_OBJ=[["pecho","Pecho"],["dorsal","Dorsal / espalda (dominadas, jalón)"],["espalda_alta","Espalda alta (remo, trapecio)"],["deltoides","Deltoides (hombro)"],["brazos","Brazos (bíceps + tríceps)"],["biceps","Bíceps"],["triceps","Tríceps"],["cuadriceps","Cuádriceps"],["femoral","Femoral / isquios"],["gluteo","Glúteo"],["pantorrilla","Pantorrilla"]];
   h+=`<h3>Nivel y especialización</h3>`;
-  h+=`<div class="fila"><span class="muted">Nivel sugerido (por progresión real)</span><b>${cap(nv.n)}</b></div>`;
-  h+=`<div class="muted" style="font-size:11px;margin-bottom:6px">${nv.t}</div>`;
-  h+=`<label class="lbl">Nivel del atleta (lo decides tú)</label>
-     <select id="e_nivel">${['','principiante','intermedio','avanzado'].map(x=>`<option value="${x}" ${curNivel===x?'selected':''}>${x?cap(x):'— sin fijar —'}</option>`).join('')}</select>
-     <button class="sm" style="margin-top:6px" onclick="setNivel('${id}')">Guardar nivel</button> <span id="nvMsg" class="muted"></span>`;
+  const NIVCOL={principiante:'#5fd07f',intermedio:'#e0b84a',avanzado:'#e23b3b'};
+  const nivBadge=(n)=>(n&&n!=='—')?`<span class="pill" style="background:${NIVCOL[n]||'#444'};color:#000;font-weight:700;font-size:13px">${cap(n)}</span>`:`<span class="muted" style="font-size:13px">— sin fijar —</span>`;
+  h+=`<div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+      <div><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Nivel sugerido</div>${nivBadge(nv.n)}</div>
+      <div style="text-align:right"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Nivel actual</div>${nivBadge(curNivel||'—')}</div>
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:10px">${esc(nv.t)}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+      <select id="e_nivel" style="width:auto;margin:0">${['','principiante','intermedio','avanzado'].map(x=>`<option value="${x}" ${curNivel===x?'selected':''}>${x?cap(x):'— sin fijar —'}</option>`).join('')}</select>
+      <button class="sm" onclick="setNivel('${id}')">Guardar nivel</button> <span id="nvMsg" class="muted"></span>
+    </div>
+  </div>`;
   h+=`<label style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;cursor:pointer">
        <input type="checkbox" id="e_act" ${E&&E.activa?'checked':''} onchange="document.getElementById('e_campos').style.display=this.checked?'':'none'"> Activar etapa de especialización (avanzados)
      </label>
