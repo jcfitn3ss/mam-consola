@@ -99,7 +99,9 @@
       <div id="solicitudes"></div>
       <div class="card">
         <h2 style="margin-top:0">Clientes (<span id="nCli">0</span>) · por prioridad</h2>
-        <input id="buscar" placeholder="Buscar cliente…" oninput="renderClientes()" />
+        <label class="lbl" style="margin-top:0">Ir a cualquier persona (todos, incluido tú)</label>
+        <select id="cliDrop" onchange="if(this.value)verCliente(this.value)" style="margin-bottom:8px"></select>
+        <input id="buscar" placeholder="Buscar cliente por nombre…" oninput="renderClientes()" />
         <div id="clientes"></div>
       </div>
       <div id="detalle"></div>
@@ -161,7 +163,7 @@ const TECNICAS=[["normal","Normal"],["biserie","Biserie"],["triserie","Triserie"
 const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bíceps","Tríceps","Core","Pantorrilla","Cuello","Dorsal","Aductores","Abductores"];
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
-let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
+let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[];
 
 const $=id=>document.getElementById(id);
@@ -195,8 +197,12 @@ async function trasLogin(){
   show("login",false);show("app",true);show("logout",true);
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
   const {data}=await sb.from("perfiles").select("user_id,nombre,rol,archivado").order("nombre");
-  // Solo clientes reales: fuera entrenadores (Soporte/Marlon) y cuentas archivadas (prueba/revisión).
+  // Lista de PRIORIDAD (arriba): solo clientes reales, sin entrenadores ni archivados.
   CLIENTES=(data||[]).filter(c=>c.rol!=='entrenador' && !c.archivado);
+  // Lista COMPLETA para el desplegable "Ir a…": TODOS los no archivados (incluidos
+  // los entrenadores que también entrenan, como Juan Camilo). Así nadie queda oculto.
+  TODOS=(data||[]).filter(c=>!c.archivado);
+  poblarDropCli();
   const {data:tr}=await sb.from("perfiles").select("user_id,nombre").eq("rol","entrenador").order("nombre");TRAINERS=tr||[];
   const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
   await cargarPrioridad();
@@ -285,11 +291,18 @@ function renderCampana(){
 function toggleCampana(){const p=$("campanaPanel");if(p)p.classList.toggle("hide");}
 function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("hide");tab('clientes');verCliente(id);window.scrollTo(0,0);}
 async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();}
+// Puebla el desplegable "Ir a…" con TODAS las personas (incluido el propio JC).
+function poblarDropCli(){
+  const sel=$("cliDrop");if(!sel)return;
+  sel.innerHTML=['<option value="">— Elegir persona —</option>'].concat(
+    TODOS.map(c=>`<option value="${c.user_id}">${esc(c.nombre||c.user_id.slice(0,8))}${c.rol==='entrenador'?' (entrenador)':''}</option>`)
+  ).join("");
+}
 async function archivarCliente(id){
   if(!confirm("¿Archivar este cliente? Se oculta de la lista (no se borra). Podrás reactivarlo si lo necesitas."))return;
   const {error}=await sb.from("perfiles").update({archivado:true}).eq("user_id",id);
   if(error){alert(error.message);return;}
-  CLIENTES=CLIENTES.filter(c=>c.user_id!==id);
+  CLIENTES=CLIENTES.filter(c=>c.user_id!==id);TODOS=TODOS.filter(c=>c.user_id!==id);poblarDropCli();
   SEL=null;$("detalle").innerHTML='<div class="muted">Cliente archivado. Elige otro de la lista.</div>';
   renderClientes();
 }
