@@ -467,7 +467,8 @@ async function verCliente(id){
   h+=`<h3>Objetivo, calorías y enfoque (editable)</h3>
    <label class="lbl">Objetivo</label><select id="e_tipo">${OBJ.map(([v,l])=>`<option value="${v}" ${o.tipo===v?'selected':''}>${l}</option>`).join("")}</select>
    <label class="lbl">Fase</label><select id="e_fase">${FASES.map(f=>`<option value="${f}" ${plan.fase===f?'selected':''}>${f?cap(f):'(sin fase)'}</option>`).join("")}</select>
-   <div class="row"><div><label class="lbl">Kcal</label><input id="e_kcal" type="number" value="${o.kcal||''}"></div><div><label class="lbl">Prot</label><input id="e_prot" type="number" value="${o.prot||''}"></div><div><label class="lbl">Carb</label><input id="e_carb" type="number" value="${o.carb||''}"></div><div><label class="lbl">Grasa</label><input id="e_fat" type="number" value="${o.fat||''}"></div></div>
+   <div class="row"><div><label class="lbl">Kcal</label><input id="e_kcal" type="number" value="${o.kcal||''}"></div><div><label class="lbl">Prot</label><input id="e_prot" type="number" value="${o.prot||''}" oninput="recalcKcal()"></div><div><label class="lbl">Carb</label><input id="e_carb" type="number" value="${o.carb||''}" oninput="recalcKcal()"></div><div><label class="lbl">Grasa</label><input id="e_fat" type="number" value="${o.fat||''}" oninput="recalcKcal()"></div></div>
+   <div class="muted" style="font-size:11px;margin-top:2px">Las calorías se recalculan solas con los macros (4 kcal/g proteína y carbos, 9 kcal/g grasa). Puedes sobrescribir el Kcal a mano si quieres.</div>
    <label class="lbl">Enfoque</label><div id="e_enf">${ENFOQUES.map(e=>`<span class="chip ${enf.includes(e)?'on':''}" onclick="this.classList.toggle('on')">${e}</span>`).join("")}</div>
    <button style="margin-top:10px" onclick="guardarObj('${id}')">Guardar</button> <span id="saveMsg" class="muted"></span></div>`;
 
@@ -1121,6 +1122,13 @@ async function guardarEsp(id){
   if(activa&&(!cur||!cur.activa)){row.inicio=hoy;row.ultimo_ajuste=hoy;row.bloque=0;row.ton_ref=null;}
   const {error}=await sb.from("especializacion").upsert(row,{onConflict:"user_id"});
   $("eMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Especialización guardada.";
+}
+// Recalcula las calorías objetivo a partir de los macros (4/4/9). Se dispara al
+// editar proteína/carbos/grasa; el entrenador aún puede sobrescribir el Kcal.
+function recalcKcal(){
+  const p=+$("e_prot").value||0,c=+$("e_carb").value||0,f=+$("e_fat").value||0;
+  const k=Math.round(p*4+c*4+f*9);
+  if(k>0)$("e_kcal").value=k;
 }
 async function guardarObj(id){
   $("saveMsg").textContent="Guardando…";
