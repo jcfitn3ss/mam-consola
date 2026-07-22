@@ -194,7 +194,9 @@ async function trasLogin(){
   MI_PRINCIPAL=!!p.es_principal; // entrenador principal: puede asignar clientes a otros entrenadores
   show("login",false);show("app",true);show("logout",true);
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
-  const {data}=await sb.from("perfiles").select("user_id,nombre,rol").order("nombre");CLIENTES=data||[];
+  const {data}=await sb.from("perfiles").select("user_id,nombre,rol,archivado").order("nombre");
+  // Solo clientes reales: fuera entrenadores (Soporte/Marlon) y cuentas archivadas (prueba/revisión).
+  CLIENTES=(data||[]).filter(c=>c.rol!=='entrenador' && !c.archivado);
   const {data:tr}=await sb.from("perfiles").select("user_id,nombre").eq("rol","entrenador").order("nombre");TRAINERS=tr||[];
   const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
   await cargarPrioridad();
@@ -283,11 +285,28 @@ function renderCampana(){
 function toggleCampana(){const p=$("campanaPanel");if(p)p.classList.toggle("hide");}
 function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("hide");tab('clientes');verCliente(id);window.scrollTo(0,0);}
 async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();}
+async function archivarCliente(id){
+  if(!confirm("¿Archivar este cliente? Se oculta de la lista (no se borra). Podrás reactivarlo si lo necesitas."))return;
+  const {error}=await sb.from("perfiles").update({archivado:true}).eq("user_id",id);
+  if(error){alert(error.message);return;}
+  CLIENTES=CLIENTES.filter(c=>c.user_id!==id);
+  SEL=null;$("detalle").innerHTML='<div class="muted">Cliente archivado. Elige otro de la lista.</div>';
+  renderClientes();
+}
 function renderClientes(){
-  const q=($("buscar").value||"").toLowerCase();
-  const list=CLIENTES.filter(c=>!q||(c.nombre||"").toLowerCase().includes(q));
+  const q=($("buscar").value||"").toLowerCase().trim();
   $("nCli").textContent=CLIENTES.length;
-  $("clientes").innerHTML=list.map(c=>{
+  // Sin búsqueda: mostramos SOLO los que requieren atención (prioridad/riesgo/
+  // informe listo), no el muro de todos. Con búsqueda: mostramos coincidencias.
+  const list = q
+    ? CLIENTES.filter(c=>(c.nombre||"").toLowerCase().includes(q))
+    : CLIENTES.filter(c=>c._sc>=2 || c._inact || c._mes);
+  let head="";
+  if(!q){
+    const otros=CLIENTES.length-list.length;
+    head = `<div class="muted" style="font-size:12px;margin-bottom:8px">${list.length?`${list.length} cliente(s) requieren atención.`:'Ningún cliente requiere atención ahora.'} Usa el buscador para ver a los demás${otros>0?` (${otros} más)`:''}.</div>`;
+  }
+  $("clientes").innerHTML=head+(list.map(c=>{
     const ic=c._sc>=5?"🔴":c._sc>=2?"🟡":"🟢";
     const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
     const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">⚠ En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
@@ -297,7 +316,7 @@ function renderClientes(){
     const pa=c._presu?`<span class="pill" style="background:#15391f;color:#5fd07f">presupuesto+</span>`:"";
     const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${tk}${pa}${esc(c._obj||"")}</span>`;
     return `<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')"><div style="display:flex;justify-content:space-between;align-items:center"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${inact}${rs}${ms}</button>`;
-  }).join("")||'<div class="muted">Sin clientes aún.</div>';
+  }).join("")||(q?'<div class="muted">Sin coincidencias para tu búsqueda.</div>':''));
 }
 
 const nombreEj=id=>{const e=EJ.find(x=>String(x.id)===String(id));return e?e.nombre:"(ejercicio)";};
@@ -383,7 +402,7 @@ async function verCliente(id){
   if(!hayNov)rep+=`<div class="muted">Sin novedades.</div>`;
   rep+=`</div>`;
 
-  let h=rep+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2></div>`;
+  let h=rep+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
   h+=fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—");
 
   // ---- Atleta (culturismo): SOLO el entrenador decide ----
