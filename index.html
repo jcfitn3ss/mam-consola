@@ -1209,8 +1209,9 @@ async function guardarRutina(id){
   document.querySelectorAll(".rutSel").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(dias[di]&&dias[di].orden&&dias[di].orden[ii])dias[di].orden[ii].id=s.value;});
   document.querySelectorAll(".rutSer").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(dias[di]&&dias[di].orden&&dias[di].orden[ii]){const v=parseInt(s.value);if(v>0)dias[di].orden[ii].s=v;else delete dias[di].orden[ii].s;}});
   document.querySelectorAll(".rutTec").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=dias[di]&&dias[di].orden&&dias[di].orden[ii];if(it){const key=di+"|"+it.id;if(s.value&&s.value!=="normal")tec[key]=s.value;else delete tec[key];}});
-  const {error}=await sb.from("rutinas").update({dias,tecnicas:tec}).eq("user_id",id);
+  const {data:upd,error}=await sb.from("rutinas").update({dias,tecnicas:tec}).eq("user_id",id).select("user_id");
   if(error){$("rutMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  if(!upd||!upd.length){$("rutMsg").innerHTML=`<span class="alert">No se guardó: este cliente no tiene rutina o no tienes permiso. Cierra sesión y vuelve a entrar.</span>`;return;}
   RUT.dias=dias;RUT.tecnicas=tec;
   // Reps (mín/máx) y RIR: se guardan en el ejercicio (aplican en la app).
   const ejUpd={};
@@ -1230,7 +1231,11 @@ async function guardarRutina(id){
   const res=await Promise.all(entries.map(([id2,patch])=>sb.from("ejercicios").update(patch).eq("id",id2)));
   let nEj=0;
   res.forEach((r,i)=>{if(!r.error){const [id2,patch]=entries[i];const e=EJ.find(x=>String(x.id)===String(id2));if(e)Object.assign(e,patch);nEj++;}});
-  $("rutMsg").textContent=`✓ Rutina actualizada (series, técnica y ${nEj} ejercicio(s) con reps/RIR aplicados a la app).`;
+  // Recarga la rutina DESDE LA BASE y re-renderiza: así ves el estado REAL
+  // guardado (no una copia local). Confirma que sí quedó.
+  const {data:fresh}=await sb.from("rutinas").select("*").eq("user_id",id).maybeSingle();
+  if(fresh){RUT=fresh;const ed=$("editorRut");if(ed)ed.innerHTML=editorRutinaHTML();}
+  $("rutMsg").textContent=`✓ Rutina guardada y verificada (series, técnica y ${nEj} ejercicio(s) con reps/RIR aplicados a la app).`;
 }
 async function toggleAtleta(id,on){
   if(on){
