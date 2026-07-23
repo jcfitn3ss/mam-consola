@@ -1220,6 +1220,10 @@ async function addReceta(id){
 
 // PARTE 4: Ejercicios
 function verEjercicios(){
+  const opsEj=()=>['<option value="">— elegir —</option>'].concat(EJ.map(e=>`<option value="${e.id}">${esc(cap(e.nombre))} · ${esc(e.grupo||'')}</option>`)).join("");
+  const nmap={};EJ.forEach(e=>{const k=(e.nombre||'').trim().toLowerCase();(nmap[k]=nmap[k]||[]).push(e);});
+  const dups=Object.values(nmap).filter(a=>a.length>1);
+  const dupHint=dups.length?`<div style="font-size:12px;color:#e0b84a;margin-bottom:6px">⚠ Nombres duplicados: ${dups.map(a=>esc(cap(a[0].nombre))).join(", ")}. Fusiónalos aquí abajo.</div>`:`<div class="muted" style="font-size:12px;margin-bottom:6px">No hay nombres duplicados ahora mismo. ✓</div>`;
   let h=`<div class="card"><h2 style="margin-top:0">Nuevo ejercicio</h2>
    <div class="muted" style="margin-bottom:6px">Usa nombres estandarizados (ej: "Press inclinado con mancuernas"). El enlace de YouTube se reproduce dentro de la app.</div>
    <input id="x_nom" placeholder="Nombre del ejercicio">
@@ -1227,10 +1231,26 @@ function verEjercicios(){
    <div class="row"><div><label class="lbl">Reps min</label><input id="x_rmin" type="number" value="8"></div><div><label class="lbl">Reps max</label><input id="x_rmax" type="number" value="12"></div><div><label class="lbl">RIR</label><input id="x_rir" type="number" value="2"></div></div>
    <label class="lbl">Enlace de YouTube</label><input id="x_vid" placeholder="https://youtu.be/...">
    <button style="margin-top:8px" onclick="addEjercicio()">Agregar a la biblioteca</button> <span id="xMsg" class="muted"></span></div>
+   <div class="card"><h2 style="margin-top:0">Agrupar / fusionar ejercicios</h2>
+    <div class="muted" style="margin-bottom:6px">Une un ejercicio redundante con otro: el historial de series se reasigna al que conservas y el repetido se borra. Sirve para quitar variantes duplicadas.</div>
+    ${dupHint}
+    <div class="row"><div style="flex:1"><label class="lbl">Conservar (queda este)</label><select id="fus_keep">${opsEj()}</select></div><div style="flex:1"><label class="lbl">Fusionar y borrar</label><select id="fus_drop">${opsEj()}</select></div></div>
+    <button style="margin-top:8px" onclick="fusionarEj()">Fusionar</button> <span id="fusMsg" class="muted"></span></div>
    <div class="card"><h2 style="margin-top:0">Biblioteca (${EJ.length})</h2>
      <input id="x_buscar" placeholder="Buscar…" oninput="renderEj()">
      <div id="ejlist"></div></div>`;
   $("v-ejercicios").innerHTML=h;renderEj();
+}
+async function fusionarEj(){
+  const keep=$("fus_keep").value,drop=$("fus_drop").value;
+  if(!keep||!drop||keep===drop){$("fusMsg").textContent="Elige dos ejercicios distintos.";return;}
+  const kn=cap((EJ.find(e=>String(e.id)===keep)||{}).nombre||''),dn=cap((EJ.find(e=>String(e.id)===drop)||{}).nombre||'');
+  if(!confirm(`¿Fusionar "${dn}" dentro de "${kn}"? El historial de "${dn}" pasa a "${kn}" y "${dn}" se borra. No se puede deshacer.`))return;
+  $("fusMsg").textContent="Fusionando…";
+  const {data,error}=await sb.functions.invoke("fusionar-ejercicios",{body:{keep,drop}});
+  if(error||(data&&data.error)){$("fusMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
+  verEjercicios();$("fusMsg").textContent=`✓ Fusionados (${(data&&data.reasignadas)||0} series reasignadas).`;
 }
 const FATCOL={alta:"#e23b3b",media:"#e0b84a",baja:"#5fd07f"};
 function fatPill(e){const f=e.fatiga||'media';return `<span class="pill" style="background:${FATCOL[f]||'#444'};color:#000;font-weight:700">${esc(f)}</span>${e.estiramiento?' <span class="pill" style="background:#3a2a5a;color:#cdbff0">estira</span>':''}`;}
