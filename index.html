@@ -88,6 +88,7 @@
   <div id="app" class="hide">
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
+      <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
       <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
       <button id="t-alimentos" onclick="tab('alimentos')">Alimentos</button>
       <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
@@ -106,6 +107,7 @@
       </div>
       <div id="detalle"></div>
     </div>
+    <div id="v-prospecto" class="hide"></div>
     <div id="v-ejercicios" class="hide"></div>
     <div id="v-alimentos" class="hide"></div>
     <div id="v-comunidad" class="hide"></div>
@@ -164,7 +166,7 @@ const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bícep
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
 let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
-let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[];
+let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="";
 
 const $=id=>document.getElementById(id);
 const show=(id,on)=>$(id).classList.toggle("hide",!on);
@@ -187,7 +189,7 @@ async function init(){const {data:{session}}=await sb.auth.getSession();if(sessi
 async function login(){$("loginErr").textContent="";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
-function tab(t){["clientes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+function tab(t){["clientes","prospecto","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="prospecto")verProspecto();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
@@ -870,6 +872,60 @@ async function publicarInforme(id){
   INF_HTML=data.html||INF_HTML;infPreview();$("infMsg").textContent="✓ Publicado. Al cliente le llegó la notificación.";
 }
 function descargarInformePDF(){if(!INF_HTML){alert("Genera el informe primero.");return;}const w=window.open("","_blank");w.document.write(INF_HTML);w.document.close();setTimeout(()=>w.print(),600);}
+
+// ---------- Informe para PROSPECTO (persona NO registrada) ----------
+function verProspecto(){
+  $("v-prospecto").innerHTML=`<div class="card"><h2 style="margin-top:0">Informe para un prospecto (sin registro)</h2>
+    <div class="muted" style="margin-bottom:8px">Genera un informe de "punto de partida" con IA para mostrárselo (PDF) a alguien que aún NO está en la app. Sirve como herramienta de venta: le muestras qué está bien, qué mejorar y cómo lo ayudarían.</div>
+    <input id="pr_nom" placeholder="Nombre del prospecto">
+    <input id="pr_meta" placeholder="Objetivo (ej: bajar grasa y ganar músculo, competir en 6 meses…)">
+    <label class="lbl">Rutina / entrenamiento actual</label>
+    <textarea id="pr_rutina" rows="3" placeholder="Qué entrena hoy, cuántos días, en casa/gym, etc."></textarea>
+    <label class="lbl">Situación / contexto (opcional)</label>
+    <textarea id="pr_sit" rows="2" placeholder="Lesiones, poco tiempo, come fuera seguido, nivel, etc."></textarea>
+    <button style="margin-top:8px" onclick="generarInformeProspecto()">Generar informe (IA)</button> <span id="prMsg" class="muted"></span>
+    <div id="pr_area" class="hide" style="margin-top:10px">
+      <button class="ghost" onclick="descargarProspectoPDF()">Ver / descargar PDF</button>
+      <iframe id="pr_prev" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:8px;background:#fff"></iframe>
+    </div></div>`;
+}
+async function generarInformeProspecto(){
+  const nom=$("pr_nom").value.trim()||"Prospecto",meta=$("pr_meta").value.trim(),rutina=$("pr_rutina").value.trim(),sit=$("pr_sit").value.trim();
+  if(!rutina&&!meta){$("prMsg").textContent="Escribe al menos el objetivo o la rutina.";return;}
+  $("prMsg").textContent="Generando con IA… (unos segundos)";
+  const {data,error}=await sb.functions.invoke("informe-inicial",{body:{rutina:[rutina,sit].filter(Boolean).join("\n"),contexto:{meta,disponibilidad:sit}}});
+  if(error||(data&&data.error)){$("prMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message||"error")}</span>`;return;}
+  PROS_HTML=informeProspectoHTML(nom,meta,data);
+  const f=$("pr_prev");if(f)f.srcdoc=PROS_HTML;show("pr_area",true);$("prMsg").textContent="✓ Generado.";
+}
+function informeProspectoHTML(nombre,meta,inf){
+  const lista=(t,a,col)=>a&&a.length?`<div style="margin-top:16px"><div style="color:${col};font-weight:800;font-size:14px;letter-spacing:.3px">${t}</div><ul style="margin:6px 0 0 18px;padding:0">${a.map(x=>`<li style="margin:4px 0;font-size:13.5px;line-height:1.5">${esc(x)}</li>`).join("")}</ul></div>`:"";
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Informe · ${esc(nombre)}</title>
+  <style>@page{size:210mm 297mm;margin:0}*{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter','Segoe UI',system-ui,sans-serif;color:#1a1a1a;background:#fff}
+  .page{width:794px;min-height:1123px;margin:0 auto;padding:56px 60px;position:relative}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .logo{width:44px;height:44px;border-radius:10px;background:#000;color:#d12b2b;font-weight:900;font-size:26px;display:flex;align-items:center;justify-content:center}
+  .brandtxt{font-weight:800;font-size:15px;letter-spacing:.5px}
+  h1{font-size:34px;font-weight:800;color:#d12b2b;margin:26px 0 4px;letter-spacing:-.5px}
+  .sub{color:#5c5c66;font-size:13px;margin-bottom:18px}
+  .lead{font-size:14px;line-height:1.6;color:#333;background:#f6f6f8;border-radius:12px;padding:16px 18px;border-left:4px solid #d12b2b}
+  .cta{margin-top:26px;background:#000;color:#fff;border-radius:12px;padding:18px 20px}
+  .cta b{color:#ff5a5a}
+  .pie{position:absolute;bottom:26px;left:60px;right:60px;border-top:1px solid #e5e5ea;padding-top:10px;color:#8a8a92;font-size:10.5px;display:flex;justify-content:space-between}
+  </style></head><body><div class="page">
+  <div class="brand"><div class="logo">M</div><div class="brandtxt">MÚSCULO AL MÁXIMO</div></div>
+  <h1>Tu punto de partida</h1>
+  <div class="sub">Informe personalizado para ${esc(nombre)}${meta?` · Objetivo: ${esc(meta)}`:''}</div>
+  ${inf.resumen?`<div class="lead">${esc(inf.resumen)}</div>`:''}
+  ${lista('Lo que ya haces bien',inf.bien,'#1e9e57')}
+  ${lista('Lo que vamos a mejorar',inf.mejorar,'#c08a1e')}
+  ${lista('Cómo te ayudaríamos (tu proceso)',inf.ajustes,'#d12b2b')}
+  <div class="cta">Este es solo un vistazo. Dentro de <b>Músculo al Máximo</b> tendrías tu rutina, tu plan de alimentación, seguimiento y ajustes semanales con acompañamiento real. <b>¿Empezamos?</b></div>
+  <div class="pie"><span>Músculo al Máximo · @jcfitn3ss</span><span>Informe generado para ${esc(nombre)}</span></div>
+  </div></body></html>`;
+}
+function descargarProspectoPDF(){if(!PROS_HTML){alert("Genera el informe primero.");return;}const w=window.open("","_blank");w.document.write(PROS_HTML);w.document.close();setTimeout(()=>w.print(),600);}
 
 // ---------- Plan de alimentación ----------
 let PLAN_HTML=null;
