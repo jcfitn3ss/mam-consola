@@ -1278,7 +1278,8 @@ async function generarPlanComidas(id){
   const m=$("pcMsg");if(m)m.textContent="Generando plan con IA… (unos segundos)";
   const {data,error}=await invokeFn("plan-comidas-ia",{body:{target:id}});
   if(error||(data&&data.error)){if(m)m.textContent="Error: "+((data&&data.error)||error.message);return;}
-  if(m)m.textContent="✓ Plan generado. Recargando…";setTimeout(()=>verCliente(id),700);
+  if(m){const t=data&&data.total,o=data&&data.objetivo;let msg="✓ Plan generado";if(t&&o)msg+=` — ${Math.round(t.kcal)} kcal vs objetivo ${o.kcal} (${data.cuadrado?'cuadra ✓':'±'+data.desviacionPct+'%'})`;m.textContent=msg+". Recargando…";}
+  setTimeout(()=>verCliente(id),900);
 }
 async function toggleEntrenador(clienteId,entrenadorId,el){
   const on=el.classList.contains('on'),m=$("asigMsg");
