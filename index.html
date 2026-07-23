@@ -89,6 +89,7 @@
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
       <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
+      <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
       <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
       <button id="t-alimentos" onclick="tab('alimentos')">Alimentos</button>
       <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
@@ -108,6 +109,7 @@
       <div id="detalle"></div>
     </div>
     <div id="v-prospecto" class="hide"></div>
+    <div id="v-restaurantes" class="hide"></div>
     <div id="v-ejercicios" class="hide"></div>
     <div id="v-alimentos" class="hide"></div>
     <div id="v-comunidad" class="hide"></div>
@@ -166,7 +168,7 @@ const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bícep
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
 let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
-let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="";
+let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[];
 
 const $=id=>document.getElementById(id);
 const show=(id,on)=>$(id).classList.toggle("hide",!on);
@@ -189,7 +191,7 @@ async function init(){const {data:{session}}=await sb.auth.getSession();if(sessi
 async function login(){$("loginErr").textContent="";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
-function tab(t){["clientes","prospecto","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="prospecto")verProspecto();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+function tab(t){["clientes","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
@@ -926,6 +928,54 @@ function informeProspectoHTML(nombre,meta,inf){
   </div></body></html>`;
 }
 function descargarProspectoPDF(){if(!PROS_HTML){alert("Genera el informe primero.");return;}const w=window.open("","_blank");w.document.write(PROS_HTML);w.document.close();setTimeout(()=>w.print(),600);}
+
+// ---------- Restaurantes (equipo cura la lista + platos con macros) ----------
+async function verRestaurantes(){
+  const {data}=await sb.from("restaurantes").select("*").order("recomendado",{ascending:false}).order("nombre");
+  RESTS=data||[];
+  $("v-restaurantes").innerHTML=`<div class="card"><h2 style="margin-top:0">Nuevo restaurante</h2>
+    <div class="muted" style="margin-bottom:6px">Lo que agregues aquí les aparece a los usuarios en "Comer fuera", ordenado por cercanía (si pones lat/long) o por ciudad. Marca "Recomendado por el equipo" para destacarlo.</div>
+    <input id="rn" placeholder="Nombre del restaurante">
+    <div class="row"><div><label class="lbl">Ciudad</label><input id="rc" placeholder="Bogotá"></div><div style="flex:2"><label class="lbl">Dirección</label><input id="rd" placeholder="Calle 123 #45-67"></div></div>
+    <div class="row"><div><label class="lbl">Latitud (opcional)</label><input id="rlat" type="number" step="any" placeholder="4.65"></div><div><label class="lbl">Longitud (opcional)</label><input id="rlng" type="number" step="any" placeholder="-74.05"></div></div>
+    <label class="lbl">Descripción (opcional)</label><textarea id="rdesc" rows="2" placeholder="Comida saludable, bowls, opciones altas en proteína…"></textarea>
+    <label style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="rrec" style="margin-top:3px;flex-shrink:0"><span>Recomendado por el equipo ⭐</span></label>
+    <button onclick="addRestaurante()">Agregar restaurante</button> <span id="rMsg" class="muted"></span></div>
+    <div class="card"><h2 style="margin-top:0">Restaurantes (${RESTS.length})</h2><div id="restList"></div></div>`;
+  renderRests();
+}
+async function addRestaurante(){
+  const nombre=$("rn").value.trim();if(!nombre){$("rMsg").textContent="Falta el nombre.";return;}
+  const {error}=await sb.from("restaurantes").insert({nombre,ciudad:$("rc").value.trim()||null,direccion:$("rd").value.trim()||null,lat:+$("rlat").value||null,lng:+$("rlng").value||null,descripcion:$("rdesc").value.trim()||null,recomendado:$("rrec").checked,created_by:MIID});
+  if(error){$("rMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  verRestaurantes();
+}
+function renderRests(){
+  $("restList").innerHTML=RESTS.map(r=>`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${r.recomendado?'⭐ ':''}${esc(r.nombre)}</b><span style="display:flex;gap:6px"><button class="sm ghost" onclick="togRec('${r.id}',${!r.recomendado})">${r.recomendado?'Quitar ⭐':'Recomendar ⭐'}</button><button class="sm ghost" onclick="delRest('${r.id}')">🗑</button></span></div>
+    <div class="muted" style="font-size:12px">${esc(r.ciudad||'sin ciudad')}${r.direccion?' · '+esc(r.direccion):''}${(r.lat&&r.lng)?' · 📍':''}</div>
+    <button class="sm" style="margin-top:6px" onclick="verPlatos('${r.id}')">Ver / editar platos</button>
+    <div id="platos-${r.id}"></div></div>`).join("")||'<div class="muted">Aún no hay restaurantes.</div>';
+}
+async function togRec(id,val){await sb.from("restaurantes").update({recomendado:val}).eq("id",id);verRestaurantes();}
+async function delRest(id){if(!confirm("¿Borrar este restaurante y sus platos?"))return;await sb.from("restaurantes").delete().eq("id",id);verRestaurantes();}
+async function verPlatos(id){
+  const el=$("platos-"+id);if(el.dataset.open){el.dataset.open="";el.innerHTML="";return;}
+  el.dataset.open="1";
+  const {data}=await sb.from("restaurante_platos").select("*").eq("restaurante_id",id).order("nombre");
+  const platos=data||[];
+  el.innerHTML=`<div style="margin-top:8px;padding:8px;background:#14141b;border-radius:8px">
+    ${platos.map(p=>`<div class="fila"><span style="font-size:13px">${esc(p.nombre)} <span class="muted">· ${p.kcal||0} kcal · P${p.prot||0}/C${p.carb||0}/G${p.fat||0}</span></span><button class="sm ghost" onclick="delPlato('${p.id}','${id}')">🗑</button></div>`).join('')||'<div class="muted" style="font-size:12px">Sin platos aún.</div>'}
+    <input id="pn-${id}" placeholder="Plato (ej: Bowl de pollo)" style="margin-top:6px">
+    <div class="row"><div><input id="pk-${id}" type="number" placeholder="kcal"></div><div><input id="pp-${id}" type="number" placeholder="prot"></div><div><input id="pc-${id}" type="number" placeholder="carb"></div><div><input id="pf-${id}" type="number" placeholder="grasa"></div></div>
+    <button class="sm" onclick="addPlato('${id}')">Agregar plato</button></div>`;
+}
+async function addPlato(id){
+  const n=$("pn-"+id).value.trim();if(!n){alert("Falta el nombre del plato.");return;}
+  await sb.from("restaurante_platos").insert({restaurante_id:id,nombre:n,kcal:+$("pk-"+id).value||0,prot:+$("pp-"+id).value||0,carb:+$("pc-"+id).value||0,fat:+$("pf-"+id).value||0});
+  const el=$("platos-"+id);el.dataset.open="";verPlatos(id);
+}
+async function delPlato(pid,id){await sb.from("restaurante_platos").delete().eq("id",pid);const el=$("platos-"+id);el.dataset.open="";verPlatos(id);}
 
 // ---------- Plan de alimentación ----------
 let PLAN_HTML=null;
