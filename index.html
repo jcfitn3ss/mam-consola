@@ -1061,7 +1061,7 @@ function editorRutinaHTML(){
   let h="";
   RUT.dias.forEach((d,di)=>{
     const items=d.orden||[];
-    h+=`<div style="margin:10px 0"><b>${esc(d.nombre||('Día '+(di+1)))}</b>`;
+    h+=`<div style="margin:14px 0;border-top:1px solid var(--line);padding-top:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="muted" style="font-size:11px">Día ${di+1}</span><input class="rutDiaNom" data-d="${di}" value="${esc(d.nombre||('Día '+(di+1)))}" placeholder="Nombre (ej: Superior)" style="font-weight:700;flex:1;max-width:280px;margin:0"><button class="sm ghost" onclick="rutMoverDia(${di},-1)" title="Subir día" style="padding:3px 8px;margin:0"${di===0?' disabled':''}>▲</button><button class="sm ghost" onclick="rutMoverDia(${di},1)" title="Bajar día" style="padding:3px 8px;margin:0"${di===RUT.dias.length-1?' disabled':''}>▼</button></div>`;
     if(items.length){
       // Tabla HTML real: header y columnas alinean nativamente.
       let rows='';
@@ -1174,6 +1174,7 @@ async function guardarRutinaImport(cli){
 // Sincroniza lo escrito en el editor a memoria (RUT) antes de re-renderizar.
 function syncEditorAMemoria(){
   if(!RUT||!RUT.dias)return;
+  document.querySelectorAll(".rutDiaNom").forEach(s=>{const di=+s.dataset.d;if(RUT.dias[di])RUT.dias[di].nombre=s.value.trim()||('Día '+(di+1));});
   document.querySelectorAll(".rutSel").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii])RUT.dias[di].orden[ii].id=s.value;});
   document.querySelectorAll(".rutSer").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii];if(it){const v=parseInt(s.value);if(v>0)it.s=v;else delete it.s;}});
   RUT.tecnicas=RUT.tecnicas||{};
@@ -1209,10 +1210,21 @@ function rutQuitar(di,ii){rutSnapshot();if(RUT.dias[di]&&RUT.dias[di].orden)RUT.
 function rutAgregar(di){rutSnapshot();if(!RUT.dias[di].orden)RUT.dias[di].orden=[];const g=(RUT.dias[di].grupos&&RUT.dias[di].grupos[0])||'';const first=EJ[0];RUT.dias[di].orden.push({id:first?first.id:'',g});rutRefrescar();$("rutMsg").textContent="Agregaste un ejercicio. Elígelo y Guarda rutina.";}
 // Mover un ejercicio arriba/abajo dentro del día (reordenar).
 function rutMover(di,ii,dir){const or=RUT.dias[di]&&RUT.dias[di].orden;if(!or)return;const j=ii+dir;if(j<0||j>=or.length)return;rutSnapshot();const t=or[ii];or[ii]=or[j];or[j]=t;rutRefrescar();$("rutMsg").textContent="Reordenaste un ejercicio. Recuerda Guardar rutina.";}
+function rutMoverDia(di,dir){
+  if(!RUT||!RUT.dias)return;const j=di+dir;if(j<0||j>=RUT.dias.length)return;
+  syncEditorAMemoria();rutSnapshot();
+  // Remapear técnicas (claves "di|idEjercicio") al intercambiar los índices di<->j.
+  const tec=RUT.tecnicas||{};const nt={};
+  Object.keys(tec).forEach(k=>{const p=k.indexOf("|");if(p<0){nt[k]=tec[k];return;}let d=+k.slice(0,p);const rest=k.slice(p);if(d===di)d=j;else if(d===j)d=di;nt[d+rest]=tec[k];});
+  RUT.tecnicas=nt;
+  const t=RUT.dias[di];RUT.dias[di]=RUT.dias[j];RUT.dias[j]=t;
+  rutRefrescar();$("rutMsg").textContent="Reordenaste los días. Recuerda Guardar rutina.";
+}
 async function guardarRutina(id){
   $("rutMsg").textContent="Guardando…";
   const dias=JSON.parse(JSON.stringify(RUT.dias));
   const tec=Object.assign({},RUT.tecnicas||{});
+  document.querySelectorAll(".rutDiaNom").forEach(s=>{const di=+s.dataset.d;if(dias[di])dias[di].nombre=s.value.trim()||('Día '+(di+1));});
   document.querySelectorAll(".rutSel").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(dias[di]&&dias[di].orden&&dias[di].orden[ii])dias[di].orden[ii].id=s.value;});
   document.querySelectorAll(".rutSer").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(dias[di]&&dias[di].orden&&dias[di].orden[ii]){const v=parseInt(s.value);if(v>0)dias[di].orden[ii].s=v;else delete dias[di].orden[ii].s;}});
   document.querySelectorAll(".rutTec").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=dias[di]&&dias[di].orden&&dias[di].orden[ii];if(it){const key=di+"|"+it.id;if(s.value&&s.value!=="normal")tec[key]=s.value;else delete tec[key];}});
