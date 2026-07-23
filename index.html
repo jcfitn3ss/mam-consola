@@ -664,28 +664,9 @@ async function verCliente(id){
   } else h+=`<div class="muted">Sin fotos.</div>`;
   h+=`</div>`;
 
-  // ===== Comparativa y gráficas (kcal, peso, sueño, medidas) =====
-  {
-    const fmtF=f=>String(f).slice(5);
-    const kByDay={};(cm30.data||[]).forEach(c=>{if(!c.fecha)return;kByDay[c.fecha]=(kByDay[c.fecha]||0)+(+c.kcal||0);});
-    const kdates=Object.keys(kByDay).sort();
-    const kcalDs=[{label:'Consumido',color:'#e23b3b',pts:kdates.map(f=>({x:f,y:Math.round(kByDay[f]),tip:fmtF(f)+' · '+Math.round(kByDay[f])+' kcal'}))}];
-    if(o.kcal)kcalDs.push({label:'Objetivo',color:'#4c8dff',pts:kdates.map(f=>({x:f,y:+o.kcal,tip:'Objetivo '+o.kcal+' kcal'}))});
-    const pesAsc=[...(pes.data||[])].reverse().filter(p=>p.peso!=null);
-    const pesoDs=[{label:'Peso (kg)',color:'#22c55e',pts:pesAsc.map(p=>({x:p.fecha,y:+p.peso,tip:fmtF(p.fecha)+' · '+p.peso+' kg'}))}];
-    const sueAsc=[...(sue.data||[])].reverse().filter(s=>s.horas!=null);
-    const sueDs=[{label:'Sueño (h)',color:'#a855f7',pts:sueAsc.map(s=>({x:s.fecha,y:+s.horas,tip:fmtF(s.fecha)+' · '+s.horas+' h'}))}];
-    const M=medsAll.data||[];const m0=M[0],m1=M[M.length-1];
-    const medRow=(lbl,k,u)=>{if(!m0)return'';const a=m0[k],b=m1?m1[k]:null;if(a==null&&b==null)return'';const d=(a!=null&&b!=null&&M.length>1)?Math.round((b-a)*10)/10:null;return `<tr><td>${lbl}</td><td>${a!=null?a+' '+u:'—'}</td><td>${b!=null?b+' '+u:'—'}</td><td class="muted">${d==null?'—':(d>0?'+':'')+d+' '+u}</td></tr>`;};
-    h+=`<div class="card"><h2 style="margin-top:0">Comparativa y gráficas</h2>`;
-    h+=`<h3>Calorías (últimos días) vs objetivo</h3>${svgChart(kcalDs,kdates,'kcal',fmtF)}`;
-    h+=`<h3>Peso</h3>${svgChart(pesoDs,pesAsc.map(p=>p.fecha),'kg',fmtF)}`;
-    h+=`<h3>Sueño</h3>${svgChart(sueDs,sueAsc.map(s=>s.fecha),'h',fmtF)}`;
-    h+=`<h3>Medidas — primera vs última</h3>`;
-    if(M.length){h+=`<table style="font-size:12px;width:100%"><tr><th>Medida</th><th>Primera<br><span class="muted" style="font-size:10px">${esc(m0?m0.fecha||'':'')}</span></th><th>Última<br><span class="muted" style="font-size:10px">${esc(m1?m1.fecha||'':'')}</span></th><th>Δ</th></tr>${medRow('Cintura','cintura','cm')}${medRow('Cadera','cadera','cm')}${medRow('Pecho','pecho','cm')}${medRow('Brazo','brazo','cm')}${medRow('Muslo','muslo','cm')}</table>`;}
-    else h+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
-    h+=`</div>`;
-  }
+  // ===== Comparativa y gráficas: DIFERIDAS (se insertan tras pintar el detalle,
+  // para que abrir un cliente sea instantáneo). Placeholder aquí.
+  h+=`<div id="graficasComp"></div>`;
 
   // Macros por día y refeeds (override del objetivo base por fecha)
   {
@@ -792,7 +773,33 @@ async function verCliente(id){
 
   $("detalle").innerHTML=h;
   recetaRender();rcInit();hacerColapsables();
-  try{anRender();}catch(e){}
+  // Gráficas DIFERIDAS: el detalle ya se pintó (abre instantáneo); en el siguiente
+  // tick calculamos e insertamos la comparativa + el análisis de entreno.
+  setTimeout(()=>{
+    try{
+      const fmtF=f=>String(f).slice(5);
+      const kByDay={};(cm30.data||[]).forEach(c=>{if(!c.fecha)return;kByDay[c.fecha]=(kByDay[c.fecha]||0)+(+c.kcal||0);});
+      const kdates=Object.keys(kByDay).sort();
+      const kcalDs=[{label:'Consumido',color:'#e23b3b',pts:kdates.map(f=>({x:f,y:Math.round(kByDay[f]),tip:fmtF(f)+' · '+Math.round(kByDay[f])+' kcal'}))}];
+      if(o.kcal)kcalDs.push({label:'Objetivo',color:'#4c8dff',pts:kdates.map(f=>({x:f,y:+o.kcal,tip:'Objetivo '+o.kcal+' kcal'}))});
+      const pesAsc=[...(pes.data||[])].reverse().filter(p=>p.peso!=null);
+      const pesoDs=[{label:'Peso (kg)',color:'#22c55e',pts:pesAsc.map(p=>({x:p.fecha,y:+p.peso,tip:fmtF(p.fecha)+' · '+p.peso+' kg'}))}];
+      const sueAsc=[...(sue.data||[])].reverse().filter(s=>s.horas!=null);
+      const sueDs=[{label:'Sueño (h)',color:'#a855f7',pts:sueAsc.map(s=>({x:s.fecha,y:+s.horas,tip:fmtF(s.fecha)+' · '+s.horas+' h'}))}];
+      const M=medsAll.data||[];const m0=M[0],m1=M[M.length-1];
+      const medRow=(lbl,k,u)=>{if(!m0)return'';const a=m0[k],b=m1?m1[k]:null;if(a==null&&b==null)return'';const d=(a!=null&&b!=null&&M.length>1)?Math.round((b-a)*10)/10:null;return `<tr><td>${lbl}</td><td>${a!=null?a+' '+u:'—'}</td><td>${b!=null?b+' '+u:'—'}</td><td class="muted">${d==null?'—':(d>0?'+':'')+d+' '+u}</td></tr>`;};
+      let cg=`<div class="card"><h2 style="margin-top:0">Comparativa y gráficas</h2>`;
+      cg+=`<h3>Calorías (últimos días) vs objetivo</h3>${svgChart(kcalDs,kdates,'kcal',fmtF)}`;
+      cg+=`<h3>Peso</h3>${svgChart(pesoDs,pesAsc.map(p=>p.fecha),'kg',fmtF)}`;
+      cg+=`<h3>Sueño</h3>${svgChart(sueDs,sueAsc.map(s=>s.fecha),'h',fmtF)}`;
+      cg+=`<h3>Medidas — primera vs última</h3>`;
+      if(M.length){cg+=`<table style="font-size:12px;width:100%"><tr><th>Medida</th><th>Primera<br><span class="muted" style="font-size:10px">${esc(m0?m0.fecha||'':'')}</span></th><th>Última<br><span class="muted" style="font-size:10px">${esc(m1?m1.fecha||'':'')}</span></th><th>Δ</th></tr>${medRow('Cintura','cintura','cm')}${medRow('Cadera','cadera','cm')}${medRow('Pecho','pecho','cm')}${medRow('Brazo','brazo','cm')}${medRow('Muslo','muslo','cm')}</table>`;}
+      else cg+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
+      cg+=`</div>`;
+      const g=$("graficasComp");if(g)g.innerHTML=cg;
+    }catch(e){}
+    try{anRender();}catch(e){}
+  },20);
 }
 // Hace cada tarjeta del detalle un desplegable (clic en el título) para no verse invasivo.
 function hacerColapsables(){
