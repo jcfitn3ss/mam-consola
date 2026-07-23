@@ -145,6 +145,29 @@
 const URL_SB="https://rzonwwqgbckjsqloosyy.supabase.co";
 const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6b253d3FnYmNranNxbG9vc3l5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MzYyNDIsImV4cCI6MjA5NzIxMjI0Mn0.cx6PM3ErIFqmllWIXohNsLlqCvDzhigMA_Sr-bHQDX0";
 const sb=supabase.createClient(URL_SB,ANON);
+// Llamada ROBUSTA a una Edge Function: refresca la sesión, hace fetch directo y
+// devuelve el error REAL (evita el opaco "Failed to send a request to the Edge
+// Function" de supabase-js, que suele ser sesión vencida o red). Mismo shape que
+// invokeFn(name,{body}).
+async function invokeFn(name,opts){
+  const body=(opts&&opts.body)||{};
+  let session=null;
+  try{const r=await sb.auth.getSession();session=r.data&&r.data.session;}catch(e){}
+  if(!session||!session.access_token){return {data:null,error:{message:"Tu sesión venció. Cierra sesión y vuelve a entrar a la consola."}};}
+  const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),90000);
+  try{
+    const r=await fetch(URL_SB+"/functions/v1/"+name,{method:"POST",headers:{"Authorization":"Bearer "+session.access_token,"apikey":ANON,"Content-Type":"application/json"},body:JSON.stringify(body),signal:ctrl.signal});
+    clearTimeout(to);
+    const txt=await r.text();let j=null;try{j=JSON.parse(txt);}catch(e){}
+    if(!r.ok)return {data:null,error:{message:(j&&j.error)||("HTTP "+r.status+" — "+txt.slice(0,160))}};
+    if(j&&j.error)return {data:null,error:{message:j.error}};
+    return {data:j,error:null};
+  }catch(e){
+    clearTimeout(to);
+    const msg=e.name==="AbortError"?"La función tardó demasiado. Intenta de nuevo.":("No se pudo conectar con la función ("+(e.message||e)+"). Revisa tu conexión o vuelve a entrar a la consola.");
+    return {data:null,error:{message:msg}};
+  }
+}
 // Al escribir en cualquier campo de texto, la PRIMERA letra siempre en mayúscula
 // (no aplica a correo, clave ni números).
 document.addEventListener("input",e=>{
@@ -799,7 +822,7 @@ async function rcCalcular(){
   if(!rows.length){$("rcMsg").textContent="Agrega al menos un ingrediente con sus gramos.";return;}
   $("rcMsg").textContent="Calculando con IA…";
   const desc=rows.map(x=>`${x.g} g de ${x.n}`).join(", ");
-  const {data,error}=await sb.functions.invoke("nutricion-ia",{body:{descripcion:desc,tipo:'plato'}});
+  const {data,error}=await invokeFn("nutricion-ia",{body:{descripcion:desc,tipo:'plato'}});
   if(error||!data||data.error){$("rcMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||'No se pudo calcular.')}</span>`;return;}
   RC_RESULT=data;$("rcMsg").textContent="";rcRender();
 }
@@ -843,7 +866,7 @@ function quitarShot(i){INF_SHOTS.splice(i,1);renderShots();}
 function leerNotas(){document.querySelectorAll(".shotNota").forEach(inp=>{const i=+inp.dataset.i;if(INF_SHOTS[i])INF_SHOTS[i].nota=inp.value;});}
 async function generarInforme(id){
   $("infMsg").textContent="Generando informe (datos + IA)…";
-  const {data,error}=await sb.functions.invoke("informe",{body:{action:"generar",user_id:id}});
+  const {data,error}=await invokeFn("informe",{body:{action:"generar",user_id:id}});
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   INF_MES=data.mes;INF_HTML=data.html||"";const seg=data.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
   show("infArea",true);$("inf_seg").value=(Array.isArray(seg.texto)?seg.texto:[]).join("\n");
@@ -863,13 +886,13 @@ async function guardarSeg(id){
   leerNotas();
   const texto=$("inf_seg").value.split("\n").map(s=>s.trim()).filter(Boolean);
   $("infMsg").textContent="Guardando seguimiento…";
-  const {data,error}=await sb.functions.invoke("informe",{body:{action:"guardar-seguimiento",user_id:id,mes:INF_MES,seguimiento:{texto,screenshots:INF_SHOTS}}});
+  const {data,error}=await invokeFn("informe",{body:{action:"guardar-seguimiento",user_id:id,mes:INF_MES,seguimiento:{texto,screenshots:INF_SHOTS}}});
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   INF_HTML=data.html||INF_HTML;infPreview();$("infMsg").textContent="✓ Seguimiento guardado.";
 }
 async function publicarInforme(id){
   $("infMsg").textContent="Publicando…";
-  const {data,error}=await sb.functions.invoke("informe",{body:{action:"publicar",user_id:id,mes:INF_MES}});
+  const {data,error}=await invokeFn("informe",{body:{action:"publicar",user_id:id,mes:INF_MES}});
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   INF_HTML=data.html||INF_HTML;infPreview();$("infMsg").textContent="✓ Publicado. Al cliente le llegó la notificación.";
 }
@@ -903,7 +926,7 @@ async function generarInformeProspecto(){
   const nom=$("pr_nom").value.trim()||"Prospecto",meta=$("pr_meta").value.trim(),rutina=$("pr_rutina").value.trim(),sit=$("pr_sit").value.trim();
   if(!rutina&&!meta){$("prMsg").textContent="Escribe al menos el objetivo o la rutina.";return;}
   $("prMsg").textContent="Generando con IA… (unos segundos)";
-  const {data,error}=await sb.functions.invoke("informe-inicial",{body:{rutina:[rutina,sit].filter(Boolean).join("\n"),contexto:{meta,disponibilidad:sit}}});
+  const {data,error}=await invokeFn("informe-inicial",{body:{rutina:[rutina,sit].filter(Boolean).join("\n"),contexto:{meta,disponibilidad:sit}}});
   if(error||(data&&data.error)){$("prMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message||"error")}</span>`;return;}
   PROS_HTML=informeProspectoHTML(nom,meta,data);
   const f=$("pr_prev");if(f)f.srcdoc=PROS_HTML;show("pr_area",true);$("prMsg").textContent="✓ Generado.";
@@ -989,7 +1012,7 @@ async function delPlato(pid,id){await sb.from("restaurante_platos").delete().eq(
 let PLAN_HTML=null;
 async function generarPlanAlim(id){
   $("planMsg").textContent="Generando plan (comidas + guía por IA)…";
-  const {data,error}=await sb.functions.invoke("plan-alimentacion",{body:{action:"generar",user_id:id}});
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id}});
   if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}
   $("planMsg").textContent="✓ Generado";
@@ -997,7 +1020,7 @@ async function generarPlanAlim(id){
 function descargarPlanPDF(){if(!PLAN_HTML){alert("Genera el plan primero.");return;}imprimirIframe("plan_prev",PLAN_HTML);}
 async function marcarPlanEnviado(id){
   $("planMsg").textContent="Marcando…";
-  const {data,error}=await sb.functions.invoke("plan-alimentacion",{body:{action:"enviar",user_id:id}});
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"enviar",user_id:id}});
   if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   $("planMsg").textContent="✓ "+(data.nota||"Marcado como enviado.");
 }
@@ -1068,7 +1091,7 @@ async function extraerTextoArchivo(f){
 async function procesarImport(cli,texto){
   if(!texto||texto.trim().length<20){$("impMsg").textContent="No encontré texto suficiente para interpretar la rutina.";return;}
   $("impMsg").textContent="Interpretando la rutina con IA… (unos segundos)";
-  const {data,error}=await sb.functions.invoke("rutina-import",{body:{texto}});
+  const {data,error}=await invokeFn("rutina-import",{body:{texto}});
   if(error||(data&&data.error)){$("impMsg").textContent="Error: "+((data&&data.error)||error.message);return;}
   IMPORT_DIAS=data.dias||[];
   $("impMsg").textContent=(data.nota?esc(data.nota)+" · ":"")+IMPORT_DIAS.length+" día(s) detectado(s). Revisa la vista previa y guarda.";
@@ -1229,7 +1252,7 @@ async function guardarAtleta(id){
 async function setModulo(id,campo,val){const {error}=await sb.from("perfiles").update({[campo]:val}).eq("user_id",id);const m=$("modMsg");if(m)m.textContent=error?("Error: "+error.message):("✓ Guardado");}
 async function generarPlanComidas(id){
   const m=$("pcMsg");if(m)m.textContent="Generando plan con IA… (unos segundos)";
-  const {data,error}=await sb.functions.invoke("plan-comidas-ia",{body:{target:id}});
+  const {data,error}=await invokeFn("plan-comidas-ia",{body:{target:id}});
   if(error||(data&&data.error)){if(m)m.textContent="Error: "+((data&&data.error)||error.message);return;}
   if(m)m.textContent="✓ Plan generado. Recargando…";setTimeout(()=>verCliente(id),700);
 }
@@ -1244,7 +1267,7 @@ async function regenInforme(id){
   const m=$("infIniMsg");if(m)m.textContent="Generando…";
   const {data:ik}=await sb.from("intake").select("*").eq("user_id",id).maybeSingle();
   if(!ik){if(m)m.textContent="Sin formulario de ingreso.";return;}
-  const {data,error}=await sb.functions.invoke("informe-inicial",{body:{rutina:[ik.q2_rutina||"",ik.rutina_ref||""].filter(Boolean).join("\n"),contexto:{meta:ik.q1_meta,disponibilidad:ik.q3_disponibilidad,lesiones:ik.q9_lesiones,gustos:ik.q7_tiempo_gustos}}});
+  const {data,error}=await invokeFn("informe-inicial",{body:{rutina:[ik.q2_rutina||"",ik.rutina_ref||""].filter(Boolean).join("\n"),contexto:{meta:ik.q1_meta,disponibilidad:ik.q3_disponibilidad,lesiones:ik.q9_lesiones,gustos:ik.q7_tiempo_gustos}}});
   if(error||(data&&data.error)){if(m)m.textContent="Error: "+((data&&data.error)||error.message);return;}
   await sb.from("intake").update({informe_inicial:JSON.stringify(data),informe_inicial_en:new Date().toISOString()}).eq("user_id",id);
   if(m)m.textContent="✓ Informe generado. Recargando…";setTimeout(()=>verCliente(id),700);
@@ -1361,7 +1384,7 @@ async function fusionarEj(){
   const kn=cap((EJ.find(e=>String(e.id)===keep)||{}).nombre||''),dn=cap((EJ.find(e=>String(e.id)===drop)||{}).nombre||'');
   if(!confirm(`¿Fusionar "${dn}" dentro de "${kn}"? El historial de "${dn}" pasa a "${kn}" y "${dn}" se borra. No se puede deshacer.`))return;
   $("fusMsg").textContent="Fusionando…";
-  const {data,error}=await sb.functions.invoke("fusionar-ejercicios",{body:{keep,drop}});
+  const {data,error}=await invokeFn("fusionar-ejercicios",{body:{keep,drop}});
   if(error||(data&&data.error)){$("fusMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
   const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
   verEjercicios();$("fusMsg").textContent=`✓ Fusionados (${(data&&data.reasignadas)||0} series reasignadas).`;
@@ -1516,7 +1539,7 @@ async function verSugerencias(){
 }
 async function generarDigest(){
   const el=$("dgMsg"); if(el)el.textContent="Analizando feedback con IA…";
-  const {data,error}=await sb.functions.invoke("feedback-digest",{body:{}});
+  const {data,error}=await invokeFn("feedback-digest",{body:{}});
   if(error){if(el)el.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   if(data&&data.n===0){if(el)el.textContent="Sin feedback nuevo para analizar todavía.";return;}
   verSugerencias();
@@ -1557,7 +1580,7 @@ async function enviarFeedbackInterno(){
 }
 async function generarConsolaDigest(){
   const el=$("ciMsg");if(el)el.textContent="Analizando tus notas con IA…";
-  const {data,error}=await sb.functions.invoke("feedback-digest",{body:{fuente:"consola"}});
+  const {data,error}=await invokeFn("feedback-digest",{body:{fuente:"consola"}});
   if(error){if(el)el.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   if(data&&data.n===0){if(el)el.textContent="Sin notas nuevas para analizar todavía.";return;}
   verInterno();
@@ -1620,7 +1643,7 @@ async function iaInterpretar(){
   const inp=($("ia_inp").value||'').trim();if(!inp){$("ia_msg").textContent="Escribe algo.";return;}
   $("ia_btn").disabled=true;$("ia_msg").textContent="Pensando…";$("ia_out").innerHTML="";
   try{
-    const {data,error}=await sb.functions.invoke("consola-ia",{body:{instruccion:inp,contexto:IA_CTX}});
+    const {data,error}=await invokeFn("consola-ia",{body:{instruccion:inp,contexto:IA_CTX}});
     if(error||(data&&data.error)){$("ia_msg").textContent=(data&&data.error)||error.message;return;}
     $("ia_msg").textContent="";IA_ACC=data.acciones||[];
     let h=`<div style="border:1px solid var(--line);border-radius:8px;padding:10px">`;
