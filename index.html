@@ -873,7 +873,15 @@ async function publicarInforme(id){
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   INF_HTML=data.html||INF_HTML;infPreview();$("infMsg").textContent="✓ Publicado. Al cliente le llegó la notificación.";
 }
-function descargarInformePDF(){if(!INF_HTML){alert("Genera el informe primero.");return;}const w=window.open("","_blank");w.document.write(INF_HTML);w.document.close();setTimeout(()=>w.print(),600);}
+function imprimirIframe(fid,html){
+  const f=$(fid);
+  if(f&&f.contentWindow){try{f.contentWindow.focus();f.contentWindow.print();return;}catch(e){}}
+  // Respaldo: ventana nueva (por si el iframe no está listo). Si el navegador la bloquea, avisamos.
+  const w=window.open("","_blank");
+  if(!w){alert("Tu navegador bloqueó la ventana para el PDF. Permite ventanas emergentes de esta página e intenta de nuevo.");return;}
+  w.document.write(html);w.document.close();setTimeout(()=>w.print(),600);
+}
+function descargarInformePDF(){if(!INF_HTML){alert("Genera el informe primero.");return;}imprimirIframe("inf_prev",INF_HTML);}
 
 // ---------- Informe para PROSPECTO (persona NO registrada) ----------
 function verProspecto(){
@@ -986,7 +994,7 @@ async function generarPlanAlim(id){
   PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}
   $("planMsg").textContent="✓ Generado";
 }
-function descargarPlanPDF(){if(!PLAN_HTML){alert("Genera el plan primero.");return;}const w=window.open("","_blank");w.document.write(PLAN_HTML);w.document.close();setTimeout(()=>w.print(),600);}
+function descargarPlanPDF(){if(!PLAN_HTML){alert("Genera el plan primero.");return;}imprimirIframe("plan_prev",PLAN_HTML);}
 async function marcarPlanEnviado(id){
   $("planMsg").textContent="Marcando…";
   const {data,error}=await sb.functions.invoke("plan-alimentacion",{body:{action:"enviar",user_id:id}});
