@@ -448,8 +448,8 @@ async function verCliente(id){
   // ---- Atleta (culturismo): SOLO el entrenador decide ----
   const A=atl.data;
   h+=`<h3>Atleta (culturismo)</h3>
-   <label style="display:flex;align-items:flex-start;gap:8px;margin:4px 0;cursor:pointer">
-     <input type="checkbox" id="a_es" style="margin-top:3px;flex-shrink:0" ${A?'checked':''} onchange="toggleAtleta('${id}',this.checked)"><span>Marcar como atleta de competencia</span>
+   <label style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer">
+     <input type="checkbox" id="a_es" style="flex-shrink:0;margin:0" ${A?'checked':''} onchange="toggleAtleta('${id}',this.checked)"><span>Marcar como atleta de competencia</span>
    </label>
    <div id="a_campos" style="${A?'':'display:none'}">
      <div class="row">
@@ -508,8 +508,8 @@ async function verCliente(id){
       <button class="sm" onclick="setNivel('${id}')">Guardar nivel</button> <span id="nvMsg" class="muted"></span>
     </div>
   </div>`;
-  h+=`<label style="display:flex;align-items:flex-start;gap:8px;margin:10px 0 4px;cursor:pointer">
-       <input type="checkbox" id="e_act" style="margin-top:3px;flex-shrink:0" ${E&&E.activa?'checked':''} onchange="document.getElementById('e_campos').style.display=this.checked?'':'none'"><span>Activar etapa de especialización (avanzados)</span>
+  h+=`<label style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;cursor:pointer">
+       <input type="checkbox" id="e_act" style="flex-shrink:0;margin:0" ${E&&E.activa?'checked':''} onchange="document.getElementById('e_campos').style.display=this.checked?'':'none'"><span>Activar etapa de especialización (avanzados)</span>
      </label>
      <div id="e_campos" style="${E&&E.activa?'':'display:none'}">
        <label class="lbl">Músculo objetivo</label>
@@ -979,7 +979,7 @@ async function verRestaurantes(){
     <div class="row"><div><label class="lbl">Ciudad</label><input id="rc" placeholder="Bogotá"></div><div style="flex:2"><label class="lbl">Dirección</label><input id="rd" placeholder="Calle 123 #45-67"></div></div>
     <div class="row"><div><label class="lbl">Latitud (opcional)</label><input id="rlat" type="number" step="any" placeholder="4.65"></div><div><label class="lbl">Longitud (opcional)</label><input id="rlng" type="number" step="any" placeholder="-74.05"></div></div>
     <label class="lbl">Descripción (opcional)</label><textarea id="rdesc" rows="2" placeholder="Comida saludable, bowls, opciones altas en proteína…"></textarea>
-    <label style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="rrec" style="margin-top:3px;flex-shrink:0"><span>Recomendado por el equipo ⭐</span></label>
+    <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="rrec" style="flex-shrink:0;margin:0"><span>Recomendado por el equipo ⭐</span></label>
     <button onclick="addRestaurante()">Agregar restaurante</button> <span id="rMsg" class="muted"></span></div>
     <div class="card"><h2 style="margin-top:0">Restaurantes (${RESTS.length})</h2><div id="restList"></div></div>`;
   renderRests();
