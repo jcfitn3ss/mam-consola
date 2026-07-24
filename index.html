@@ -739,13 +739,22 @@ async function verCliente(id){
       <iframe id="inf_prev" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
     </div></div>`;
 
-  // Plan de alimentación (PDF, mismo diseño de los informes)
+  // Plan de alimentación MULTI-DÍA: generar con IA -> revisar/editar en texto -> aprobar -> exportar PDF.
   h+=`<div class="card"><h2 style="margin-top:0">Plan de alimentación</h2>
-    <div class="muted" style="margin-bottom:6px">Genera el plan de comidas del cliente (alimentos, gramos, macros y guía por IA) con el diseño de los informes. Revísalo aquí al instante y véelo o descárgalo como PDF.</div>
-    <button onclick="generarPlanAlim('${id}')">Generar / revisar plan</button>
-    <button class="ghost" onclick="descargarPlanPDF()">Ver / descargar PDF</button>
-    <span id="planMsg" class="muted"></span>
-    <iframe id="plan_prev" class="hide" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
+    <div class="muted" style="margin-bottom:8px">La IA arma un plan de varios días (alimentos y gramos, según lo que le gusta al cliente). <b>Revísalo y edítalo aquí</b>; cuando quede bien, apruébalo y expórtalo en PDF. No se exporta hasta que lo apruebes.</div>
+    <div class="row" style="align-items:flex-end;margin-bottom:6px">
+      <div style="flex:0"><label class="lbl">Días del plan</label><input id="plan_dias" type="number" min="1" max="10" value="4" style="width:80px"></div>
+      <div><button onclick="planGenerar('${id}')">Generar con IA</button></div>
+    </div>
+    <span id="planMsg" class="muted" style="font-size:12px"></span>
+    <div id="plan_editor" style="margin-top:10px"></div>
+    <div id="plan_acciones" class="hide" style="margin-top:10px">
+      <button onclick="planGuardar('${id}')">Aprobar y guardar</button>
+      <button class="ghost" onclick="planExportar()">Exportar PDF</button>
+      <button class="ghost" onclick="planPreview()">Actualizar vista previa</button>
+      <span id="planMsg2" class="muted" style="font-size:12px"></span>
+    </div>
+    <iframe id="plan_prev" class="hide" style="width:100%;height:560px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
   </div>`;
 
   // ===== Análisis de entreno (gráficas) =====
@@ -1019,14 +1028,80 @@ async function delPlato(pid,id){await sb.from("restaurante_platos").delete().eq(
 
 // ---------- Plan de alimentación ----------
 let PLAN_HTML=null;
-async function generarPlanAlim(id){
-  $("planMsg").textContent="Generando plan (comidas + guía por IA)…";
-  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id}});
+// ---- Plan de alimentación multi-día: generar (IA) -> editar en texto -> aprobar -> exportar ----
+let PLAN_DATOS=null;
+async function planGenerar(id){
+  const dias=Math.max(1,Math.min(10,+$("plan_dias").value||4));
+  $("planMsg").textContent="Generando plan con IA… (unos segundos)";$("plan_editor").innerHTML="";
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias}});
   if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
-  PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}
-  $("planMsg").textContent="✓ Generado";
+  PLAN_DATOS=data.datos;$("planMsg").innerHTML="✓ Plan generado. Revísalo y edítalo abajo; cuando quede bien, <b>Aprobar y guardar</b>.";
+  planRenderEditor();$("plan_acciones").classList.remove("hide");
+  const f=$("plan_prev");if(f)f.classList.add("hide");
 }
-function descargarPlanPDF(){if(!PLAN_HTML){alert("Genera el plan primero.");return;}imprimirIframe("plan_prev",PLAN_HTML);}
+function planRenderEditor(){
+  const d=PLAN_DATOS;if(!d){$("plan_editor").innerHTML="";return;}
+  const o=d.objetivo||{};let h=`<div class="muted" style="font-size:12px;margin-bottom:8px">Objetivo: <b>${o.kcal||'—'} kcal</b> · P${o.prot||0}/C${o.carb||0}/G${o.fat||0}. El estimado por día debe quedar cerca de eso.</div>`;
+  (d.dias||[]).forEach((dia,di)=>{
+    const est=dia.kcalEst?`<span class="muted" style="font-size:11px">≈ ${dia.kcalEst} kcal${o.kcal?` (obj ${o.kcal})`:''}</span>`:'';
+    h+=`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <b style="white-space:nowrap">Día ${di+1}</b>
+        <input class="plDiaTit" data-d="${di}" value="${esc(dia.titulo||'')}" placeholder="Resumen (ej: Pollo con sweet potato + arepa)" style="flex:1;margin:0">
+        ${est}
+        <button class="sm ghost" onclick="planQuitarDia(${di})" title="Quitar día" style="margin:0">×</button>
+      </div>`;
+    (dia.comidas||[]).forEach((c,ci)=>{
+      h+=`<div style="display:flex;gap:8px;align-items:flex-start;margin:4px 0">
+        <input class="plMom" data-d="${di}" data-c="${ci}" value="${esc(c.momento||'')}" style="width:130px;margin:0;font-weight:700">
+        <textarea class="plAli" data-d="${di}" data-c="${ci}" rows="2" style="flex:1;margin:0" placeholder="Alimentos con gramos…">${esc(c.alimentos||'')}</textarea>
+      </div>`;
+    });
+    h+=`<button class="sm ghost" onclick="planAgregarComida(${di})" style="margin-top:4px">+ Agregar comida</button></div>`;
+  });
+  h+=`<button class="sm ghost" onclick="planAgregarDia()">+ Agregar día</button>`;
+  // Reglas operativas
+  h+=`<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:10px"><b>Reglas operativas</b>`;
+  (d.reglas||[]).forEach((r,ri)=>{
+    h+=`<div style="display:flex;gap:8px;align-items:flex-start;margin:6px 0">
+      <input class="plRegT" data-r="${ri}" value="${esc(r.titulo||'')}" placeholder="Título" style="width:200px;margin:0;font-weight:700">
+      <textarea class="plRegD" data-r="${ri}" rows="2" style="flex:1;margin:0" placeholder="Explicación…">${esc(r.texto||'')}</textarea>
+      <button class="sm ghost" onclick="planQuitarRegla(${ri})" style="margin:0">×</button>
+    </div>`;
+  });
+  h+=`<button class="sm ghost" onclick="planAgregarRegla()" style="margin-top:4px">+ Agregar regla</button></div>`;
+  h+=`<div style="margin-top:10px"><label class="lbl">Nota del entrenador (opcional, va al final)</label><textarea id="plNota" rows="2" style="width:100%">${esc(d.notaEntrenador||'')}</textarea></div>`;
+  $("plan_editor").innerHTML=h;
+}
+function planRecoger(){
+  const d=PLAN_DATOS;if(!d)return null;
+  document.querySelectorAll(".plDiaTit").forEach(s=>{const di=+s.dataset.d;if(d.dias[di])d.dias[di].titulo=s.value;});
+  document.querySelectorAll(".plMom").forEach(s=>{const di=+s.dataset.d,ci=+s.dataset.c;if(d.dias[di]&&d.dias[di].comidas[ci])d.dias[di].comidas[ci].momento=s.value;});
+  document.querySelectorAll(".plAli").forEach(s=>{const di=+s.dataset.d,ci=+s.dataset.c;if(d.dias[di]&&d.dias[di].comidas[ci])d.dias[di].comidas[ci].alimentos=s.value;});
+  document.querySelectorAll(".plRegT").forEach(s=>{const ri=+s.dataset.r;if(d.reglas[ri])d.reglas[ri].titulo=s.value;});
+  document.querySelectorAll(".plRegD").forEach(s=>{const ri=+s.dataset.r;if(d.reglas[ri])d.reglas[ri].texto=s.value;});
+  const n=$("plNota");d.notaEntrenador=n?n.value.trim():"";
+  return d;
+}
+function planAgregarComida(di){planRecoger();if(PLAN_DATOS.dias[di]){PLAN_DATOS.dias[di].comidas.push({momento:"COMIDA",alimentos:""});planRenderEditor();}}
+function planAgregarDia(){planRecoger();const m=(PLAN_DATOS.dias[0]&&PLAN_DATOS.dias[0].comidas.map(c=>({momento:c.momento,alimentos:""})))||[{momento:"DESAYUNO",alimentos:""}];PLAN_DATOS.dias.push({titulo:"",comidas:m});planRenderEditor();}
+function planQuitarDia(di){planRecoger();PLAN_DATOS.dias.splice(di,1);planRenderEditor();}
+function planAgregarRegla(){planRecoger();PLAN_DATOS.reglas.push({titulo:"",texto:""});planRenderEditor();}
+function planQuitarRegla(ri){planRecoger();PLAN_DATOS.reglas.splice(ri,1);planRenderEditor();}
+async function planPreview(){
+  const d=planRecoger();if(!d)return;$("planMsg2").textContent="Actualizando vista previa…";
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"preview",user_id:RECUID,datos:d}});
+  if(error||!data||data.error){$("planMsg2").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
+  PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}$("planMsg2").textContent="✓ Vista previa actualizada";
+}
+async function planGuardar(id){
+  const d=planRecoger();if(!d)return;$("planMsg2").textContent="Guardando y aprobando…";
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"guardar",user_id:id,datos:d}});
+  if(error||!data||data.error){$("planMsg2").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
+  PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}
+  $("planMsg2").innerHTML="✓ Plan aprobado y guardado. El cliente ya puede verlo. Ahora puedes exportarlo.";
+}
+function planExportar(){if(!PLAN_HTML){alert("Primero aprueba/guarda o actualiza la vista previa.");return;}imprimirIframe("plan_prev",PLAN_HTML);}
 async function marcarPlanEnviado(id){
   $("planMsg").textContent="Marcando…";
   const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"enviar",user_id:id}});
