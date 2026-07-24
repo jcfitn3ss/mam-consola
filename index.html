@@ -477,7 +477,7 @@ async function verCliente(id){
   rep+=`</div>`;
 
   let h=rep+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
-  h+=fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—");
+  h+=`<div class="kv">`+fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—")+`</div>`;
 
   // ---- Atleta (culturismo): SOLO el entrenador decide ----
   const A=atl.data;
@@ -594,7 +594,7 @@ async function verCliente(id){
   // Gestión interna (entrenador): ticket, pago/presupuesto, seguimiento
   const sd=susc.data||{};
   h+=`<div class="card"><h2 style="margin-top:0">Gestión interna</h2>`;
-  h+=fila("Pago (Stripe)", (sd.estado||'—')+(sd.tier?' · '+sd.tier:'')+(sd.prox_cobro?' · próx. cobro '+sd.prox_cobro:''), sd.estado&&sd.estado!=='activa'&&sd.estado!=='prueba');
+  h+=`<div class="kv">`+fila("Pago (Stripe)", (sd.estado||'—')+(sd.tier?' · '+sd.tier:'')+(sd.prox_cobro?' · próx. cobro '+sd.prox_cobro:''), sd.estado&&sd.estado!=='activa'&&sd.estado!=='prueba')+`</div>`;
   if(sd.stripe_customer_id) h+=`<div style="margin:4px 0"><a href="https://dashboard.stripe.com/customers/${esc(sd.stripe_customer_id)}" target="_blank" style="color:var(--rojo)">Ver pago en Stripe →</a></div>`;
   h+=`<label class="lbl">Ticket</label><select id="g_ticket">${['','alto','medio','bajo'].map(t=>`<option value="${t}" ${(ctr.ticket||'')===t?'selected':''}>${t?t.toUpperCase():'(sin asignar)'}</option>`).join("")}</select>`;
   h+=`<div class="row"><div><label class="lbl">Pago confirmado</label><select id="g_pago"><option value="no" ${!ctr.pago_confirmado?'selected':''}>No</option><option value="si" ${ctr.pago_confirmado?'selected':''}>Sí</option></select></div><div><label class="lbl">Presupuesto adicional</label><select id="g_presu"><option value="no" ${!ctr.presupuesto_adicional?'selected':''}>No</option><option value="si" ${ctr.presupuesto_adicional?'selected':''}>Sí</option></select></div></div>`;
@@ -608,8 +608,10 @@ async function verCliente(id){
 
   // PARTE 2: Entrenamiento detallado
   h+=`<div class="card"><h2 style="margin-top:0">Entrenamiento · esquema</h2>`;
+  h+=`<div class="kv">`;
   h+=fila("Programación",`Semana ${sa}/${sem} · Bloque ${m?m.n:1}${esDeload?' · DESCARGA':''}`);
   h+=fila("Bloques",ms.map(x=>`B${x.n}:${x.ini}-${x.fin}${x.deload?'(d'+x.deload+')':''}`).join("  "));
+  h+=`</div>`;
   h+=`<h3>Series esta semana por grupo (vs RP)</h3>`;
   const gv=Object.keys(vol).sort((a,b)=>vol[b]-vol[a]);
   if(gv.length){h+=`<table>`;gv.forEach(g=>{const v=VOL[g];const n=vol[g];let col="var(--ok)",txt="en rango";if(v){if(n<v[0]){col="var(--warn)";txt="bajo MEV";}else if(n>v[2]){col="var(--bad)";txt="sobre MRV";}}const pct=v?Math.min(100,Math.round(n/v[2]*100)):50;h+=`<tr><td>${esc(g)}</td><td style="width:50%"><div class="bar"><i style="width:${pct}%;background:${col}"></i></div></td><td><b>${n}</b> <span class="muted">${v?`${txt} (${v[0]}-${v[2]})`:''}</span></td></tr>`;});h+=`</table>`;}
