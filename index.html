@@ -191,7 +191,7 @@ const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bícep
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
 let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
-let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[];
+let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[],LAZY={};
 
 const $=id=>document.getElementById(id);
 const show=(id,on)=>$(id).classList.toggle("hide",!on);
@@ -666,7 +666,7 @@ async function verCliente(id){
 
   // ===== Comparativa y gráficas: DIFERIDAS (se insertan tras pintar el detalle,
   // para que abrir un cliente sea instantáneo). Placeholder aquí.
-  h+=`<div id="graficasComp"></div>`;
+  h+=`<div class="card" data-lazy="graficas"><h2 style="margin-top:0">Comparativa y gráficas</h2><div id="graficasComp" class="muted" style="font-size:12px">Abre esta sección para cargar las gráficas.</div></div>`;
 
   // Macros por día y refeeds (override del objetivo base por fecha)
   {
@@ -716,7 +716,8 @@ async function verCliente(id){
     if(refeedCalc)h+=`<div class="muted" style="font-size:12px;margin-top:4px">Refeed calculado (peso ${pesoAct} kg): ${refeedCalc.kcal} kcal · P${refeedCalc.prot}/C${refeedCalc.carb}/G${refeedCalc.fat}. Carbohidratos idealmente antes de entrenar.</div>`;
     else h+=`<div class="muted" style="font-size:12px;margin-top:4px">Falta peso reciente para calcular el refeed.</div>`;
     h+=`<h3>Custom (macros manuales)</h3>`;
-    h+=`<div class="row"><div><label class="lbl">Kcal</label><input id="md_kcal" type="number" value="${base.kcal||''}"></div><div><label class="lbl">Prot</label><input id="md_prot" type="number" value="${base.prot||''}"></div><div><label class="lbl">Carb</label><input id="md_carb" type="number" value="${base.carb||''}"></div><div><label class="lbl">Grasa</label><input id="md_fat" type="number" value="${base.fat||''}"></div></div>`;
+    h+=`<div class="row"><div><label class="lbl">Kcal</label><input id="md_kcal" type="number" value="${base.kcal||''}"></div><div><label class="lbl">Prot</label><input id="md_prot" type="number" value="${base.prot||''}" oninput="recalcMd()"></div><div><label class="lbl">Carb</label><input id="md_carb" type="number" value="${base.carb||''}" oninput="recalcMd()"></div><div><label class="lbl">Grasa</label><input id="md_fat" type="number" value="${base.fat||''}" oninput="recalcMd()"></div></div>`;
+    h+=`<div class="muted" style="font-size:11px;margin-top:2px">Las calorías se recalculan solas con los macros (4 kcal/g proteína y carbos, 9 kcal/g grasa). Puedes sobrescribir el Kcal a mano.</div>`;
     h+=`<button class="sm" style="margin-top:6px" onclick="guardarCustomMacros('${id}')">Guardar custom</button> <span id="mdMsg" class="muted"></span></div>`;
   }
 
@@ -771,12 +772,10 @@ async function verCliente(id){
     volRutina:(()=>{const v={};((RUT&&RUT.dias)||[]).forEach(d=>{(d.orden||[]).forEach(it=>{const g=gmap[String(it.id)]||it.g||'Otros';const s=+it.s||0;if(s>0)v[g]=(v[g]||0)+s;});});return v;})()};
   h+=calCardHTML();
 
-  $("detalle").innerHTML=h;
-  recetaRender();rcInit();hacerColapsables();
-  // Gráficas DIFERIDAS: el detalle ya se pintó (abre instantáneo); en el siguiente
-  // tick calculamos e insertamos la comparativa + el análisis de entreno.
-  setTimeout(()=>{
-    try{
+  // Gráficas PEREZOSAS: se calculan SOLO cuando el entrenador abre la sección
+  // (evita render pesado al abrir el cliente). hacerColapsables las dispara.
+  LAZY={
+    graficas:()=>{
       const fmtF=f=>String(f).slice(5);
       const kByDay={};(cm30.data||[]).forEach(c=>{if(!c.fecha)return;kByDay[c.fecha]=(kByDay[c.fecha]||0)+(+c.kcal||0);});
       const kdates=Object.keys(kByDay).sort();
@@ -788,18 +787,18 @@ async function verCliente(id){
       const sueDs=[{label:'Sueño (h)',color:'#a855f7',pts:sueAsc.map(s=>({x:s.fecha,y:+s.horas,tip:fmtF(s.fecha)+' · '+s.horas+' h'}))}];
       const M=medsAll.data||[];const m0=M[0],m1=M[M.length-1];
       const medRow=(lbl,k,u)=>{if(!m0)return'';const a=m0[k],b=m1?m1[k]:null;if(a==null&&b==null)return'';const d=(a!=null&&b!=null&&M.length>1)?Math.round((b-a)*10)/10:null;return `<tr><td>${lbl}</td><td>${a!=null?a+' '+u:'—'}</td><td>${b!=null?b+' '+u:'—'}</td><td class="muted">${d==null?'—':(d>0?'+':'')+d+' '+u}</td></tr>`;};
-      let cg=`<div class="card"><h2 style="margin-top:0">Comparativa y gráficas</h2>`;
-      cg+=`<h3>Calorías (últimos días) vs objetivo</h3>${svgChart(kcalDs,kdates,'kcal',fmtF)}`;
+      let cg=`<h3 style="margin-top:0">Calorías (últimos días) vs objetivo</h3>${svgChart(kcalDs,kdates,'kcal',fmtF)}`;
       cg+=`<h3>Peso</h3>${svgChart(pesoDs,pesAsc.map(p=>p.fecha),'kg',fmtF)}`;
       cg+=`<h3>Sueño</h3>${svgChart(sueDs,sueAsc.map(s=>s.fecha),'h',fmtF)}`;
       cg+=`<h3>Medidas — primera vs última</h3>`;
       if(M.length){cg+=`<table style="font-size:12px;width:100%"><tr><th>Medida</th><th>Primera<br><span class="muted" style="font-size:10px">${esc(m0?m0.fecha||'':'')}</span></th><th>Última<br><span class="muted" style="font-size:10px">${esc(m1?m1.fecha||'':'')}</span></th><th>Δ</th></tr>${medRow('Cintura','cintura','cm')}${medRow('Cadera','cadera','cm')}${medRow('Pecho','pecho','cm')}${medRow('Brazo','brazo','cm')}${medRow('Muslo','muslo','cm')}</table>`;}
       else cg+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
-      cg+=`</div>`;
       const g=$("graficasComp");if(g)g.innerHTML=cg;
-    }catch(e){}
-    try{anRender();}catch(e){}
-  },20);
+    },
+    entreno:()=>{try{anRender();}catch(e){}},
+  };
+  $("detalle").innerHTML=h;
+  recetaRender();rcInit();hacerColapsables();
 }
 // Hace cada tarjeta del detalle un desplegable (clic en el título) para no verse invasivo.
 function hacerColapsables(){
@@ -811,7 +810,10 @@ function hacerColapsables(){
     const abierta=idx===0; cont.style.display=abierta?"block":"none";
     h.style.cursor="pointer";h.style.userSelect="none";
     const flecha=document.createElement("span");flecha.style.cssText="float:right;color:var(--muted);font-size:13px";flecha.textContent=abierta?"▾":"▸";h.appendChild(flecha);
-    h.addEventListener("click",()=>{const ab=cont.style.display==="none";cont.style.display=ab?"block":"none";flecha.textContent=ab?"▾":"▸";});
+    const lazyKey=card.dataset.lazy;
+    const correrLazy=()=>{if(lazyKey&&!card.dataset.lazyRun&&LAZY[lazyKey]){card.dataset.lazyRun="1";try{LAZY[lazyKey]();}catch(e){}}};
+    if(abierta)correrLazy();
+    h.addEventListener("click",()=>{const ab=cont.style.display==="none";cont.style.display=ab?"block":"none";flecha.textContent=ab?"▾":"▸";if(ab)correrLazy();});
   });
 }
 
@@ -1324,6 +1326,11 @@ function recalcKcal(){
   const k=Math.round(p*4+c*4+f*9);
   if(k>0)$("e_kcal").value=k;
 }
+function recalcMd(){
+  const p=+$("md_prot").value||0,c=+$("md_carb").value||0,f=+$("md_fat").value||0;
+  const k=Math.round(p*4+c*4+f*9);
+  if(k>0&&$("md_kcal"))$("md_kcal").value=k;
+}
 async function guardarObj(id){
   $("saveMsg").textContent="Guardando…";
   const tipo=$("e_tipo").value,kcal=+$("e_kcal").value||null,prot=+$("e_prot").value||null,carb=+$("e_carb").value||null,fat=+$("e_fat").value||null,fase=$("e_fase").value||null;
@@ -1833,7 +1840,7 @@ function anCardHTML(){
   const mesoOpts=ms.map(m=>`<option value="${m.n}" ${m.n===curMeso.n?'selected':''}>Bloque ${m.n} (sem ${m.ini}-${m.fin})</option>`).join('');
   const key=ejs.slice(0,4).map(e=>e.id);
   const keyChk=ejs.map(e=>`<label style="font-size:12px;margin-right:12px;white-space:nowrap;display:inline-block"><input type="checkbox" class="an_key" value="${e.id}" ${key.includes(e.id)?'checked':''} onchange="anRender()"> ${esc(e.nombre)}</label>`).join('');
-  return `<div class="card"><h2 style="margin-top:0">Análisis de entreno</h2>
+  return `<div class="card" data-lazy="entreno"><h2 style="margin-top:0">Análisis de entreno</h2>
     <div class="row" style="align-items:flex-end">
       <div><label class="lbl">Ejercicio</label><select id="an_ej" onchange="anRender()">${ejOpts}</select></div>
       <div><label class="lbl">Mesociclo</label><select id="an_meso" onchange="anRender()">${mesoOpts}</select></div>
