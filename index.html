@@ -62,6 +62,36 @@
   .calTbl tbody tr.calRow:hover{background:rgba(255,255,255,.045)}
   .calTbl input,.calTbl select{background:#0f0f11;border:1px solid transparent;border-radius:6px;padding:6px}
   .calTbl input:focus,.calTbl select:focus{border-color:var(--rojo);outline:none}
+  /* ===== Rediseño: tarjetas, tablas y checkboxes organizados ===== */
+  :root{--card2:#1b1b1f}
+  .card{padding:16px 18px}
+  .card>h2:first-child,.card>h3:first-child{margin-top:0}
+  h2{border-bottom:1px solid var(--line);padding-bottom:9px}
+  input[type=checkbox]{width:16px;height:16px;accent-color:var(--rojo);vertical-align:middle}
+  /* Tablas con encabezado + zebra, contenedor redondeado */
+  table.data,table.kv,table.chkTbl{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0}
+  table.data th,table.kv th,table.chkTbl th{background:var(--card2);color:var(--muted);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px;font-weight:700;text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+  table.data td,table.kv td,table.chkTbl td{padding:9px 12px;border-bottom:1px solid #1d1d20;vertical-align:middle}
+  table.data tbody tr:nth-child(even) td,table.kv tbody tr:nth-child(even) td,table.chkTbl tbody tr:nth-child(even) td{background:rgba(255,255,255,.022)}
+  table.data tbody tr:last-child td,table.kv tbody tr:last-child td,table.chkTbl tbody tr:last-child td{border-bottom:none}
+  table.data tbody tr:hover td,table.chkTbl tbody tr:hover td{background:rgba(255,255,255,.045)}
+  /* Tabla clave/valor (reemplaza filas sueltas) */
+  table.kv td:first-child{color:var(--muted);width:42%}
+  table.kv td:last-child{font-weight:700;text-align:right}
+  table.kv td.bad{color:var(--rojo)}
+  /* Tabla de checkboxes */
+  table.chkTbl td.c{width:36px;text-align:center}
+  table.chkTbl td.d{color:var(--muted);font-size:12px}
+  table.chkTbl label{cursor:pointer}
+  /* Filas clave/valor: se leen como tabla limpia (alineadas + zebra por grupo) */
+  .fila{padding:8px 10px;align-items:center;gap:12px;border-bottom:1px solid #1d1d20}
+  .fila>span:first-child{flex:1;min-width:0}
+  .fila>b{text-align:right;white-space:normal}
+  /* Grupo de filas contiguas -> apariencia de tabla con borde y zebra */
+  .kv{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0}
+  .kv .fila{margin:0}
+  .kv .fila:nth-child(even){background:rgba(255,255,255,.022)}
+  .kv .fila:last-child{border-bottom:none}
 </style>
 </head>
 <body>
@@ -423,15 +453,19 @@ async function verCliente(id){
   const alsCli=(typeof ALERTAS!=='undefined'?ALERTAS:[]).filter(a=>String(a.cliente_id)===String(id));
   let rep=`<div class="card"><h2 style="margin-top:0">Reporte automático · ${esc(nom)}</h2>`;
   rep+=`<h3 style="margin:8px 0 2px">Cumplimiento de entrenamiento</h3>`;
+  rep+=`<div class="kv">`;
   rep+=fila("Sesiones últimos 7 días",ses7+" sesión(es)",ses7===0);
   rep+=fila("Sesiones últimos 28 días",ses28+" sesión(es)");
   rep+=fila("Última sesión",ultSes||"Sin registro",!ultSes);
+  rep+=`</div>`;
   rep+=`<h3 style="margin:8px 0 2px">Sensaciones (promedio reciente)</h3>`;
   if(cks.length){
+    rep+=`<div class="kv">`;
     rep+=fila("Fatiga",fatAvg!=null?fatAvg+"/10":"—",fatAvg!=null&&+fatAvg>=7);
     rep+=fila("Energía",enAvg!=null?enAvg+"/10":"—",enAvg!=null&&+enAvg<=4);
     rep+=fila("Dolor articular (último)",C&&C.dart!=null?C.dart+"/10":"—",C&&(C.dart||0)>=6);
     rep+=fila(`Sueño (prom. ${sNoches} noche${sNoches===1?"":"s"})`,sprom!=null?sprom.toFixed(1)+" h":"—",sprom!=null&&sprom<6);
+    rep+=`</div>`;
   } else rep+=`<div class="muted">Sin check-ins aún.</div>`;
   rep+=`<h3 style="margin:8px 0 2px">Novedades</h3>`;
   let hayNov=false;
@@ -488,12 +522,12 @@ async function verCliente(id){
   }
   const pm=per.data||{};
   h+=`<h3>Módulos de la app (visibles para el cliente)</h3>
-    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${pm.ver_entreno!==false?'checked':''} onchange="setModulo('${id}','ver_entreno',this.checked)"> Pestaña Entreno</label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${pm.ver_comida!==false?'checked':''} onchange="setModulo('${id}','ver_comida',this.checked)"> Pestaña Comida</label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${pm.ver_pasos!==false?'checked':''} onchange="setModulo('${id}','ver_pasos',this.checked)"> Monitoreo de pasos</label>
-      <span id="modMsg" class="muted" style="font-size:12px"></span>
-    </div>`;
+    <table class="chkTbl"><thead><tr><th class="c">Activo</th><th>Módulo</th><th>Qué ve el cliente</th></tr></thead><tbody>
+      <tr><td class="c"><input type="checkbox" ${pm.ver_entreno!==false?'checked':''} onchange="setModulo('${id}','ver_entreno',this.checked)"></td><td>Pestaña Entreno</td><td class="d">Ver y registrar sus entrenamientos</td></tr>
+      <tr><td class="c"><input type="checkbox" ${pm.ver_comida!==false?'checked':''} onchange="setModulo('${id}','ver_comida',this.checked)"></td><td>Pestaña Comida</td><td class="d">Registro de comidas y su plan</td></tr>
+      <tr><td class="c"><input type="checkbox" ${pm.ver_pasos!==false?'checked':''} onchange="setModulo('${id}','ver_pasos',this.checked)"></td><td>Monitoreo de pasos</td><td class="d">Pasos del día en "Tu mañana"</td></tr>
+    </tbody></table>
+    <span id="modMsg" class="muted" style="font-size:12px"></span>`;
   h+=`<h3>Nivel y especialización</h3>`;
   const NIVCOL={principiante:'#5fd07f',intermedio:'#e0b84a',avanzado:'#e23b3b'};
   const nivBadge=(n)=>(n&&n!=='—')?`<span class="pill" style="background:${NIVCOL[n]||'#444'};color:#000;font-weight:700;font-size:13px">${cap(n)}</span>`:`<span class="muted" style="font-size:13px">— sin fijar —</span>`;
@@ -534,8 +568,10 @@ async function verCliente(id){
   // Contrato e ingreso (intake)
   const ctr=per.data||{}, ik=intk.data||{};
   h+=`<div class="card"><h2 style="margin-top:0">Contrato e ingreso</h2>`;
+  h+=`<div class="kv">`;
   h+=fila("Contrato", ctr.contrato_aceptado_en?("Aceptado "+String(ctr.contrato_aceptado_en).slice(0,10)+(ctr.contrato_version?" ("+ctr.contrato_version+")":"")):"PENDIENTE", !ctr.contrato_aceptado_en);
   h+=fila("Nombre legal", ctr.nombre_completo||"—")+fila("Documento", ctr.documento||"—")+fila("Expedición", ctr.lugar_expedicion||"—")+fila("Nacimiento", ctr.fecha_nacimiento||"—");
+  h+=`</div>`;
   if(ik && (ik.q1_meta||ik.q2_rutina||ik.q8_alergias||ik.q9_lesiones)){
     const blk=(t,v)=>v?`<div style="margin:6px 0"><div class="muted" style="font-size:11px">${esc(t)}</div><div style="font-size:13px">${esc(v)}</div></div>`:"";
     h+=`<h3>Formulario de ingreso</h3>`;
@@ -598,9 +634,11 @@ async function verCliente(id){
 
   // Fatiga / dolor / sueño (tendencia)
   h+=`<h3>Fatiga, dolor y sueño (recientes)</h3>`;
+  h+=`<div class="kv">`;
   if(C){h+=fila("Último check-in",C.fecha||"—")+fila("Dolor articular",C.dart,(C.dart||0)>=6)+fila("Dolor muscular",C.dmusc)+fila("Energía",C.energia,(C.energia||10)<=3)+fila("Fatiga",C.fatiga,(C.fatiga||0)>=7)+fila("Ánimo",C.animo)+fila("Estrés",C.estres,(C.estres||0)>=7);}
   else h+=`<div class="muted">Sin check-ins.</div>`;
   h+=fila(`Sueño prom. (${sNoches} noche${sNoches===1?"":"s"})`,sprom!=null?`${sprom.toFixed(1)} h`:"—",sprom!=null&&sprom<7);
+  h+=`</div>`;
   // Ciclo menstrual (mujeres): fase actual + síntomas para ajustar el plan.
   const cd=cic.data;
   if(cd&&cd.fecha_inicio){const fi=faseCicloJS(cd.fecha_inicio,cd.duracion,cd.periodo);const sens=fi&&(fi.fase==='Menstrual'||fi.fase==='Lútea')&&(cd.sintomas==='moderado'||cd.sintomas==='fuerte');h+=fila("Ciclo menstrual",fi?`${fi.fase} · día ${fi.dia} · síntomas ${cd.sintomas||'leve'}`:`síntomas ${cd.sintomas||'leve'}`,sens);if(sens)h+=`<div class="muted" style="font-size:12px;color:var(--warn)">Fase sensible + síntomas altos: considera sugerir bajar carga o priorizar recuperación.</div>`;}
@@ -623,9 +661,11 @@ async function verCliente(id){
 
   // Calorías + progreso + journal + fotos
   h+=`<div class="card"><h2 style="margin-top:0">Nutrición y progreso</h2>`;
+  h+=`<div class="kv">`;
   h+=fila("Calorías objetivo",o.kcal?`${o.kcal} kcal · P${o.prot||0}/C${o.carb||0}/G${o.fat||0}`:"—");
   h+=fila("Calorías reales (prom "+dv.length+"d)",prom?`${prom.k} kcal · P${prom.p}/C${prom.c}/G${prom.f}`:"Sin registros",true);
   h+=fila("Peso actual",peso!=null?`${peso} kg${dp!=null?` (${dp>0?'+':''}${dp})`:''}`:"—")+fila("Cintura",cint!=null?`${cint} cm`:"—");
+  h+=`</div>`;
   // PARTE 6 nutrición: preferencias + plan + alerta alimentos
   const pref=(plan.dieta&&"")||"";
   h+=`<h3>Plan de comidas del cliente</h3>`;
