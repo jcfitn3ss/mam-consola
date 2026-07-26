@@ -118,6 +118,7 @@
   <div id="app" class="hide">
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
+      <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
       <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
       <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
       <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
@@ -138,6 +139,7 @@
       </div>
       <div id="detalle"></div>
     </div>
+    <div id="v-recordatorios" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
     <div id="v-ejercicios" class="hide"></div>
@@ -244,7 +246,7 @@ async function init(){const {data:{session}}=await sb.auth.getSession();if(sessi
 async function login(){$("loginErr").textContent="";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
-function tab(t){["clientes","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+function tab(t){["clientes","recordatorios","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
@@ -348,6 +350,79 @@ function renderCampana(){
 function toggleCampana(){const p=$("campanaPanel");if(p)p.classList.toggle("hide");}
 function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("hide");tab('clientes');verCliente(id);window.scrollTo(0,0);}
 async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();}
+
+// ===== Recordatorios diarios: tabla con qué tener en cuenta de cada cliente =====
+function waLink(tel,msg){const t=(tel||'').replace(/\D/g,'');if(!t)return null;const num=t.length===10?('57'+t):t;return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;}
+async function verRecordatorios(){
+  const cont=$("v-recordatorios");if(!cont)return;
+  cont.innerHTML='<div class="card">Cargando recordatorios del día…</div>';
+  const d7=hace(7);
+  // Lunes de esta semana (para adherencia de entreno).
+  const lun=(()=>{const d=new Date();const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return d.toISOString().slice(0,10);})();
+  const [pf,su,ck,jr,ci,se,pl]=await Promise.all([
+    sb.from("perfiles").select("user_id,sexo,telefono"),
+    sb.from("sueno").select("user_id,horas,fecha").gte("fecha",d7).order("fecha",{ascending:false}),
+    sb.from("checkins").select("user_id,fatiga,energia,animo,dart,fecha").gte("fecha",d7).order("fecha",{ascending:false}),
+    sb.from("journal").select("user_id,texto,fecha").order("fecha",{ascending:false}).limit(500),
+    sb.from("ciclo_menstrual").select("*"),
+    sb.from("sesiones").select("user_id,fecha").eq("finalizada",true).gte("fecha",lun),
+    sb.from("planes").select("user_id,dias"),
+  ]);
+  const P={};(pf.data||[]).forEach(p=>P[p.user_id]=p);
+  const SU={};(su.data||[]).forEach(s=>{(SU[s.user_id]=SU[s.user_id]||[]).push(s)});
+  const CK={};(ck.data||[]).forEach(c=>{if(!CK[c.user_id])CK[c.user_id]=c});
+  const JR={};(jr.data||[]).forEach(j=>{if(!JR[j.user_id])JR[j.user_id]=j});
+  const CI={};(ci.data||[]).forEach(c=>CI[c.user_id]=c);
+  const SES={};(se.data||[]).forEach(s=>SES[s.user_id]=(SES[s.user_id]||0)+1);
+  const PL={};(pl.data||[]).forEach(p=>PL[p.user_id]=p.dias);
+
+  const rows=CLIENTES.map(c=>{
+    const u=c.user_id, pr=P[u]||{}, sen=[], nota=[], prio=(c._sc||0);
+    // Sueño
+    const sl=SU[u]||[]; const anoche=sl[0]!=null?+sl[0].horas:null; const prom=sl.length?sl.reduce((a,x)=>a+(+x.horas||0),0)/sl.length:null;
+    if(anoche!=null){sen.push(`Sueño anoche ${anoche}h`); if(anoche<6)nota.push("durmió poco anoche");}
+    else sen.push("Sueño: sin registrar");
+    if(prom!=null&&prom<7)sen.push(`prom ${prom.toFixed(1)}h`);
+    // Sensaciones (último check-in)
+    const k=CK[u];
+    if(k){ if((k.fatiga||0)>=7){sen.push(`Fatiga ${k.fatiga}`);nota.push("fatiga alta");} if(k.energia!=null&&k.energia<=3){sen.push(`Energía ${k.energia}`);nota.push("energía baja");} if((k.dart||0)>=6){sen.push(`Dolor articular ${k.dart}`);nota.push("dolor articular");} }
+    // Journal
+    const j=JR[u]; if(j&&j.fecha>=d7){sen.push(`Journal ${String(j.fecha).slice(5)}`);} else sen.push("Sin journal reciente");
+    // Adherencia de entreno
+    const ses=SES[u]||0, meta=PL[u]||0; if(meta){sen.push(`${ses}/${meta} sesiones sem`); if(ses===0)nota.push("no ha entrenado esta semana");}
+    // Ciclo (mujeres)
+    if(pr.sexo==='F'){
+      const cd=CI[u];
+      if(cd&&cd.fecha_inicio){
+        const fi=faseCicloJS(cd.fecha_inicio,cd.duracion,cd.periodo); const dur=+cd.duracion||28; const retraso=fi&&fi.dia>dur+2;
+        sen.push(`Ciclo: ${fi?fi.fase+' · día '+fi.dia:'—'}${retraso?' (posible retraso)':''}${cd.sintomas&&cd.sintomas!=='leve'?' · síntomas '+cd.sintomas:''}`);
+        if(fi&&(fi.fase==='Menstrual'||fi.fase==='Lútea')&&(cd.sintomas==='moderado'||cd.sintomas==='fuerte'))nota.push("fase sensible con síntomas: considerar bajar carga");
+        if(retraso)nota.push("posible retraso del ciclo: preguntarle cómo se siente");
+      } else sen.push("Ciclo: sin registrar (pedirle que lo llene)");
+    }
+    // Mensaje de WhatsApp sugerido (editable antes de enviar).
+    const nom=(c.nombre||'').split(' ')[0]||'';
+    let wa;
+    if(nota.length) wa=`Hola ${nom}, vi que ${nota.slice(0,2).join(' y ')}. Tómalo con calma hoy y cuéntame cómo te sientes para ajustar lo que necesites.`;
+    else wa=`Hola ${nom}, ¿cómo vas con tus entrenos y tu alimentación esta semana? Cuéntame cómo te has sentido.`;
+    return {c,pr,sen,nota,prio,wa};
+  }).sort((a,b)=>b.prio-a.prio);
+
+  let h=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia y ciclo en mujeres). Ordenado por prioridad. El mensaje de WhatsApp es una sugerencia: edítalo antes de enviar.</div></div>`;
+  h+=`<div class="card" style="overflow-x:auto"><table class="data" style="min-width:820px"><thead><tr><th>Cliente</th><th>Señales de hoy</th><th>Qué tener en cuenta</th><th>WhatsApp</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const wl=waLink(r.pr.telefono,r.wa);
+    const badge=r.nota.length?`<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700;font-size:10px;padding:1px 6px;margin-left:6px">${r.nota.length}</span>`:'';
+    h+=`<tr>
+      <td style="white-space:nowrap"><a href="#" onclick="tab('clientes');verCliente('${r.c.user_id}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:700;text-decoration:none">${esc(r.c.nombre||'—')}</a>${r.pr.sexo==='F'?' <span class="muted" style="font-size:10px">♀</span>':''}${badge}</td>
+      <td style="font-size:12px">${r.sen.map(s=>esc(s)).join(' · ')||'—'}</td>
+      <td style="font-size:12px">${r.nota.length?`<span style="color:var(--warn)">${r.nota.map(esc).join('; ')}</span>`:'<span class="muted">Sin novedades. Check-in general.</span>'}</td>
+      <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" style="color:#25d366;font-weight:700;text-decoration:none">WhatsApp →</a>`:'<span class="muted" style="font-size:11px">Sin teléfono</span>'} <button class="sm ghost" onclick="navigator.clipboard.writeText(${JSON.stringify(r.wa).replace(/"/g,'&quot;')});this.textContent='✓'" title="Copiar mensaje" style="margin:0;padding:3px 7px">Copiar</button></td>
+    </tr>`;
+  });
+  h+=`</tbody></table></div>`;
+  cont.innerHTML=h;
+}
 // Puebla el desplegable "Ir a…" con TODAS las personas (incluido el propio JC).
 function poblarDropCli(){
   const sel=$("cliDrop");if(!sel)return;
