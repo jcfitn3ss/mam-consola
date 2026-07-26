@@ -659,7 +659,13 @@ async function verCliente(id){
     <div id="impMsg" class="muted" style="margin-top:6px"></div>
     <div id="impPrev" style="margin-top:8px"></div></div>`;
 
-  h+=`<div class="card"><h2 style="margin-top:0">Editar rutina (solo entrenador)</h2><div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>${rutGruposHTML()}<div id="editorRut">${editorRutinaHTML()}</div>`;
+  h+=`<div class="card"><h2 style="margin-top:0">Editar rutina (solo entrenador)</h2><div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px">
+      <div style="flex:0"><label class="lbl">Días</label><input id="genDias" type="number" min="1" max="6" value="${plan.dias||4}" style="width:80px"></div>
+      <div><button class="sm" onclick="generarRutina('${id}')">${RUT&&RUT.dias&&RUT.dias.length?'Regenerar rutina automática':'Generar rutina automática'}</button></div>
+      <span id="genRutMsg" class="muted" style="font-size:12px">Arma la rutina con ejercicios del catálogo según los días. Luego la editas abajo.</span>
+    </div>
+    ${rutGruposHTML()}<div id="editorRut">${editorRutinaHTML()}</div>`;
   if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">↩ Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><span id="rutMsg" class="muted"></span></div>`;
   h+=`</div>`;
 
@@ -1341,6 +1347,33 @@ function rutMoverDia(di,dir){
   RUT.tecnicas=nt;
   const t=RUT.dias[di];RUT.dias[di]=RUT.dias[j];RUT.dias[j]=t;
   rutRefrescar();$("rutMsg").textContent="Reordenaste los días. Recuerda Guardar rutina.";
+}
+// Split por número de días (espejo de src/domain/entrenamiento.ts plantillaDias).
+function plantillaDiasJS(d){
+  if(d<=2)return Array.from({length:d},(_,i)=>({nombre:'Cuerpo completo '+(i+1),grupos:['Cuádriceps','Espalda','Pecho','Femoral/Glúteo','Hombro','Core']}));
+  if(d===3)return [{nombre:'Empuje',grupos:['Pecho','Hombro','Tríceps']},{nombre:'Jalón',grupos:['Espalda','Bíceps','Core']},{nombre:'Pierna',grupos:['Cuádriceps','Femoral/Glúteo','Core']}];
+  if(d===4)return [{nombre:'Tren superior A',grupos:['Pecho','Espalda','Hombro']},{nombre:'Tren inferior A',grupos:['Cuádriceps','Femoral/Glúteo','Core']},{nombre:'Tren superior B',grupos:['Espalda','Pecho','Bíceps','Tríceps']},{nombre:'Tren inferior B',grupos:['Femoral/Glúteo','Cuádriceps','Core']}];
+  if(d===5)return [{nombre:'Empuje',grupos:['Pecho','Hombro','Tríceps']},{nombre:'Jalón',grupos:['Espalda','Bíceps']},{nombre:'Pierna',grupos:['Cuádriceps','Femoral/Glúteo','Core']},{nombre:'Tren superior',grupos:['Pecho','Espalda','Hombro']},{nombre:'Tren inferior',grupos:['Femoral/Glúteo','Cuádriceps','Core']}];
+  return [{nombre:'Empuje A',grupos:['Pecho','Hombro','Tríceps']},{nombre:'Jalón A',grupos:['Espalda','Bíceps']},{nombre:'Pierna A',grupos:['Cuádriceps','Femoral/Glúteo','Core']},{nombre:'Empuje B',grupos:['Hombro','Pecho','Tríceps']},{nombre:'Jalón B',grupos:['Espalda','Bíceps']},{nombre:'Pierna B',grupos:['Femoral/Glúteo','Cuádriceps','Core']}];
+}
+// Genera una rutina automática (solo entrenador): arma los días según el # y
+// asigna 2 ejercicios por grupo desde el catálogo. Conserva técnicas/asign previos.
+async function generarRutina(id){
+  const nd=Math.max(1,Math.min(6,+$("genDias").value||4));
+  const m=$("genRutMsg");
+  if(RUT&&RUT.dias&&RUT.dias.length && !confirm("Esto reemplaza los ejercicios de la rutina actual por una nueva de "+nd+" días. ¿Continuar?"))return;
+  if(m)m.textContent="Generando…";
+  const usados=new Set();
+  const pick=(g,n)=>{const cand=EJ.filter(e=>String(e.grupo)===g);const r=[];for(const e of cand){if(r.length>=n)break;if(usados.has(e.id))continue;usados.add(e.id);r.push(e);}return r;};
+  const dias=plantillaDiasJS(nd).map(d=>{const orden=[];d.grupos.forEach(g=>pick(g,2).forEach(e=>orden.push({id:e.id,g,s:3})));return {nombre:d.nombre,grupos:d.grupos,orden};});
+  const prev=RUT||{};
+  const row={user_id:id,split:nd+" días",dias,slots:5,asign:prev.asign||{},tecnicas:prev.tecnicas||{},swaps:prev.swaps||{}};
+  const {error}=await sb.from("rutinas").upsert(row,{onConflict:"user_id"});
+  if(error){if(m)m.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  // Recargar la rutina y el editor.
+  const {data:fresh}=await sb.from("rutinas").select("*").eq("user_id",id).maybeSingle();
+  if(fresh){RUT=fresh;rutRefrescar();}
+  if(m)m.textContent="✓ Rutina generada ("+nd+" días). Revísala y edítala abajo; luego Guardar rutina.";
 }
 async function guardarRutina(id){
   $("rutMsg").textContent="Guardando…";
