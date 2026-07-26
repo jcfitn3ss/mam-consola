@@ -1458,9 +1458,13 @@ async function guardarRutina(id){
   document.querySelectorAll(".rutSel").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(dias[di]&&dias[di].orden&&dias[di].orden[ii])dias[di].orden[ii].id=s.value;});
   document.querySelectorAll(".rutSer").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(dias[di]&&dias[di].orden&&dias[di].orden[ii]){const v=parseInt(s.value);if(v>0)dias[di].orden[ii].s=v;else delete dias[di].orden[ii].s;}});
   document.querySelectorAll(".rutTec").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=dias[di]&&dias[di].orden&&dias[di].orden[ii];if(it){const key=di+"|"+it.id;if(s.value&&s.value!=="normal")tec[key]=s.value;else delete tec[key];}});
-  const {data:upd,error}=await sb.from("rutinas").update({dias,tecnicas:tec}).eq("user_id",id).select("user_id");
-  if(error){$("rutMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
-  if(!upd||!upd.length){$("rutMsg").innerHTML=`<span class="alert">No se guardó: este cliente no tiene rutina o no tienes permiso. Cierra sesión y vuelve a entrar.</span>`;return;}
+  // UPSERT (no update): crea la fila si el cliente aún no tiene rutina, o la
+  // actualiza si ya existe. Así SIEMPRE se puede guardar (antes, si no existía
+  // la fila, el update afectaba 0 filas y "no guardaba").
+  const row={user_id:id,dias,tecnicas:tec,split:(RUT.split||(dias.length+" días")),slots:(RUT.slots||5),asign:(RUT.asign||{}),swaps:(RUT.swaps||{})};
+  const {data:upd,error}=await sb.from("rutinas").upsert(row,{onConflict:"user_id"}).select("user_id");
+  if(error){$("rutMsg").innerHTML=`<span class="alert">Error al guardar: ${esc(error.message)}. Cierra sesión y vuelve a entrar.</span>`;return;}
+  if(!upd||!upd.length){$("rutMsg").innerHTML=`<span class="alert">No se guardó (sin permiso sobre este cliente). Cierra sesión y vuelve a entrar.</span>`;return;}
   RUT.dias=dias;RUT.tecnicas=tec;
   // Reps (mín/máx) y RIR: se guardan en el ejercicio (aplican en la app).
   const ejUpd={};
