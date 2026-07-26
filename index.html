@@ -527,6 +527,7 @@ async function verCliente(id){
       <tr><td class="c"><input type="checkbox" ${pm.ver_comida!==false?'checked':''} onchange="setModulo('${id}','ver_comida',this.checked)"></td><td>Pestaña Comida</td><td class="d">Registro de comidas y su plan</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.ver_pasos!==false?'checked':''} onchange="setModulo('${id}','ver_pasos',this.checked)"></td><td>Monitoreo de pasos</td><td class="d">Pasos del día en "Tu mañana"</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.ver_pliegues===true?'checked':''} onchange="setModulo('${id}','ver_pliegues',this.checked)"></td><td>Pliegues (plicómetro)</td><td class="d">7 pliegues + % grasa estimado (automático para atletas)</td></tr>
+      <tr><td class="c"><input type="checkbox" ${pm.cardio_pautado===true?'checked':''} onchange="setModulo('${id}','cardio_pautado',this.checked)"></td><td>Cardio pautado</td><td class="d">Habilita la pestaña Cardio (registra actividad, ppm y tipo)</td></tr>
     </tbody></table>
     <span id="modMsg" class="muted" style="font-size:12px"></span>`;
   h+=`<h3>Nivel y especialización</h3>`;
