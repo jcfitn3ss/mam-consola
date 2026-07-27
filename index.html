@@ -596,6 +596,9 @@ async function verCliente(id){
       <span id="asigMsg" class="muted" style="font-size:12px"></span>`;
   }
   const pm=per.data||{};
+  h+=`<h3>Acceso del cliente</h3>
+    <div class="muted" style="font-size:11px;margin-bottom:6px">Si el cliente no puede entrar (olvidó su clave, o el correo de recuperación no le llega), cámbiasela aquí y pásasela por WhatsApp. No depende de correos.</div>
+    <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>`;
   h+=`<h3>Módulos de la app (visibles para el cliente)</h3>
     <table class="chkTbl"><thead><tr><th class="c">Activo</th><th>Módulo</th><th>Qué ve el cliente</th></tr></thead><tbody>
       <tr><td class="c"><input type="checkbox" ${pm.ver_entreno!==false?'checked':''} onchange="setModulo('${id}','ver_entreno',this.checked)"></td><td>Pestaña Entreno</td><td class="d">Ver y registrar sus entrenamientos</td></tr>
@@ -1531,6 +1534,21 @@ async function guardarAtleta(id){
   $("aMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Guardado.";
 }
 async function setModulo(id,campo,val){const {error}=await sb.from("perfiles").update({[campo]:val}).eq("user_id",id);const m=$("modMsg");if(m)m.textContent=error?("Error: "+error.message):("✓ Guardado");}
+// Restablece la contraseña de un cliente SIN depender del correo (que se limita a
+// 2/hora). Usa la función segura entrenador_reset_password (solo entrenador principal).
+async function resetClave(id){
+  const sug='MAM'+Math.floor(1000+Math.random()*9000);
+  const pw=prompt('Nueva contraseña para el cliente (mínimo 6 caracteres). Se la pasas por WhatsApp:',sug);
+  if(pw===null) return;
+  if(pw.trim().length<6){alert('La contraseña debe tener al menos 6 caracteres.');return;}
+  const {data,error}=await sb.rpc('entrenador_reset_password',{p_user_id:id,p_password:pw.trim()});
+  if(error){alert('Error: '+error.message);return;}
+  if(data==='ok'){alert('✅ Contraseña cambiada.\n\nPásale esto al cliente:\n\nContraseña: '+pw.trim()+'\n\nQue entre con "Iniciar sesión" (no crear cuenta).');}
+  else if(data==='no_autorizado'){alert('No autorizado: solo el entrenador principal puede restablecer contraseñas.');}
+  else if(data==='clave_corta'){alert('La contraseña es muy corta (mínimo 6).');}
+  else if(data==='usuario_no_existe'){alert('No se encontró ese usuario.');}
+  else{alert('Respuesta inesperada: '+data);}
+}
 async function generarPlanComidas(id){
   const m=$("pcMsg");if(m)m.textContent="Generando plan con IA… (unos segundos)";
   const {data,error}=await invokeFn("plan-comidas-ia",{body:{target:id}});
