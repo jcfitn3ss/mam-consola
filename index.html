@@ -736,10 +736,12 @@ async function verCliente(id){
 
   h+=`<div class="card"><h2 style="margin-top:0">Editar rutina (solo entrenador)</h2><div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px">
-      <div style="flex:0"><label class="lbl">Días</label><input id="genDias" type="number" min="1" max="6" value="${plan.dias||4}" style="width:80px"></div>
+      <div style="flex:0"><label class="lbl">Días</label><input id="genDias" type="number" min="1" max="6" value="${plan.dias||4}" oninput="document.getElementById('genDistWrap').style.display=(+this.value===3?'':'none')" style="width:80px"></div>
+      <div id="genDistWrap" style="${(plan.dias||4)===3?'':'display:none'}"><label class="lbl">Distribución (3 días)</label><select id="genDist"><option value="espaciados"${plan.distribucion==='espaciados'?' selected':''}>Espaciados → fullbody</option><option value="seguidos"${plan.distribucion==='seguidos'?' selected':''}>3 seguidos → rotativa</option><option value="mixto"${plan.distribucion==='mixto'?' selected':''}>2 seguidos + 1 → mixta</option></select></div>
       <div><button class="sm" onclick="generarRutina('${id}')">${RUT&&RUT.dias&&RUT.dias.length?'Regenerar rutina automática':'Generar rutina automática'}</button></div>
-      <span id="genRutMsg" class="muted" style="font-size:12px">Arma la rutina con ejercicios del catálogo según los días. Luego la editas abajo.</span>
+      <span id="genRutMsg" class="muted" style="font-size:12px">Arma la rutina con ejercicios del catálogo. En 3 días respeta la distribución. Luego la editas abajo.</span>
     </div>
+    ${RUT&&RUT.rotativo?`<div class="muted" style="font-size:12px;border-left:3px solid var(--rojo);padding:6px 10px;margin-bottom:8px">Rutina <b>rotativa por semanas</b> (3 días seguidos): abajo editas la <b>semana A</b> (2 inferior + 1 superior); la semana B (2 superior + 1 inferior) se alterna sola en la app.</div>`:''}
     ${rutGruposHTML()}<div id="editorRut">${editorRutinaHTML()}</div>`;
   if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">↩ Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><span id="rutMsg" class="muted"></span></div>`;
   h+=`</div>`;
@@ -1433,22 +1435,35 @@ function plantillaDiasJS(d){
 }
 // Genera una rutina automática (solo entrenador): arma los días según el # y
 // asigna 2 ejercicios por grupo desde el catálogo. Conserva técnicas/asign previos.
+// Espejo de construirDiasRutina (dominio): días según nº + distribución (3 días).
+const CG_FULL=['Cuádriceps','Espalda','Pecho','Femoral/Glúteo','Hombro','Core'];
+const CG_SUP=['Pecho','Espalda','Hombro','Bíceps','Tríceps'];
+const CG_INF=['Cuádriceps','Femoral/Glúteo','Core','Pantorrilla'];
+function construirDiasJS(d,dist){
+  if(d===3&&dist==='espaciados')return {dias:[1,2,3].map(i=>({nombre:'Cuerpo completo '+i,grupos:[...CG_FULL]})),dias_b:null,rotativo:false};
+  if(d===3&&dist==='mixto')return {dias:[{nombre:'Cuerpo completo',grupos:[...CG_FULL]},{nombre:'Tren superior',grupos:[...CG_SUP]},{nombre:'Tren inferior',grupos:[...CG_INF]}],dias_b:null,rotativo:false};
+  if(d===3&&dist==='seguidos')return {dias:[{nombre:'Tren inferior A',grupos:[...CG_INF]},{nombre:'Tren superior',grupos:[...CG_SUP]},{nombre:'Tren inferior B',grupos:['Femoral/Glúteo','Cuádriceps','Core']}],dias_b:[{nombre:'Tren superior A',grupos:[...CG_SUP]},{nombre:'Tren inferior',grupos:[...CG_INF]},{nombre:'Tren superior B',grupos:['Hombro','Pecho','Tríceps','Bíceps']}],rotativo:true};
+  return {dias:plantillaDiasJS(d),dias_b:null,rotativo:false};
+}
+// Genera una rutina automática (solo entrenador): arma los días según el # y la
+// distribución (3 días), asigna 2 ejercicios por grupo. Conserva técnicas/asign.
 async function generarRutina(id){
   const nd=Math.max(1,Math.min(6,+$("genDias").value||4));
+  const dist=(nd===3&&$("genDist"))?$("genDist").value:null;
   const m=$("genRutMsg");
   if(RUT&&RUT.dias&&RUT.dias.length && !confirm("Esto reemplaza los ejercicios de la rutina actual por una nueva de "+nd+" días. ¿Continuar?"))return;
   if(m)m.textContent="Generando…";
-  const usados=new Set();
-  const pick=(g,n)=>{const cand=EJ.filter(e=>String(e.grupo)===g);const r=[];for(const e of cand){if(r.length>=n)break;if(usados.has(e.id))continue;usados.add(e.id);r.push(e);}return r;};
-  const dias=plantillaDiasJS(nd).map(d=>{const orden=[];d.grupos.forEach(g=>pick(g,2).forEach(e=>orden.push({id:e.id,g,s:3})));return {nombre:d.nombre,grupos:d.grupos,orden};});
+  const plan=construirDiasJS(nd,dist);
+  const asignar=(dias)=>{const usados=new Set();const pick=(g,n)=>{const cand=EJ.filter(e=>String(e.grupo)===g);const r=[];for(const e of cand){if(r.length>=n)break;if(usados.has(e.id))continue;usados.add(e.id);r.push(e);}return r;};return dias.map(d=>{const orden=[];d.grupos.forEach(g=>pick(g,2).forEach(e=>orden.push({id:e.id,g,s:3})));return {nombre:d.nombre,grupos:d.grupos,orden};});};
+  const dias=asignar(plan.dias);
+  const dias_b=plan.dias_b?asignar(plan.dias_b):null;
   const prev=RUT||{};
-  const row={user_id:id,split:nd+" días",dias,slots:5,asign:prev.asign||{},tecnicas:prev.tecnicas||{},swaps:prev.swaps||{}};
+  const row={user_id:id,split:nd+" días",dias,dias_b,rotativo:plan.rotativo,slots:5,asign:prev.asign||{},tecnicas:prev.tecnicas||{},swaps:prev.swaps||{}};
   const {error}=await sb.from("rutinas").upsert(row,{onConflict:"user_id"});
   if(error){if(m)m.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
-  // Recargar la rutina y el editor.
   const {data:fresh}=await sb.from("rutinas").select("*").eq("user_id",id).maybeSingle();
   if(fresh){RUT=fresh;rutRefrescar();}
-  if(m)m.textContent="✓ Rutina generada ("+nd+" días). Revísala y edítala abajo; luego Guardar rutina.";
+  if(m)m.textContent="✓ Rutina generada ("+nd+" días"+(plan.rotativo?", rotativa por semanas":dist?", "+dist:"")+"). Revísala y edítala abajo; luego Guardar rutina.";
 }
 async function guardarRutina(id){
   $("rutMsg").textContent="Guardando…";
@@ -1461,7 +1476,7 @@ async function guardarRutina(id){
   // UPSERT (no update): crea la fila si el cliente aún no tiene rutina, o la
   // actualiza si ya existe. Así SIEMPRE se puede guardar (antes, si no existía
   // la fila, el update afectaba 0 filas y "no guardaba").
-  const row={user_id:id,dias,tecnicas:tec,split:(RUT.split||(dias.length+" días")),slots:(RUT.slots||5),asign:(RUT.asign||{}),swaps:(RUT.swaps||{})};
+  const row={user_id:id,dias,tecnicas:tec,split:(RUT.split||(dias.length+" días")),slots:(RUT.slots||5),asign:(RUT.asign||{}),swaps:(RUT.swaps||{}),rotativo:(RUT.rotativo||false),dias_b:(RUT.dias_b||null)};
   const {data:upd,error}=await sb.from("rutinas").upsert(row,{onConflict:"user_id"}).select("user_id");
   if(error){$("rutMsg").innerHTML=`<span class="alert">Error al guardar: ${esc(error.message)}. Cierra sesión y vuelve a entrar.</span>`;return;}
   if(!upd||!upd.length){$("rutMsg").innerHTML=`<span class="alert">No se guardó (sin permiso sobre este cliente). Cierra sesión y vuelve a entrar.</span>`;return;}
