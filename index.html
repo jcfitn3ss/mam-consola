@@ -1365,17 +1365,25 @@ async function guardarRutinaImport(cli){
   if(!IMPORT_DIAS||!IMPORT_DIAS.length)return;
   $("impSave").textContent="Guardando…";
   // 1) Ejercicios únicos por nombre.
+  const norm=s=>(s||"").trim().toLowerCase().replace(/\s+/g,' ');
   const uniq={};
-  IMPORT_DIAS.forEach(d=>(d.ejercicios||[]).forEach(e=>{const k=(e.nombre||"").trim().toLowerCase();if(k&&!uniq[k])uniq[k]={nombre:e.nombre.trim(),grupo:e.grupo,rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir};}));
-  const filas=Object.values(uniq).map(e=>({nombre:e.nombre,grupo:e.grupo,equipo:"Máquina",rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir,fatiga:"media",estiramiento:false,entrenador_id:MIID}));
-  const ins=await sb.from("ejercicios").insert(filas).select("id,nombre");
-  if(ins.error){ $("impSave").textContent="Error creando ejercicios: "+ins.error.message; return; }
-  const idmap={}; ins.data.forEach(r=>idmap[(r.nombre||"").trim().toLowerCase()]=r.id);
+  IMPORT_DIAS.forEach(d=>(d.ejercicios||[]).forEach(e=>{const k=norm(e.nombre);if(k&&!uniq[k])uniq[k]={nombre:e.nombre.trim(),grupo:e.grupo,rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir};}));
+  // REUTILIZAR los que ya existen en MI catálogo (fresco) → NO duplicar el catálogo.
+  const {data:exist}=await sb.from("ejercicios").select("id,nombre").eq("entrenador_id",MIID);
+  const idmap={}; (exist||[]).forEach(x=>{const k=norm(x.nombre); if(!(k in idmap)) idmap[k]=x.id;});
+  // Solo se INSERTAN los que de verdad no existen.
+  const nuevos=Object.values(uniq).filter(e=>!(norm(e.nombre) in idmap));
+  if(nuevos.length){
+    const filas=nuevos.map(e=>({nombre:e.nombre,grupo:e.grupo,equipo:"Máquina",rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir,fatiga:"media",estiramiento:false,entrenador_id:MIID}));
+    const ins=await sb.from("ejercicios").insert(filas).select("id,nombre");
+    if(ins.error){ $("impSave").textContent="Error creando ejercicios: "+ins.error.message; return; }
+    ins.data.forEach(r=>idmap[norm(r.nombre)]=r.id);
+  }
   // 2) Construir días + técnicas.
   const dias=[],tecnicas={};
   IMPORT_DIAS.forEach((d,di)=>{
     const orden=[];
-    (d.ejercicios||[]).forEach(e=>{const eid=idmap[(e.nombre||"").trim().toLowerCase()];if(!eid)return;orden.push({id:eid,g:e.grupo,s:e.series});if(e.tecnica&&e.tecnica!=="normal")tecnicas[di+"|"+eid]=e.tecnica;});
+    (d.ejercicios||[]).forEach(e=>{const eid=idmap[norm(e.nombre)];if(!eid)return;orden.push({id:eid,g:e.grupo,s:e.series});if(e.tecnica&&e.tecnica!=="normal")tecnicas[di+"|"+eid]=e.tecnica;});
     dias.push({nombre:d.nombre,grupos:d.grupos||[],orden});
   });
   // 3) Guardar rutina + ajustar días del plan.
