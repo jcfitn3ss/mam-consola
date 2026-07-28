@@ -489,7 +489,7 @@ async function verCliente(id){
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("comidas").select("descripcion,kcal,prot,carb,fat").eq("user_id",id).order("id",{ascending:false}).limit(120),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
@@ -598,7 +598,13 @@ async function verCliente(id){
   const pm=per.data||{};
   h+=`<h3>Acceso del cliente</h3>
     <div class="muted" style="font-size:11px;margin-bottom:6px">Si el cliente no puede entrar (olvidó su clave, o el correo de recuperación no le llega), cámbiasela aquí y pásasela por WhatsApp. No depende de correos.</div>
-    <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>`;
+    <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" ${pm.acceso_bloqueado===true?'checked':''} onchange="setModulo('${id}','acceso_bloqueado',this.checked)"> <b>⏸️ Pausar acceso por falta de pago</b></label>
+      <div class="muted" style="font-size:11px;margin:4px 0 8px">Si se marca, el cliente NO puede usar la app (ni el acompañamiento) hasta que reactives. Ve un mensaje para ponerse al día. Se quita al instante cuando lo desmarcas.</div>
+      <textarea id="avisoPago_${id}" placeholder="Mensaje que verá el cliente (opcional). Ej: 'Tu mensualidad está pendiente, ponte al día para reactivar tu acceso.'" style="width:100%;min-height:54px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:12px;box-sizing:border-box">${esc(pm.aviso_pago||'')}</textarea>
+      <button onclick="guardarAviso('${id}')" style="margin-top:6px">Guardar mensaje</button>
+    </div>`;
   h+=`<h3>Módulos de la app (visibles para el cliente)</h3>
     <table class="chkTbl"><thead><tr><th class="c">Activo</th><th>Módulo</th><th>Qué ve el cliente</th></tr></thead><tbody>
       <tr><td class="c"><input type="checkbox" ${pm.ver_entreno!==false?'checked':''} onchange="setModulo('${id}','ver_entreno',this.checked)"></td><td>Pestaña Entreno</td><td class="d">Ver y registrar sus entrenamientos</td></tr>
@@ -1548,6 +1554,12 @@ async function resetClave(id){
   else if(data==='clave_corta'){alert('La contraseña es muy corta (mínimo 6).');}
   else if(data==='usuario_no_existe'){alert('No se encontró ese usuario.');}
   else{alert('Respuesta inesperada: '+data);}
+}
+// Guarda el mensaje que el cliente ve cuando su acceso está en pausa por falta de pago.
+async function guardarAviso(id){
+  const el=document.getElementById('avisoPago_'+id); if(!el) return;
+  const {error}=await sb.from('perfiles').update({aviso_pago:el.value.trim()||null}).eq('user_id',id);
+  alert(error?('Error: '+error.message):'✓ Mensaje guardado');
 }
 async function generarPlanComidas(id){
   const m=$("pcMsg");if(m)m.textContent="Generando plan con IA… (unos segundos)";
