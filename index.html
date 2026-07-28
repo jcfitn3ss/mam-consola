@@ -1485,6 +1485,19 @@ async function generarRutina(id){
 }
 async function guardarRutina(id){
   $("rutMsg").textContent="Guardando…";
+  // CONTROL DE CONCURRENCIA (3 personas en la misma cuenta soporte@): si alguien más
+  // modificó ESTA rutina desde que la cargaste, NO la sobreescribimos (evita borrar
+  // el trabajo del otro). Avisamos y recargamos la versión más reciente.
+  const cargadaEn=(RUT&&RUT.updated_at)?RUT.updated_at:null;
+  if(cargadaEn){
+    const {data:actual}=await sb.from("rutinas").select("updated_at").eq("user_id",id).maybeSingle();
+    if(actual&&actual.updated_at&&new Date(actual.updated_at)>new Date(cargadaEn)){
+      $("rutMsg").innerHTML=`<span class="alert">⚠️ Otra persona acaba de modificar esta rutina. Recargué la versión más reciente para NO borrar su trabajo: revísala y vuelve a aplicar tus cambios.</span>`;
+      const {data:fresh}=await sb.from("rutinas").select("*").eq("user_id",id).maybeSingle();
+      if(fresh){RUT=fresh;const ed=$("editorRut");if(ed)ed.innerHTML=editorRutinaHTML();}
+      return;
+    }
+  }
   const dias=JSON.parse(JSON.stringify(RUT.dias));
   const tec=Object.assign({},RUT.tecnicas||{});
   document.querySelectorAll(".rutDiaNom").forEach(s=>{const di=+s.dataset.d;if(dias[di])dias[di].nombre=s.value.trim()||('Día '+(di+1));});
