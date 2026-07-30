@@ -1167,36 +1167,82 @@ async function delPlato(pid,id){await sb.from("restaurante_platos").delete().eq(
 
 // ---------- Plan de alimentación ----------
 let PLAN_HTML=null;
-// ---- Plan de alimentación multi-día: generar (IA) -> editar en texto -> aprobar -> exportar ----
+// ---- Plan de alimentación multi-día: generar (IA) -> editar alimentos+gramos (macros en vivo) -> aprobar -> exportar ----
 let PLAN_DATOS=null;
+let PLAN_CATMAP=new Map(); // norm(nombre) -> {nombre,k,p,c,f} por 100 g (oficial + del cliente)
+let PLAN_CATNAMES=[];
+function planNorm(s){return (s||"").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();}
+async function planCargarCatalogo(id){
+  const [base,prop]=await Promise.all([
+    sb.from("alimentos_base").select("nombre,k,p,c,f").eq("activo",true).eq("aprobado",true),
+    sb.from("alimentos_propios").select("nombre,k,p,c,f").eq("user_id",id)
+  ]);
+  PLAN_CATMAP=new Map();
+  const add=a=>{const n=planNorm(a.nombre);if(n&&!PLAN_CATMAP.has(n))PLAN_CATMAP.set(n,{nombre:a.nombre,k:+a.k||0,p:+a.p||0,c:+a.c||0,f:+a.f||0});};
+  (base.data||[]).forEach(add);(prop.data||[]).forEach(add);
+  PLAN_CATNAMES=[...PLAN_CATMAP.values()].map(x=>x.nombre).sort((a,b)=>a.localeCompare(b));
+}
+// Parte el texto "200 g pollo + 150 g arroz" en [{nombre,gramos}] para edición estructurada.
+function planParseFoods(txt){
+  return (txt||"").split(/\s*\+\s*|\n|;/).map(s=>s.trim()).filter(Boolean).map(seg=>{
+    const m=seg.match(/^(\d+(?:[.,]\d+)?)\s*g\s+(.+)$/i);
+    if(m)return{nombre:m[2].trim(),gramos:Math.round(parseFloat(m[1].replace(",","."))||0)};
+    return{nombre:seg,gramos:0};
+  });
+}
+// Macros de un alimento según su gramaje, mirando el catálogo por 100 g.
+function planFoodMacros(f){
+  const c=PLAN_CATMAP.get(planNorm(f.nombre));const g=+f.gramos||0;
+  if(!c)return{k:0,p:0,c:0,f:0,match:false};
+  const r=g/100;return{k:c.k*r,p:c.p*r,c:c.c*r,f:c.f*r,match:true};
+}
+function planMealTot(c){return (c.foods||[]).reduce((a,f)=>{const m=planFoodMacros(f);return{k:a.k+m.k,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f};},{k:0,p:0,c:0,f:0});}
+function planDayTot(dia){return (dia.comidas||[]).reduce((a,c)=>{const m=planMealTot(c);return{k:a.k+m.k,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f};},{k:0,p:0,c:0,f:0});}
 async function planGenerar(id){
   const dias=Math.max(1,Math.min(10,+$("plan_dias").value||4));
   $("planMsg").textContent="Generando plan con IA… (unos segundos)";$("plan_editor").innerHTML="";
+  await planCargarCatalogo(id);
   const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias}});
   if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
-  PLAN_DATOS=data.datos;$("planMsg").innerHTML="✓ Plan generado. Revísalo y edítalo abajo; cuando quede bien, <b>Aprobar y guardar</b>.";
+  PLAN_DATOS=data.datos;
+  // Convierte cada comida a filas de alimentos editables (nombre + gramos).
+  (PLAN_DATOS.dias||[]).forEach(dia=>(dia.comidas||[]).forEach(c=>{c.foods=planParseFoods(c.alimentos);}));
+  $("planMsg").innerHTML="✓ Plan generado. Ajusta alimentos y gramos (los macros se recalculan solos). Cuando quede bien, <b>Aprobar y guardar</b>.";
   planRenderEditor();$("plan_acciones").classList.remove("hide");
   const f=$("plan_prev");if(f)f.classList.add("hide");
 }
 function planRenderEditor(){
   const d=PLAN_DATOS;if(!d){$("plan_editor").innerHTML="";return;}
-  const o=d.objetivo||{};let h=`<div class="muted" style="font-size:12px;margin-bottom:8px">Objetivo: <b>${o.kcal||'—'} kcal</b> · P${o.prot||0}/C${o.carb||0}/G${o.fat||0}. El estimado por día debe quedar cerca de eso.</div>`;
+  const o=d.objetivo||{};
+  const dl=`<datalist id="planCat">${PLAN_CATNAMES.map(n=>`<option value="${esc(n)}"></option>`).join("")}</datalist>`;
+  let h=dl+`<div class="muted" style="font-size:12px;margin-bottom:8px">Objetivo diario: <b>${o.kcal||'—'} kcal</b> · P${o.prot||0}/C${o.carb||0}/G${o.fat||0}. Los alimentos salen del catálogo oficial + los del cliente; al cambiar gramos, los macros del día se recalculan solos.</div>`;
   (d.dias||[]).forEach((dia,di)=>{
-    const est=dia.kcalEst?`<span class="muted" style="font-size:11px">≈ ${dia.kcalEst} kcal${o.kcal?` (obj ${o.kcal})`:''}</span>`:'';
     h+=`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <b style="white-space:nowrap">Día ${di+1}</b>
-        <input class="plDiaTit" data-d="${di}" value="${esc(dia.titulo||'')}" placeholder="Resumen (ej: Pollo con sweet potato + arepa)" style="flex:1;margin:0">
-        ${est}
+        <input class="plDiaTit" data-d="${di}" value="${esc(dia.titulo||'')}" placeholder="Resumen (ej: Pollo con arroz + arepa)" style="flex:1;margin:0">
+        <span id="daytot-${di}" class="muted" style="font-size:11px;white-space:nowrap"></span>
         <button class="sm ghost" onclick="planQuitarDia(${di})" title="Quitar día" style="margin:0">×</button>
       </div>`;
     (dia.comidas||[]).forEach((c,ci)=>{
-      h+=`<div style="display:flex;gap:8px;align-items:flex-start;margin:4px 0">
-        <input class="plMom" data-d="${di}" data-c="${ci}" value="${esc(c.momento||'')}" style="width:130px;margin:0;font-weight:700">
-        <textarea class="plAli" data-d="${di}" data-c="${ci}" rows="2" style="flex:1;margin:0" placeholder="Alimentos con gramos…">${esc(c.alimentos||'')}</textarea>
-      </div>`;
+      h+=`<div style="border-top:1px dashed var(--line);padding-top:6px;margin-top:6px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:2px">
+          <input class="plMom" data-d="${di}" data-c="${ci}" value="${esc(c.momento||'')}" style="width:130px;margin:0;font-weight:700" oninput="planSet(${di},${ci},-1,'momento',this.value)">
+          <span id="mealtot-${di}-${ci}" class="muted" style="font-size:11px"></span>
+        </div>`;
+      (c.foods||[]).forEach((f,fi)=>{
+        h+=`<div style="display:flex;gap:6px;align-items:center;margin:3px 0">
+          <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
+          <input type="number" min="0" value="${Math.round(+f.gramos||0)}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'gramos',this.value)">
+          <span class="muted" style="font-size:11px">g</span>
+          <span id="foodk-${di}-${ci}-${fi}" class="muted" style="font-size:11px;width:70px;text-align:right"></span>
+          <button class="sm ghost" onclick="planFoodDel(${di},${ci},${fi})" title="Quitar alimento" style="margin:0">×</button>
+        </div>`;
+      });
+      h+=`<button class="sm ghost" onclick="planFoodAdd(${di},${ci})" style="margin-top:2px">+ Alimento</button>`;
+      h+=`</div>`;
     });
-    h+=`<button class="sm ghost" onclick="planAgregarComida(${di})" style="margin-top:4px">+ Agregar comida</button></div>`;
+    h+=`<button class="sm ghost" onclick="planAgregarComida(${di})" style="margin-top:6px">+ Agregar comida</button></div>`;
   });
   h+=`<button class="sm ghost" onclick="planAgregarDia()">+ Agregar día</button>`;
   // Reglas operativas
@@ -1211,19 +1257,52 @@ function planRenderEditor(){
   h+=`<button class="sm ghost" onclick="planAgregarRegla()" style="margin-top:4px">+ Agregar regla</button></div>`;
   h+=`<div style="margin-top:10px"><label class="lbl">Nota del entrenador (opcional, va al final)</label><textarea id="plNota" rows="2" style="width:100%">${esc(d.notaEntrenador||'')}</textarea></div>`;
   $("plan_editor").innerHTML=h;
+  planActualizarTotales();
 }
+// Cambia un campo de un alimento (o el momento si fi<0) SIN re-renderizar (no
+// pierde el foco); solo actualiza los totales en vivo.
+function planSet(di,ci,fi,campo,val){
+  const c=PLAN_DATOS&&PLAN_DATOS.dias[di]&&PLAN_DATOS.dias[di].comidas[ci];if(!c)return;
+  if(fi<0){c[campo]=val;return;}
+  if(!c.foods||!c.foods[fi])return;
+  c.foods[fi][campo]= campo==='gramos' ? Math.max(0,parseInt(val,10)||0) : val;
+  planActualizarTotales();
+}
+// Recalcula y pinta kcal por alimento, por comida y por día (vs objetivo).
+function planActualizarTotales(){
+  const d=PLAN_DATOS;if(!d)return;const o=d.objetivo||{};
+  (d.dias||[]).forEach((dia,di)=>{
+    (dia.comidas||[]).forEach((c,ci)=>{
+      (c.foods||[]).forEach((f,fi)=>{const m=planFoodMacros(f);const el=document.getElementById(`foodk-${di}-${ci}-${fi}`);if(el)el.innerHTML=(f.nombre||"").trim()?(m.match?`${Math.round(m.k)} kcal`:`<span style="color:#c0392b">sin dato</span>`):"";});
+      const mt=planMealTot(c);const el=document.getElementById(`mealtot-${di}-${ci}`);if(el)el.textContent=`${Math.round(mt.k)} kcal · P${Math.round(mt.p)}/C${Math.round(mt.c)}/G${Math.round(mt.f)}`;
+    });
+    const dt=planDayTot(dia);const el=document.getElementById(`daytot-${di}`);
+    if(el){const diff=o.kcal?Math.round(dt.k)-o.kcal:0;const col=(o.kcal&&Math.abs(diff)>o.kcal*0.08)?'#c0392b':'#2e7d32';el.innerHTML=`<b style="color:${col}">${Math.round(dt.k)} kcal</b> · P${Math.round(dt.p)}/C${Math.round(dt.c)}/G${Math.round(dt.f)}${o.kcal?` (obj ${o.kcal}${diff>0?' +'+diff:diff<0?' '+diff:' ✓'})`:''}`;}
+  });
+}
+function planFoodAdd(di,ci){planRecoger();const c=PLAN_DATOS.dias[di].comidas[ci];c.foods=c.foods||[];c.foods.push({nombre:"",gramos:0});planRenderEditor();}
+function planFoodDel(di,ci,fi){planRecoger();PLAN_DATOS.dias[di].comidas[ci].foods.splice(fi,1);planRenderEditor();}
+// Recoge títulos/reglas/nota del DOM y FINALIZA cada comida: reconstruye el
+// texto de alimentos y fija los macros/kcal desde las filas estructuradas.
 function planRecoger(){
   const d=PLAN_DATOS;if(!d)return null;
   document.querySelectorAll(".plDiaTit").forEach(s=>{const di=+s.dataset.d;if(d.dias[di])d.dias[di].titulo=s.value;});
   document.querySelectorAll(".plMom").forEach(s=>{const di=+s.dataset.d,ci=+s.dataset.c;if(d.dias[di]&&d.dias[di].comidas[ci])d.dias[di].comidas[ci].momento=s.value;});
-  document.querySelectorAll(".plAli").forEach(s=>{const di=+s.dataset.d,ci=+s.dataset.c;if(d.dias[di]&&d.dias[di].comidas[ci])d.dias[di].comidas[ci].alimentos=s.value;});
   document.querySelectorAll(".plRegT").forEach(s=>{const ri=+s.dataset.r;if(d.reglas[ri])d.reglas[ri].titulo=s.value;});
   document.querySelectorAll(".plRegD").forEach(s=>{const ri=+s.dataset.r;if(d.reglas[ri])d.reglas[ri].texto=s.value;});
   const n=$("plNota");d.notaEntrenador=n?n.value.trim():"";
+  (d.dias||[]).forEach(dia=>{
+    (dia.comidas||[]).forEach(c=>{
+      const fs=(c.foods||[]).filter(f=>(f.nombre||"").trim());
+      c.alimentos=fs.map(f=>`${Math.round(+f.gramos||0)} g ${f.nombre.trim()}`).join(" + ");
+      const mt=planMealTot(c);c.kcal=Math.round(mt.k);c.prot=Math.round(mt.p);c.carb=Math.round(mt.c);c.fat=Math.round(mt.f);
+    });
+    const dt=planDayTot(dia);dia.kcalEst=Math.round(dt.k);
+  });
   return d;
 }
-function planAgregarComida(di){planRecoger();if(PLAN_DATOS.dias[di]){PLAN_DATOS.dias[di].comidas.push({momento:"COMIDA",alimentos:""});planRenderEditor();}}
-function planAgregarDia(){planRecoger();const m=(PLAN_DATOS.dias[0]&&PLAN_DATOS.dias[0].comidas.map(c=>({momento:c.momento,alimentos:""})))||[{momento:"DESAYUNO",alimentos:""}];PLAN_DATOS.dias.push({titulo:"",comidas:m});planRenderEditor();}
+function planAgregarComida(di){planRecoger();if(PLAN_DATOS.dias[di]){PLAN_DATOS.dias[di].comidas.push({momento:"COMIDA",alimentos:"",foods:[]});planRenderEditor();}}
+function planAgregarDia(){planRecoger();const m=(PLAN_DATOS.dias[0]&&PLAN_DATOS.dias[0].comidas.map(c=>({momento:c.momento,alimentos:"",foods:[]})))||[{momento:"DESAYUNO",alimentos:"",foods:[]}];PLAN_DATOS.dias.push({titulo:"",comidas:m});planRenderEditor();}
 function planQuitarDia(di){planRecoger();PLAN_DATOS.dias.splice(di,1);planRenderEditor();}
 function planAgregarRegla(){planRecoger();PLAN_DATOS.reglas.push({titulo:"",texto:""});planRenderEditor();}
 function planQuitarRegla(ri){planRecoger();PLAN_DATOS.reglas.splice(ri,1);planRenderEditor();}
@@ -1788,12 +1867,23 @@ async function editVid(id){
 let AB=[];
 const CATS=[["carbohidrato","Carbohidrato"],["carbohidrato_proteina","Carbohidrato + proteína"],["proteina","Proteína"],["proteina_grasa","Proteína + grasa"],["grasa","Grasa"]];
 function catLabel(c){const f=CATS.find(x=>x[0]===c);return f?f[1]:(c||"—");}
+let AB_REC=[]; // alimentos recomendados por clientes, pendientes de aprobar
 async function verAlimentos(){
   $("v-alimentos").innerHTML='<div class="card">Cargando…</div>';
   const {data,error}=await sb.from("alimentos_base").select("*").order("nombre");
   if(error){$("v-alimentos").innerHTML=`<div class="card alert">${esc(error.message)}</div>`;return;}
-  AB=data||[];
-  let h=`<div class="card"><h2 style="margin-top:0">Nuevo alimento</h2>
+  const all=data||[];
+  AB=all.filter(a=>a.aprobado!==false);
+  AB_REC=all.filter(a=>a.aprobado===false);
+  // Nombre de quién sugirió cada recomendado.
+  const ids=[...new Set(AB_REC.map(a=>a.sugerido_por).filter(Boolean))];
+  const nombres={};
+  if(ids.length){const {data:ps}=await sb.from("perfiles").select("user_id,nombre").in("user_id",ids);(ps||[]).forEach(p=>nombres[p.user_id]=p.nombre);}
+  AB_REC.forEach(a=>a._quien=nombres[a.sugerido_por]||"");
+  let h=`<div class="card"><h2 style="margin-top:0">Alimentos recomendados${AB_REC.length?` <span style="color:#c0392b">(${AB_REC.length})</span>`:` (0)`}</h2>
+   <div class="muted" style="margin-bottom:6px">Alimentos que los clientes sugirieron leyendo la etiqueta. Revisa el nombre, los macros por 100 g y la porción. <b>Aprobar</b> lo pasa al catálogo oficial (todos lo verán al buscar); <b>Rechazar</b> lo descarta.</div>
+   <div id="abreclist"></div></div>
+   <div class="card"><h2 style="margin-top:0">Nuevo alimento</h2>
    <div class="muted" style="margin-bottom:6px">Valores <b>por 100 g</b>, igual que la guía. El cliente lo verá primero al buscar (etiqueta <b>Oficial MAM</b>). Si dejas las kcal en blanco se calculan solas (P×4 + C×4 + G×9).</div>
    <input id="a_nom" placeholder="Nombre tal cual (ej: Pechuga de pollo)">
    <label class="lbl">Categoría</label><select id="a_cat">${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
@@ -1803,7 +1893,30 @@ async function verAlimentos(){
      <input id="a_buscar" placeholder="Buscar…" oninput="renderAB()">
      <select id="a_fcat" onchange="renderAB()"><option value="">Todas las categorías</option>${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
      <div id="ablist"></div></div>`;
-  $("v-alimentos").innerHTML=h;renderAB();
+  $("v-alimentos").innerHTML=h;renderABRec();renderAB();
+}
+function renderABRec(){
+  const el=$("abreclist");if(!el)return;
+  if(!AB_REC.length){el.innerHTML='<div class="muted" style="font-size:12px">No hay alimentos pendientes por aprobar.</div>';return;}
+  el.innerHTML=`<table><tr><th>Alimento</th><th>Por 100 g</th><th>Porción</th><th>Sugirió</th><th></th></tr>${AB_REC.map(a=>`<tr>
+    <td><b>${esc(a.nombre)}</b>${a.marca?`<br><span class="muted" style="font-size:11px">${esc(a.marca)}</span>`:""}</td>
+    <td class="muted" style="font-size:12px">${Math.round(a.k||0)} kcal · P${a.p??0}/C${a.c??0}/G${a.f??0}</td>
+    <td class="muted" style="font-size:12px">${a.porcion_g?a.porcion_g+" g":"—"}</td>
+    <td class="muted" style="font-size:12px">${esc(a._quien||"—")}</td>
+    <td style="white-space:nowrap"><button class="sm" onclick="aprobarAlimento('${a.id}')">Aprobar</button> <button class="sm ghost" onclick="rechazarAlimento('${a.id}')">Rechazar</button></td></tr>`).join("")}</table>`;
+}
+async function aprobarAlimento(id){
+  const {data,error}=await sb.from("alimentos_base").update({aprobado:true,activo:true}).eq("id",id).select();
+  if(error){alert(error.message);return;}
+  if(!data||!data.length){alert("No se pudo aprobar (¿permisos?).");return;}
+  verAlimentos();
+}
+async function rechazarAlimento(id){
+  const a=AB_REC.find(x=>String(x.id)===String(id));if(!a)return;
+  if(!confirm('¿Rechazar y borrar "'+a.nombre+'"? El cliente lo seguirá teniendo en sus alimentos propios.'))return;
+  const {error}=await sb.from("alimentos_base").delete().eq("id",id);
+  if(error){alert(error.message);return;}
+  verAlimentos();
 }
 function renderAB(){
   const q=($("a_buscar")?$("a_buscar").value:"").toLowerCase();
