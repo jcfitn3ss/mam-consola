@@ -473,7 +473,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -499,6 +499,7 @@ async function verCliente(id){
     sb.from("comidas").select("fecha,kcal").eq("user_id",id).gte("fecha",hace(35)),
     sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:true}),
     sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
+    sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
   ]);
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
@@ -584,6 +585,7 @@ async function verCliente(id){
   const nv=clasNivel(medSps);
   const curNivel=(per.data&&per.data.nivel)||'';
   const E=esp.data;
+  const FZ=fz.data;
   const ESP_OBJ=[["pecho","Pecho"],["dorsal","Dorsal / espalda (dominadas, jalón)"],["espalda_alta","Espalda alta (remo, trapecio)"],["deltoides","Deltoides (hombro)"],["brazos","Brazos (bíceps + tríceps)"],["biceps","Bíceps"],["triceps","Tríceps"],["cuadriceps","Cuádriceps"],["femoral","Femoral / isquios"],["gluteo","Glúteo"],["pantorrilla","Pantorrilla"]];
   // Módulos visibles en la app del cliente (el entrenador los activa/desactiva).
   // Multi-entrenador: SOLO el principal asigna el cliente a varios entrenadores.
@@ -642,6 +644,32 @@ async function verCliente(id){
        </div>
        ${E&&E.activa?`<div class="muted" style="font-size:11px">Bloque ${E.bloque||0} · último ajuste ${E.ultimo_ajuste||'—'} · series actuales ${E.series_objetivo||'—'}. +20% automático cada 4 semanas si el rendimiento sube (techo dinámico).</div>`:'<div class="muted" style="font-size:11px">El grupo objetivo arranca en 10-12 series/semana; el resto baja a mantenimiento. Cada 4 semanas la app sube +20% si el rendimiento sigue subiendo.</div>'}
        <button class="sm" style="margin-top:6px" onclick="guardarEsp('${id}')">Guardar especialización</button> <span id="eMsg" class="muted"></span>
+     </div>`;
+
+  // MESOCICLO DE FUERZA (powerlifting: RPT + progresión inversa). Solo compuestos marcados.
+  h+=`<h3>Mesociclo de fuerza (powerlifting)</h3>`;
+  const rutEjIds=[...new Set((RUT&&RUT.dias?RUT.dias:[]).flatMap(d=>(d.orden||[]).map(o=>String(o.id))))];
+  const ejNombre=(eid)=>{const e=EJ.find(x=>String(x.id)===String(eid));return e?cap(e.nombre):eid;};
+  const fzSel=new Set(((FZ&&FZ.ejercicios)||[]).map(String));
+  h+=`<label style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;cursor:pointer">
+       <input type="checkbox" id="f_act" style="flex-shrink:0;margin:0" ${FZ&&FZ.activa?'checked':''} onchange="document.getElementById('f_campos').style.display=this.checked?'':'none'"><span>Activar mesociclo de fuerza (RPT + progresión inversa)</span>
+     </label>
+     <div id="f_campos" style="${FZ&&FZ.activa?'':'display:none'}">
+       <div class="muted" style="font-size:12px;margin-bottom:6px">Marca los <b>compuestos</b> que quieres fortalecer. En ellos: top set pesado primero (pirámide inversa) + back-off, <b>bajo volumen</b>; semana a semana bajan las reps del top set y sube el peso. Convive con especialización (el resto del entreno sigue normal).</div>
+       <label class="lbl">Compuestos objetivo (de su rutina)</label>
+       <div id="f_ejs" style="border:1px solid var(--line);border-radius:8px;padding:8px;max-height:190px;overflow:auto">
+         ${rutEjIds.length?rutEjIds.map(eid=>`<label style="display:flex;align-items:center;gap:8px;padding:2px 0;cursor:pointer"><input type="checkbox" class="fzEj" value="${eid}" ${fzSel.has(String(eid))?'checked':''} style="margin:0"><span>${esc(ejNombre(eid))}</span></label>`).join(''):'<span class="muted" style="font-size:12px">La rutina no tiene ejercicios aún. Genera/guarda la rutina primero.</span>'}
+       </div>
+       <div class="row" style="margin-top:8px">
+         <div><label class="lbl">Series por compuesto (1 top + back-offs)</label><input id="f_series" type="number" min="1" max="4" value="${(FZ&&FZ.series)||2}"></div>
+         <div><label class="lbl">Reps del top set al inicio (baja hasta 2)</label><input id="f_top" type="number" min="2" max="8" value="${(FZ&&FZ.top_reps)||5}"></div>
+       </div>
+       <div class="row">
+         <div><label class="lbl">Back-off (−% de carga)</label><input id="f_bo" type="number" min="0" max="20" value="${(FZ&&FZ.backoff_pct)||10}"></div>
+         <div><label class="lbl">Semanas del bloque</label><input id="f_sem" type="number" min="2" max="8" value="${(FZ&&FZ.semanas)||4}"></div>
+       </div>
+       ${FZ&&FZ.activa?`<div class="muted" style="font-size:11px">Bloque desde ${FZ.inicio||'—'}. La ola del top set baja ${(FZ.top_reps)||5}→2 y la carga sube; en semana de descarga (calendario) baja la carga.</div>`:'<div class="muted" style="font-size:11px">Solo se aplica a los compuestos marcados. Al activar arranca un bloque nuevo desde hoy.</div>'}
+       <button class="sm" style="margin-top:6px" onclick="guardarFuerza('${id}')">Guardar mesociclo de fuerza</button> <span id="fzMsg" class="muted"></span>
      </div>`;
 
   // EDITOR objetivo/plan
@@ -1704,6 +1732,22 @@ async function guardarEsp(id){
   if(activa&&(!cur||!cur.activa)){row.inicio=hoy;row.ultimo_ajuste=hoy;row.bloque=0;row.ton_ref=null;}
   const {error}=await sb.from("especializacion").upsert(row,{onConflict:"user_id"});
   $("eMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Especialización guardada.";
+}
+async function guardarFuerza(id){
+  const activa=$("f_act").checked;
+  const ejercicios=[...document.querySelectorAll(".fzEj:checked")].map(x=>x.value);
+  if(activa&&!ejercicios.length){$("fzMsg").innerHTML='<span class="alert">Marca al menos un compuesto.</span>';return;}
+  const series=Math.max(1,Math.min(4,+$("f_series").value||2));
+  const top_reps=Math.max(2,Math.min(8,+$("f_top").value||5));
+  const backoff_pct=Math.max(0,Math.min(20,+$("f_bo").value||10));
+  const semanas=Math.max(2,Math.min(8,+$("f_sem").value||4));
+  const {data:prev}=await sb.from("mesociclo_fuerza").select("activa,inicio").eq("user_id",id).maybeSingle();
+  const patch={user_id:id,activa,ejercicios,series,top_reps,backoff_pct,semanas,updated_at:new Date().toISOString()};
+  // Al ACTIVAR (nuevo o reactivar) arranca un bloque nuevo desde hoy.
+  if(activa&&(!prev||!prev.activa||!prev.inicio)){patch.inicio=new Date().toISOString().slice(0,10);patch.bloque=0;patch.ultimo_ajuste=null;}
+  $("fzMsg").textContent="Guardando…";
+  const {error}=await sb.from("mesociclo_fuerza").upsert(patch,{onConflict:"user_id"});
+  $("fzMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:(activa?"✓ Modo fuerza activado.":"✓ Guardado (desactivado).");
 }
 // Recalcula las calorías objetivo a partir de los macros (4/4/9). Se dispara al
 // editar proteína/carbos/grasa; el entrenador aún puede sobrescribir el Kcal.
