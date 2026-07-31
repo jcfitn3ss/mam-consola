@@ -489,7 +489,7 @@ async function verCliente(id){
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("comidas").select("descripcion,kcal,prot,carb,fat").eq("user_id",id).order("id",{ascending:false}).limit(120),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
@@ -616,6 +616,7 @@ async function verCliente(id){
       <tr><td class="c"><input type="checkbox" ${pm.cardio_pautado===true?'checked':''} onchange="setModulo('${id}','cardio_pautado',this.checked)"></td><td>Cardio pautado</td><td class="d">Habilita la pestaña Cardio (registra actividad, ppm y tipo)</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.edicion_bloqueada===true?'checked':''} onchange="setModulo('${id}','edicion_bloqueada',this.checked)"></td><td>🔒 Bloquear edición</td><td class="d">Si se marca, el cliente NO puede cambiar sus calorías, macros, plan ni modo (solo los defines tú). Sigue registrando su comida normal.</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.recetas_publicas===true?'checked':''} onchange="setModulo('${id}','recetas_publicas',this.checked)"></td><td>🍳 Recetas públicas</td><td class="d">Si se marca, las recetas que cree esta persona quedan PÚBLICAS (nativas de la app) y las ven TODOS los clientes. Ideal para María.</td></tr>
+      ${MI_PRINCIPAL?`<tr><td class="c"><input type="checkbox" ${pm.moderador===true?'checked':''} onchange="setModulo('${id}','moderador',this.checked)"></td><td>🛡️ Moderador</td><td class="d">Persona de confianza que puede APROBAR los alimentos recomendados y MODERAR (quitar) recetas públicas — desde la app o la consola. Asígnalo a quienes hacen bien las recetas.</td></tr>`:''}
     </tbody></table>
     <span id="modMsg" class="muted" style="font-size:12px"></span>`;
   h+=`<h3>Nivel y especialización</h3>`;
