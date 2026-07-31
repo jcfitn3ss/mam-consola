@@ -359,14 +359,20 @@ async function verRecordatorios(){
   const d7=hace(7);
   // Lunes de esta semana (para adherencia de entreno).
   const lun=(()=>{const d=new Date();const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return d.toISOString().slice(0,10);})();
-  const [pf,su,ck,jr,ci,se,pl]=await Promise.all([
+  const d40=hace(40);
+  const dow=(new Date().getDay()+6)%7; // 0=lunes … 6=domingo
+  const [pf,su,ck,jr,ci,se,pl,ob,pe,fo,me]=await Promise.all([
     sb.from("perfiles").select("user_id,sexo,telefono"),
     sb.from("sueno").select("user_id,horas,fecha").gte("fecha",d7).order("fecha",{ascending:false}),
     sb.from("checkins").select("user_id,fatiga,energia,animo,dart,fecha").gte("fecha",d7).order("fecha",{ascending:false}),
     sb.from("journal").select("user_id,texto,fecha").order("fecha",{ascending:false}).limit(500),
     sb.from("ciclo_menstrual").select("*"),
     sb.from("sesiones").select("user_id,fecha").eq("finalizada",true).gte("fecha",lun),
-    sb.from("planes").select("user_id,dias"),
+    sb.from("planes").select("user_id,dias,inicio"),
+    sb.from("objetivos").select("user_id,tipo"),
+    sb.from("pesos").select("user_id,fecha").gte("fecha",lun),
+    sb.from("fotos").select("user_id,fecha").gte("fecha",d40),
+    sb.from("medidas").select("user_id,fecha").gte("fecha",d40),
   ]);
   const P={};(pf.data||[]).forEach(p=>P[p.user_id]=p);
   const SU={};(su.data||[]).forEach(s=>{(SU[s.user_id]=SU[s.user_id]||[]).push(s)});
@@ -375,6 +381,11 @@ async function verRecordatorios(){
   const CI={};(ci.data||[]).forEach(c=>CI[c.user_id]=c);
   const SES={};(se.data||[]).forEach(s=>SES[s.user_id]=(SES[s.user_id]||0)+1);
   const PL={};(pl.data||[]).forEach(p=>PL[p.user_id]=p.dias);
+  const INI={};(pl.data||[]).forEach(p=>INI[p.user_id]=p.inicio);
+  const OBJ={};(ob.data||[]).forEach(o=>OBJ[o.user_id]=o.tipo);
+  const PESOSEM={};(pe.data||[]).forEach(p=>PESOSEM[p.user_id]=(PESOSEM[p.user_id]||0)+1); // pesos registrados esta semana
+  const ULTFOTO={};(fo.data||[]).forEach(f=>{if(!ULTFOTO[f.user_id]||f.fecha>ULTFOTO[f.user_id])ULTFOTO[f.user_id]=f.fecha;});
+  const ULTMED={};(me.data||[]).forEach(m=>{if(!ULTMED[m.user_id]||m.fecha>ULTMED[m.user_id])ULTMED[m.user_id]=m.fecha;});
 
   const rows=CLIENTES.map(c=>{
     const u=c.user_id, pr=P[u]||{}, sen=[], nota=[], prio=(c._sc||0);
@@ -390,6 +401,33 @@ async function verRecordatorios(){
     const j=JR[u]; if(j&&j.fecha>=d7){sen.push(`Journal ${String(j.fecha).slice(5)}`);} else sen.push("Sin journal reciente");
     // Adherencia de entreno
     const ses=SES[u]||0, meta=PL[u]||0; if(meta){sen.push(`${ses}/${meta} sesiones sem`); if(ses===0)nota.push("no ha entrenado esta semana");}
+    // Cierre de ciclo de 4 semanas → recordarle SUBIR FOTOS Y MEDIDAS. Se dispara
+    // en los últimos ~4 días de cada bloque de 4 sem si no ha subido fotos/medidas
+    // recientes (así el 1er ciclo y los siguientes quedan cubiertos).
+    const iniP=INI[u]; let cierraCiclo=false, nCiclo=0;
+    if(iniP){
+      const dias=Math.floor((Date.now()-new Date(iniP+"T00:00:00").getTime())/864e5);
+      if(dias>=20){
+        nCiclo=Math.floor(dias/28)+1;
+        const restan=(28-(dias%28))%28; // días para cerrar el bloque de 4 semanas
+        const h20=hace(20);
+        const subioFoto=ULTFOTO[u]&&ULTFOTO[u]>=h20, subioMed=ULTMED[u]&&ULTMED[u]>=h20;
+        if(restan<=4 && (!subioFoto||!subioMed)){
+          cierraCiclo=true;
+          sen.push(`Cierra ciclo 4 sem (día ${dias%28===0?28:dias%28}/28)`);
+          nota.push(`casi termina su ${nCiclo===1?'PRIMER ':''}ciclo de 4 semanas: pedirle fotos y medidas`);
+        }
+      }
+    }
+    // Pesos semanales (meta 4) — SOLO para quien NO está sanando TCA.
+    const esTCA=OBJ[u]==='tca';
+    const pesosSem=PESOSEM[u]||0;
+    let faltanPesos=false;
+    if(!esTCA){
+      sen.push(`Pesos: ${pesosSem}/4 sem`);
+      if(pesosSem<4 && dow>=4){ faltanPesos=true; nota.push(`le faltan pesos de la semana (${pesosSem}/4): recordarle`); }
+      else if(pesosSem===0 && dow>=2){ faltanPesos=true; nota.push("no ha registrado peso esta semana"); }
+    }
     // Ciclo (mujeres)
     if(pr.sexo==='F'){
       const cd=CI[u];
@@ -400,15 +438,18 @@ async function verRecordatorios(){
         if(retraso)nota.push("posible retraso del ciclo: preguntarle cómo se siente");
       } else sen.push("Ciclo: sin registrar (pedirle que lo llene)");
     }
-    // Mensaje de WhatsApp sugerido (editable antes de enviar).
+    // Mensaje de WhatsApp sugerido (editable antes de enviar). Prioriza el cierre
+    // de ciclo (fotos/medidas) y luego los pesos de la semana.
     const nom=(c.nombre||'').split(' ')[0]||'';
     let wa;
-    if(nota.length) wa=`Hola ${nom}, vi que ${nota.slice(0,2).join(' y ')}. Tómalo con calma hoy y cuéntame cómo te sientes para ajustar lo que necesites.`;
+    if(cierraCiclo) wa=`Hola ${nom}, esta semana cierras tu ciclo de 4 semanas. Súbeme por la app tus FOTOS y MEDIDAS actualizadas (misma pose, luz y hora) para ver tu progreso y ajustar el siguiente bloque.`;
+    else if(faltanPesos) wa=`Hola ${nom}, recuerda pesarte ~4 veces por semana (en ayunas, al despertar) y registrarlo en la app. Con eso ajusto mejor tus calorías. Vas ${pesosSem}/4 esta semana.`;
+    else if(nota.length) wa=`Hola ${nom}, vi que ${nota.slice(0,2).join(' y ')}. Tómalo con calma hoy y cuéntame cómo te sientes para ajustar lo que necesites.`;
     else wa=`Hola ${nom}, ¿cómo vas con tus entrenos y tu alimentación esta semana? Cuéntame cómo te has sentido.`;
-    return {c,pr,sen,nota,prio,wa};
+    return {c,pr,sen,nota,prio:prio+(cierraCiclo?5:0)+(faltanPesos?2:0),wa};
   }).sort((a,b)=>b.prio-a.prio);
 
-  let h=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia y ciclo en mujeres). Ordenado por prioridad. El mensaje de WhatsApp es una sugerencia: edítalo antes de enviar.</div></div>`;
+  let h=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia, ciclo en mujeres, cierre de ciclo de 4 semanas → fotos y medidas, y pesos semanales para quien no está sanando TCA). Ordenado por prioridad. El mensaje de WhatsApp es una sugerencia: edítalo antes de enviar.</div></div>`;
   h+=`<div class="card" style="overflow-x:auto"><table class="data" style="min-width:820px"><thead><tr><th>Cliente</th><th>Señales de hoy</th><th>Qué tener en cuenta</th><th>WhatsApp</th></tr></thead><tbody>`;
   rows.forEach(r=>{
     const wl=waLink(r.pr.telefono,r.wa);
