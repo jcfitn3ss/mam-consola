@@ -530,7 +530,7 @@ async function verCliente(id){
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("comidas").select("descripcion,kcal,prot,carb,fat").eq("user_id",id).order("id",{ascending:false}).limit(120),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
@@ -718,6 +718,8 @@ async function verCliente(id){
   h+=`<h3>Objetivo, calorías y enfoque (editable)</h3>
    <label class="lbl">Objetivo</label><select id="e_tipo">${OBJ.map(([v,l])=>`<option value="${v}" ${o.tipo===v?'selected':''}>${l}</option>`).join("")}</select>
    <label class="lbl">Fase</label><select id="e_fase">${FASES.map(f=>`<option value="${f}" ${plan.fase===f?'selected':''}>${f?cap(f):'(sin fase)'}</option>`).join("")}</select>
+   <label class="lbl">Altura (cm)</label><input id="e_altura" type="number" min="120" max="230" placeholder="Ej. 175" value="${(per.data&&per.data.altura)||''}">
+   <div class="muted" style="font-size:11px;margin-top:2px">La altura es necesaria para calcular bien las calorías. Aquí es donde se registra.</div>
    <div class="row"><div><label class="lbl">Kcal</label><input id="e_kcal" type="number" value="${o.kcal||''}"></div><div><label class="lbl">Prot</label><input id="e_prot" type="number" value="${o.prot||''}" oninput="recalcKcal()"></div><div><label class="lbl">Carb</label><input id="e_carb" type="number" value="${o.carb||''}" oninput="recalcKcal()"></div><div><label class="lbl">Grasa</label><input id="e_fat" type="number" value="${o.fat||''}" oninput="recalcKcal()"></div></div>
    <div class="muted" style="font-size:11px;margin-top:2px">Las calorías se recalculan solas con los macros (4 kcal/g proteína y carbos, 9 kcal/g grasa). Puedes sobrescribir el Kcal a mano si quieres.</div>
    <label class="lbl">Enfoque</label><div id="e_enf">${ENFOQUES.map(e=>`<span class="chip ${enf.includes(e)?'on':''}" onclick="this.classList.toggle('on')">${e}</span>`).join("")}</div>
@@ -1277,7 +1279,8 @@ async function planGenerar(id){
   PLAN_DATOS=data.datos;
   // Convierte cada comida a filas de alimentos editables (nombre + gramos).
   (PLAN_DATOS.dias||[]).forEach(dia=>(dia.comidas||[]).forEach(c=>{c.foods=planParseFoods(c.alimentos);}));
-  $("planMsg").innerHTML="✓ Plan generado. Ajusta alimentos y gramos (los macros se recalculan solos). Cuando quede bien, <b>Aprobar y guardar</b>.";
+  const notaFuente=data.fuente==="catalogo"?" <b style='color:#e0b84a'>El cliente aún no registró sus alimentos, así que este plan usa el catálogo oficial.</b> Ajústalo a sus gustos.":"";
+  $("planMsg").innerHTML="✓ Plan generado. Ajusta alimentos y gramos (los macros se recalculan solos). Cuando quede bien, <b>Aprobar y guardar</b>."+notaFuente;
   planRenderEditor();$("plan_acciones").classList.remove("hide");
   const f=$("plan_prev");if(f)f.classList.add("hide");
 }
@@ -1807,9 +1810,11 @@ async function guardarObj(id){
   $("saveMsg").textContent="Guardando…";
   const tipo=$("e_tipo").value,kcal=+$("e_kcal").value||null,prot=+$("e_prot").value||null,carb=+$("e_carb").value||null,fat=+$("e_fat").value||null,fase=$("e_fase").value||null;
   const enf=[...document.querySelectorAll("#e_enf .chip.on")].map(c=>c.textContent);
+  const alturaEl=$("e_altura");const altura=alturaEl&&alturaEl.value?Math.round(+alturaEl.value):null;
   const r1=await sb.from("objetivos").upsert({user_id:id,tipo,kcal,prot,carb,fat},{onConflict:"user_id"});
   const r2=await sb.from("planes").upsert({user_id:id,enfoque:enf,fase},{onConflict:"user_id"});
-  $("saveMsg").innerHTML=(r1.error||r2.error)?`<span class="alert">${esc((r1.error||r2.error).message)}</span>`:"✓ Guardado.";
+  const r3=await sb.from("perfiles").update({altura}).eq("user_id",id);
+  $("saveMsg").innerHTML=(r1.error||r2.error||r3.error)?`<span class="alert">${esc((r1.error||r2.error||r3.error).message)}</span>`:"✓ Guardado.";
 }
 async function guardarGestion(id){
   $("gMsg").textContent="Guardando…";
