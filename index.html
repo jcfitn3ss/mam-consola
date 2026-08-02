@@ -829,12 +829,34 @@ async function verCliente(id){
   if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">↩ Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><span id="rutMsg" class="muted"></span></div>`;
   h+=`</div>`;
 
-  // Calorías + progreso + journal + fotos
+  // ===== PROGRESO FÍSICO: peso + medidas + fotos, TODO EN UNA SOLA SECCIÓN =====
+  {
+    const Fp=fts.data||[]; window.__fotos=Fp;
+    const mLast=md[0]||null, mPrev=md[1]||null;
+    const medRow=(lbl,key,unit)=>{ if(!mLast||mLast[key]==null) return ''; const a=mLast[key]; const b=(mPrev&&mPrev[key]!=null)?mPrev[key]:null; const d=b!=null?(a-b):null; return `<div class="fila"><span>${lbl}</span><span>${a} ${unit}${d!=null?` <span class="muted">(${d>0?'+':''}${(+d).toFixed(1)})</span>`:''}</span></div>`; };
+    h+=`<div class="card"><h2 style="margin-top:0">Progreso físico</h2>`;
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:6px">Peso, medidas y fotos del cliente, todo junto.</div>`;
+    h+=`<h3>Peso</h3>`;
+    h+=`<div class="fila"><span>Actual</span><span>${peso!=null?`${peso} kg`:'—'}${dp!=null?` <span class="muted">(${dp>0?'+':''}${dp} kg total)</span>`:''}</span></div>`;
+    if(pesos.length) h+=`<div class="muted" style="font-size:11px;margin-top:4px">Últimos registros</div>`+pesos.slice(0,8).map(p=>`<div class="fila"><span class="muted">${esc(p.fecha)}</span><span>${p.peso} kg</span></div>`).join("");
+    else h+=`<div class="muted" style="font-size:12px">Sin pesos registrados.</div>`;
+    h+=`<h3>Medidas</h3>`;
+    if(mLast){ h+=`<div class="muted" style="font-size:11px">Última: ${esc(mLast.fecha||'')}${mPrev?` (vs ${esc(mPrev.fecha||'')})`:''}</div>`;
+      h+=medRow('Cintura','cintura','cm')+medRow('Cadera','cadera','cm')+medRow('Pecho','pecho','cm')+medRow('Brazo','brazo','cm')+medRow('Muslo','muslo','cm'); }
+    else h+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
+    h+=`<h3>Fotos comparativas</h3>`;
+    if(Fp.length){
+      h+=`<div class="row"><div><div class="muted" style="font-size:11px">Primera (${esc(Fp[0].fecha)})</div>${Fp[0].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,0)" src="${esc(Fp[0].url)}">`:''}</div>${Fp.length>1?`<div><div class="muted" style="font-size:11px">Última (${esc(Fp[Fp.length-1].fecha)})</div>${Fp[Fp.length-1].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,${Fp.length-1})" src="${esc(Fp[Fp.length-1].url)}">`:''}</div>`:''}</div>`;
+      h+=`<div class="muted" style="font-size:11px;margin-top:8px">Todas las fotos (clic para ampliar)</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${Fp.map((f,i)=>f.url?`<div style="text-align:center"><img class="thumb" onclick="lbOpen(window.__fotos,${i})" src="${esc(f.url)}"><div class="muted" style="font-size:10px;max-width:82px">${esc(f.fecha||'')}${f.tipo?'<br>'+esc(f.tipo):''}</div></div>`:'').join("")}</div>`;
+    } else h+=`<div class="muted">Sin fotos.</div>`;
+    h+=`</div>`;
+  }
+
+  // Calorías + progreso + journal (las fotos y el peso/medidas viven ahora en "Progreso físico")
   h+=`<div class="card"><h2 style="margin-top:0">Nutrición y progreso</h2>`;
   h+=`<div class="kv">`;
   h+=fila("Calorías objetivo",o.kcal?`${o.kcal} kcal · P${o.prot||0}/C${o.carb||0}/G${o.fat||0}`:"—");
   h+=fila("Calorías reales (prom "+dv.length+"d)",prom?`${prom.k} kcal · P${prom.p}/C${prom.c}/G${prom.f}`:"Sin registros",true);
-  h+=fila("Peso actual",peso!=null?`${peso} kg${dp!=null?` (${dp>0?'+':''}${dp})`:''}`:"—")+fila("Cintura",cint!=null?`${cint} cm`:"—");
   h+=`</div>`;
   // PARTE 6 nutrición: preferencias + plan + alerta alimentos
   const pref=(plan.dieta&&"")||"";
@@ -865,13 +887,7 @@ async function verCliente(id){
   // Journal
   h+=`<h3>Journal reciente (personal)</h3>`;
   h+=J.length?J.map(j=>`<div style="border-left:2px solid var(--line);padding-left:10px;margin:6px 0"><div class="muted" style="font-size:11px">${esc(j.fecha)}</div>${esc(j.texto)}</div>`).join(""):`<div class="muted">Sin entradas.</div>`;
-  // Fotos
-  const F=fts.data||[];window.__fotos=F;h+=`<h3>Fotos comparativas</h3>`;
-  if(F.length){
-    h+=`<div class="row"><div><div class="muted" style="font-size:11px">Primera (${esc(F[0].fecha)})</div>${F[0].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,0)" src="${esc(F[0].url)}">`:''}</div>${F.length>1?`<div><div class="muted" style="font-size:11px">Última (${esc(F[F.length-1].fecha)})</div>${F[F.length-1].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,${F.length-1})" src="${esc(F[F.length-1].url)}">`:''}</div>`:''}</div>`;
-    // Galería completa: todas las fotos, clic para abrir el visor (lightbox).
-    h+=`<div class="muted" style="font-size:11px;margin-top:8px">Todas las fotos (clic para ampliar)</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${F.map((f,i)=>f.url?`<div style="text-align:center"><img class="thumb" onclick="lbOpen(window.__fotos,${i})" src="${esc(f.url)}"><div class="muted" style="font-size:10px;max-width:82px">${esc(f.fecha||'')}${f.tipo?'<br>'+esc(f.tipo):''}</div></div>`:'').join("")}</div>`;
-  } else h+=`<div class="muted">Sin fotos.</div>`;
+  // (Las fotos comparativas se movieron a la card "Progreso físico" de arriba.)
   h+=`</div>`;
 
   // ===== Comparativa y gráficas: DIFERIDAS (se insertan tras pintar el detalle,
