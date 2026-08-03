@@ -840,10 +840,13 @@ async function verCliente(id){
     h+=`<div class="fila"><span>Actual</span><span>${peso!=null?`${peso} kg`:'—'}${dp!=null?` <span class="muted">(${dp>0?'+':''}${dp} kg total)</span>`:''}</span></div>`;
     if(pesos.length) h+=`<div class="muted" style="font-size:11px;margin-top:4px">Últimos registros</div>`+pesos.slice(0,8).map(p=>`<div class="fila"><span class="muted">${esc(p.fecha)}</span><span>${p.peso} kg</span></div>`).join("");
     else h+=`<div class="muted" style="font-size:12px">Sin pesos registrados.</div>`;
-    h+=`<h3>Medidas</h3>`;
-    if(mLast){ h+=`<div class="muted" style="font-size:11px">Última: ${esc(mLast.fecha||'')}${mPrev?` (vs ${esc(mPrev.fecha||'')})`:''}</div>`;
-      h+=medRow('Cintura','cintura','cm')+medRow('Cadera','cadera','cm')+medRow('Pecho','pecho','cm')+medRow('Brazo','brazo','cm')+medRow('Muslo','muslo','cm'); }
-    else h+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
+    h+=`<h3>Medidas (completas — primera vs última)</h3>`;
+    {
+      const MA=(medsAll&&medsAll.data)||[];const mm0=MA[0],mm1=MA[MA.length-1];
+      const mrow=(lbl,k)=>{if(!mm0&&!mm1)return'';const a=mm0?mm0[k]:null,b=mm1?mm1[k]:null;if(a==null&&b==null)return'';const d=(a!=null&&b!=null&&MA.length>1)?Math.round((b-a)*10)/10:null;return `<tr><td>${lbl}</td><td>${a!=null?a+' cm':'—'}</td><td>${b!=null?b+' cm':'—'}</td><td class="muted">${d==null?'—':(d>0?'+':'')+d+' cm'}</td></tr>`;};
+      if(MA.length){h+=`<table style="font-size:12px;width:100%;border-collapse:collapse"><tr><th style="text-align:left">Medida</th><th>Primera<br><span class="muted" style="font-size:10px">${esc(mm0?mm0.fecha||'':'')}</span></th><th>Última<br><span class="muted" style="font-size:10px">${esc(mm1?mm1.fecha||'':'')}</span></th><th>Δ</th></tr>${mrow('Cintura','cintura')}${mrow('Cadera','cadera')}${mrow('Pecho','pecho')}${mrow('Brazo','brazo')}${mrow('Muslo','muslo')}</table>`;}
+      else h+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
+    }
     h+=`<h3>Fotos comparativas</h3>`;
     if(Fp.length){
       h+=`<div class="row"><div><div class="muted" style="font-size:11px">Primera (${esc(Fp[0].fecha)})</div>${Fp[0].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,0)" src="${esc(Fp[0].url)}">`:''}</div>${Fp.length>1?`<div><div class="muted" style="font-size:11px">Última (${esc(Fp[Fp.length-1].fecha)})</div>${Fp[Fp.length-1].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,${Fp.length-1})" src="${esc(Fp[Fp.length-1].url)}">`:''}</div>`:''}</div>`;
