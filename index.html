@@ -1271,11 +1271,12 @@ let PLAN_CATNAMES=[];
 function planNorm(s){return (s||"").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();}
 async function planCargarCatalogo(id){
   const [base,prop]=await Promise.all([
-    sb.from("alimentos_base").select("nombre,k,p,c,f").eq("activo",true).eq("aprobado",true),
+    sb.from("alimentos_base").select("nombre,k,p,c,f,porcion_g").eq("activo",true).eq("aprobado",true),
     sb.from("alimentos_propios").select("nombre,k,p,c,f").eq("user_id",id)
   ]);
   PLAN_CATMAP=new Map();
-  const add=a=>{const n=planNorm(a.nombre);if(n&&!PLAN_CATMAP.has(n))PLAN_CATMAP.set(n,{nombre:a.nombre,k:+a.k||0,p:+a.p||0,c:+a.c||0,f:+a.f||0});};
+  // pg = gramos por UNIDAD (ej. huevo 50 g). Si lo tiene, el alimento va por unidad.
+  const add=a=>{const n=planNorm(a.nombre);if(n&&!PLAN_CATMAP.has(n))PLAN_CATMAP.set(n,{nombre:a.nombre,k:+a.k||0,p:+a.p||0,c:+a.c||0,f:+a.f||0,pg:+a.porcion_g||0});};
   (base.data||[]).forEach(add);(prop.data||[]).forEach(add);
   PLAN_CATNAMES=[...PLAN_CATMAP.values()].map(x=>x.nombre).sort((a,b)=>a.localeCompare(b));
 }
@@ -1283,24 +1284,28 @@ async function planCargarCatalogo(id){
 // posición ("Pechuga de pollo 200 g cocida" o "200 g pollo") y limpia calificadores.
 function planParseFoods(txt){
   return (txt||"").split(/\s*\+\s*|\n|;/).map(s=>s.trim()).filter(Boolean).map(seg=>{
-    let gramos=0;
+    let gramos=0,unidades=0;
     const mg=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:g|gr|gramos|ml)\b/i);
     if(mg)gramos=Math.round(parseFloat(mg[1].replace(",","."))||0);
+    const mu=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:unidad(?:es)?|und?|u)\b/i);
+    if(!gramos&&mu)unidades=parseFloat(mu[1].replace(",","."))||0;
     const nombre=seg
       .replace(/\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidad(?:es)?|und?|u)\b/gi,' ')
       .replace(/\b(cocid[oa]s?|crud[oa]s?|al vapor|a la plancha|hervid[oa]s?|asad[oa]s?|magr[oa]s?|libre|deslactosad[oa])\b/gi,' ')
       .replace(/\(.*?\)/g,' ').replace(/\s+/g,' ').trim();
-    return {nombre,gramos};
+    return {nombre,gramos,unidades};
   });
 }
-// Macros de un alimento según su gramaje, mirando el catálogo por 100 g. Match
-// EXACTO y, si no, DIFUSO (la entrada del catálogo más larga contenida en el nombre).
+// Busca la entrada de catálogo de un alimento (exacto o difuso).
+function planCatDe(nombre){const n=planNorm(nombre);let c=PLAN_CATMAP.get(n);if(!c&&n){let best=null,bl=0;for(const [k,v] of PLAN_CATMAP){if(k.length>bl&&(n.includes(k)||k.includes(n))){best=v;bl=k.length;}}c=best;}return c;}
+// ¿El alimento va por UNIDAD? (tiene porcion_g en el banco, ej. huevo)
+function planEsUnidad(nombre){const c=planCatDe(nombre);return !!(c&&c.pg>0);}
+// Gramos efectivos de una fila: gramos directos, o unidades × porcion_g.
+function planGramosDe(f){const c=planCatDe(f.nombre);if(+f.gramos>0)return +f.gramos;if(+f.unidades>0&&c&&c.pg>0)return (+f.unidades)*c.pg;return 0;}
+// Macros de un alimento según su gramaje, mirando el catálogo por 100 g.
 function planFoodMacros(f){
-  const g=+f.gramos||0;const n=planNorm(f.nombre);
-  let c=PLAN_CATMAP.get(n);
-  if(!c&&n){let best=null,bl=0;for(const [k,v] of PLAN_CATMAP){if(k.length>bl&&(n.includes(k)||k.includes(n))){best=v;bl=k.length;}}c=best;}
-  if(!c)return{k:0,p:0,c:0,f:0,match:false};
-  const r=g/100;return{k:c.k*r,p:c.p*r,c:c.c*r,f:c.f*r,match:true};
+  const c=planCatDe(f.nombre);if(!c)return{k:0,p:0,c:0,f:0,match:false};
+  const g=planGramosDe(f);const r=g/100;return{k:c.k*r,p:c.p*r,c:c.c*r,f:c.f*r,match:true};
 }
 // Total de una comida: si TODOS los alimentos están en el catálogo, se recalcula
 // por gramaje (exacto). Si alguno no está, se usan los macros que reportó la IA
@@ -1347,10 +1352,12 @@ function planRenderEditor(){
           <span id="mealtot-${di}-${ci}" class="muted" style="font-size:11px"></span>
         </div>`;
       (c.foods||[]).forEach((f,fi)=>{
+        const esU=planEsUnidad(f.nombre);const cat=planCatDe(f.nombre);
+        const valU=esU?((+f.unidades||(cat&&cat.pg?Math.round((+f.gramos||0)/cat.pg):0))||0):(Math.round(+f.gramos||0));
         h+=`<div style="display:flex;gap:6px;align-items:center;margin:3px 0">
           <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
-          <input type="number" min="0" value="${Math.round(+f.gramos||0)}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'gramos',this.value)">
-          <span class="muted" style="font-size:11px">g</span>
+          <input type="number" min="0" step="${esU?'1':'1'}" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
+          <span class="muted" style="font-size:11px">${esU?'unid':'g'}</span>
           <span id="foodk-${di}-${ci}-${fi}" class="muted" style="font-size:11px;width:70px;text-align:right"></span>
           <button class="sm ghost" onclick="planFoodDel(${di},${ci},${fi})" title="Quitar alimento" style="margin:0">×</button>
         </div>`;
@@ -1381,7 +1388,10 @@ function planSet(di,ci,fi,campo,val){
   const c=PLAN_DATOS&&PLAN_DATOS.dias[di]&&PLAN_DATOS.dias[di].comidas[ci];if(!c)return;
   if(fi<0){c[campo]=val;return;}
   if(!c.foods||!c.foods[fi])return;
-  c.foods[fi][campo]= campo==='gramos' ? Math.max(0,parseInt(val,10)||0) : val;
+  const f=c.foods[fi];
+  if(campo==='gramos'){f.gramos=Math.max(0,parseInt(val,10)||0);f.unidades=0;}
+  else if(campo==='unidades'){f.unidades=Math.max(0,parseFloat(String(val).replace(',','.'))||0);f.gramos=0;}
+  else f[campo]=val;
   planActualizarTotales();
 }
 // Recalcula y pinta kcal por alimento, por comida y por día (vs objetivo).
@@ -1410,7 +1420,14 @@ function planRecoger(){
   (d.dias||[]).forEach(dia=>{
     (dia.comidas||[]).forEach(c=>{
       const fs=(c.foods||[]).filter(f=>(f.nombre||"").trim());
-      c.alimentos=fs.map(f=>`${Math.round(+f.gramos||0)} g ${f.nombre.trim()}`).join(" + ");
+      c.alimentos=fs.map(f=>{
+        const cat=planCatDe(f.nombre);
+        if(cat&&cat.pg>0){ // por UNIDAD (ej. huevo): guardamos "N unidades"
+          let u=+f.unidades||0; if(!u&&+f.gramos>0)u=Math.round((+f.gramos)/cat.pg);
+          return `${u} ${u===1?'unidad':'unidades'} ${f.nombre.trim()}`;
+        }
+        return `${Math.round(+f.gramos||0)} g ${f.nombre.trim()}`;
+      }).join(" + ");
       const mt=planMealTot(c);c.kcal=Math.round(mt.k);c.prot=Math.round(mt.p);c.carb=Math.round(mt.c);c.fat=Math.round(mt.f);
     });
     const dt=planDayTot(dia);dia.kcalEst=Math.round(dt.k);
