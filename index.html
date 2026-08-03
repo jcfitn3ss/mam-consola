@@ -719,6 +719,8 @@ async function verCliente(id){
    <label class="lbl">Objetivo</label><select id="e_tipo">${OBJ.map(([v,l])=>`<option value="${v}" ${o.tipo===v?'selected':''}>${l}</option>`).join("")}</select>
    <label class="lbl">Fase</label><select id="e_fase">${FASES.map(f=>`<option value="${f}" ${plan.fase===f?'selected':''}>${f?cap(f):'(sin fase)'}</option>`).join("")}</select>
    <label class="lbl">Altura (cm)</label><input id="e_altura" type="number" min="120" max="230" placeholder="Ej. 175" value="${(per.data&&per.data.altura)||''}">
+   <label class="lbl">RIR planificado (0-4)</label><input id="e_rir" type="number" min="0" max="4" placeholder="Ej. 2" value="${plan.rir_objetivo!=null?plan.rir_objetivo:''}">
+   <div class="muted" style="font-size:11px;margin-top:2px">RIR fijo para esta persona (estable). La app lo usa como objetivo y NO lo cambia solo, salvo en semana de descarga. Cámbialo solo con buena razón.</div>
    <div class="muted" style="font-size:11px;margin-top:2px">La altura es necesaria para calcular bien las calorías. Aquí es donde se registra.</div>
    <div class="row"><div><label class="lbl">Kcal</label><input id="e_kcal" type="number" value="${o.kcal||''}"></div><div><label class="lbl">Prot</label><input id="e_prot" type="number" value="${o.prot||''}" oninput="recalcKcal()"></div><div><label class="lbl">Carb</label><input id="e_carb" type="number" value="${o.carb||''}" oninput="recalcKcal()"></div><div><label class="lbl">Grasa</label><input id="e_fat" type="number" value="${o.fat||''}" oninput="recalcKcal()"></div></div>
    <div class="muted" style="font-size:11px;margin-top:2px">Las calorías se recalculan solas con los macros (4 kcal/g proteína y carbos, 9 kcal/g grasa). Puedes sobrescribir el Kcal a mano si quieres.</div>
@@ -1871,8 +1873,9 @@ async function guardarObj(id){
   const tipo=$("e_tipo").value,kcal=+$("e_kcal").value||null,prot=+$("e_prot").value||null,carb=+$("e_carb").value||null,fat=+$("e_fat").value||null,fase=$("e_fase").value||null;
   const enf=[...document.querySelectorAll("#e_enf .chip.on")].map(c=>c.textContent);
   const alturaEl=$("e_altura");const altura=alturaEl&&alturaEl.value?Math.round(+alturaEl.value):null;
+  const rirEl=$("e_rir");const rir_objetivo=rirEl&&rirEl.value!==''?Math.max(0,Math.min(4,Math.round(+rirEl.value))):null;
   const r1=await sb.from("objetivos").upsert({user_id:id,tipo,kcal,prot,carb,fat},{onConflict:"user_id"});
-  const r2=await sb.from("planes").upsert({user_id:id,enfoque:enf,fase},{onConflict:"user_id"});
+  const r2=await sb.from("planes").upsert({user_id:id,enfoque:enf,fase,rir_objetivo},{onConflict:"user_id"});
   const r3=await sb.from("perfiles").update({altura}).eq("user_id",id);
   $("saveMsg").innerHTML=(r1.error||r2.error||r3.error)?`<span class="alert">${esc((r1.error||r2.error||r3.error).message)}</span>`:"✓ Guardado.";
 }
