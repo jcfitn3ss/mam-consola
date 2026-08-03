@@ -991,8 +991,11 @@ async function verCliente(id){
     objetivo:{tipo:o.tipo||null,kcal:+o.kcal||null,prot:+o.prot||null,carb:+o.carb||null,fat:+o.fat||null},
     fase:(plan.fase||null),enfoque:(plan.enfoque||[]),nivel:((per.data&&per.data.nivel)||null),
     especializacion:(esp.data?{activa:esp.data.activa,objetivo:esp.data.objetivo,series_objetivo:esp.data.series_objetivo,series_resto:esp.data.series_resto}:null),
-    // Rutina (para que la IA referencie ejercicios por nombre al ajustar series/técnica).
-    rutina:((RUT&&RUT.dias)||[]).map(d=>({dia:d.nombre,ejercicios:(d.orden||[]).map(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};return {nombre:cap(e.nombre||''),series:it.s||null,tecnica:(RUT.tecnicas||{})[((RUT.dias.indexOf(d))+"|"+it.id)]||'normal'};})}))};
+    // Rutina (para que la IA referencie ejercicios por nombre al ajustar series/técnica/cambios).
+    rutina:((RUT&&RUT.dias)||[]).map((d,di)=>({sesion:di+1,dia:d.nombre,ejercicios:(d.orden||[]).map(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};return {nombre:cap(e.nombre||''),series:it.s||null,tecnica:(RUT.tecnicas||{})[(di+"|"+it.id)]||'normal'};})})),
+    // Biblioteca de ejercicios disponibles (para cambiar/agregar ejercicios): nombre + grupo.
+    biblioteca:((typeof EJ!=='undefined'&&EJ)||[]).map(e=>({n:cap(e.nombre||''),g:e.grupo||''})),
+    plan_descarga_hasta:(plan.descarga_hasta||null)};
   h+=anCardHTML();
 
   // ===== Programación por bloques y semanas =====
@@ -2209,6 +2212,11 @@ function iaAccionTxt(a){
   if(a.tipo==='nivel')return `Nivel → ${a.nivel}`;
   if(a.tipo==='series')return `Series → ${esc(a.ejercicio||'')}: ${a.series} series`;
   if(a.tipo==='tecnica')return `Técnica → ${esc(a.ejercicio||'')}: ${a.tecnica}`;
+  if(a.tipo==='swap')return `Cambiar ejercicio → ${esc(a.ejercicio_actual||'')} por ${esc(a.ejercicio_nuevo||'')}${a.sesion?(' (sesión '+a.sesion+')'):''}`;
+  if(a.tipo==='agregar_ejercicio')return `Agregar ejercicio → ${esc(a.ejercicio||'')} a la sesión ${a.sesion||'?'}${a.series?(' ('+a.series+' series)'):''}`;
+  if(a.tipo==='quitar_ejercicio')return `Quitar ejercicio → ${esc(a.ejercicio||'')}${a.sesion?(' (sesión '+a.sesion+')'):''}`;
+  if(a.tipo==='descarga')return `Descarga forzada → hasta ${esc(a.hasta||'')} (menos series, RIR alto)`;
+  if(a.tipo==='fuerza')return `Mesociclo de fuerza → ${a.activa===false?'desactivar':('activar sobre '+((a.ejercicios||[]).join(', ')||'compuestos')+' · '+(a.series||2)+' series, top '+(a.top_reps||5)+' reps')}`;
   if(a.tipo==='nota')return `Nota: ${a.texto}`;
   return JSON.stringify(a);
 }
@@ -2243,6 +2251,11 @@ async function iaAplicar(){
     else if(a.tipo==='nivel'){const {error}=await sb.from("perfiles").update({nivel:a.nivel}).eq("user_id",id);error?fail++:ok++;}
     else if(a.tipo==='series'){const eid=iaEjId(a.ejercicio);let hit=false;if(eid&&RUT&&RUT.dias)RUT.dias.forEach(d=>(d.orden||[]).forEach(it=>{if(String(it.id)===String(eid)){if(+a.series>0)it.s=+a.series;else delete it.s;hit=true;}}));hit?(rutChanged=true,ok++):fail++;}
     else if(a.tipo==='tecnica'){const eid=iaEjId(a.ejercicio);let hit=false;if(eid&&RUT&&RUT.dias){RUT.tecnicas=RUT.tecnicas||{};RUT.dias.forEach((d,di)=>{if((d.orden||[]).some(it=>String(it.id)===String(eid))){const key=di+"|"+eid;if(a.tecnica&&a.tecnica!=='normal')RUT.tecnicas[key]=a.tecnica;else delete RUT.tecnicas[key];hit=true;}});}hit?(rutChanged=true,ok++):fail++;}
+    else if(a.tipo==='swap'){const eA=iaEjId(a.ejercicio_actual),eB=iaEjId(a.ejercicio_nuevo);const gB=(EJ.find(x=>String(x.id)===String(eB))||{}).grupo;let hit=false;if(eA&&eB&&RUT&&RUT.dias)RUT.dias.forEach((d,di)=>{if(a.sesion&&(+a.sesion-1)!==di)return;(d.orden||[]).forEach(it=>{if(String(it.id)===String(eA)){it.id=eB;if(gB)it.g=gB;hit=true;}});});hit?(rutChanged=true,ok++):fail++;}
+    else if(a.tipo==='agregar_ejercicio'){const eB=iaEjId(a.ejercicio);const di=(+a.sesion||1)-1;const gB=(EJ.find(x=>String(x.id)===String(eB))||{}).grupo||'';let hit=false;if(eB&&RUT&&RUT.dias&&RUT.dias[di]){RUT.dias[di].orden=RUT.dias[di].orden||[];RUT.dias[di].orden.push({id:eB,g:gB,s:+a.series||2});if(gB&&RUT.dias[di].grupos&&!RUT.dias[di].grupos.includes(gB))RUT.dias[di].grupos.push(gB);hit=true;}hit?(rutChanged=true,ok++):fail++;}
+    else if(a.tipo==='quitar_ejercicio'){const eA=iaEjId(a.ejercicio);let hit=false;if(eA&&RUT&&RUT.dias)RUT.dias.forEach((d,di)=>{if(a.sesion&&(+a.sesion-1)!==di)return;if(d.orden){const n=d.orden.length;d.orden=d.orden.filter(it=>String(it.id)!==String(eA));if(d.orden.length!==n)hit=true;}});hit?(rutChanged=true,ok++):fail++;}
+    else if(a.tipo==='descarga'){const {error}=await sb.from("planes").upsert({user_id:id,descarga_hasta:a.hasta},{onConflict:"user_id"});error?fail++:ok++;}
+    else if(a.tipo==='fuerza'){const hoy=new Date().toISOString().slice(0,10);const ids=(a.ejercicios||[]).map(n=>iaEjId(n)).filter(Boolean);const {error}=await sb.from("mesociclo_fuerza").upsert({user_id:id,activa:a.activa!==false,ejercicios:ids,series:+a.series||2,top_reps:+a.top_reps||5,backoff_pct:+a.backoff_pct||10,semanas:+a.semanas||4,inicio:hoy,updated_at:new Date().toISOString()},{onConflict:"user_id"});error?fail++:ok++;}
   }catch(e){fail++;}}
   if(rutChanged){try{await sb.from("rutinas").update({dias:RUT.dias,tecnicas:RUT.tecnicas||{}}).eq("user_id",id);}catch(e){}}
   $("ia_msg").innerHTML=`✓ Aplicado (${ok} cambio(s)${fail?(', '+fail+' con error'):''}). Recargando…`;
