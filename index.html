@@ -1270,21 +1270,38 @@ async function planCargarCatalogo(id){
   (base.data||[]).forEach(add);(prop.data||[]).forEach(add);
   PLAN_CATNAMES=[...PLAN_CATMAP.values()].map(x=>x.nombre).sort((a,b)=>a.localeCompare(b));
 }
-// Parte el texto "200 g pollo + 150 g arroz" en [{nombre,gramos}] para edición estructurada.
+// Parte el texto de una comida en [{nombre,gramos}]. Acepta gramos en CUALQUIER
+// posición ("Pechuga de pollo 200 g cocida" o "200 g pollo") y limpia calificadores.
 function planParseFoods(txt){
   return (txt||"").split(/\s*\+\s*|\n|;/).map(s=>s.trim()).filter(Boolean).map(seg=>{
-    const m=seg.match(/^(\d+(?:[.,]\d+)?)\s*g\s+(.+)$/i);
-    if(m)return{nombre:m[2].trim(),gramos:Math.round(parseFloat(m[1].replace(",","."))||0)};
-    return{nombre:seg,gramos:0};
+    let gramos=0;
+    const mg=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:g|gr|gramos|ml)\b/i);
+    if(mg)gramos=Math.round(parseFloat(mg[1].replace(",","."))||0);
+    const nombre=seg
+      .replace(/\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidad(?:es)?|und?|u)\b/gi,' ')
+      .replace(/\b(cocid[oa]s?|crud[oa]s?|al vapor|a la plancha|hervid[oa]s?|asad[oa]s?|magr[oa]s?|libre|deslactosad[oa])\b/gi,' ')
+      .replace(/\(.*?\)/g,' ').replace(/\s+/g,' ').trim();
+    return {nombre,gramos};
   });
 }
-// Macros de un alimento según su gramaje, mirando el catálogo por 100 g.
+// Macros de un alimento según su gramaje, mirando el catálogo por 100 g. Match
+// EXACTO y, si no, DIFUSO (la entrada del catálogo más larga contenida en el nombre).
 function planFoodMacros(f){
-  const c=PLAN_CATMAP.get(planNorm(f.nombre));const g=+f.gramos||0;
+  const g=+f.gramos||0;const n=planNorm(f.nombre);
+  let c=PLAN_CATMAP.get(n);
+  if(!c&&n){let best=null,bl=0;for(const [k,v] of PLAN_CATMAP){if(k.length>bl&&(n.includes(k)||k.includes(n))){best=v;bl=k.length;}}c=best;}
   if(!c)return{k:0,p:0,c:0,f:0,match:false};
   const r=g/100;return{k:c.k*r,p:c.p*r,c:c.c*r,f:c.f*r,match:true};
 }
-function planMealTot(c){return (c.foods||[]).reduce((a,f)=>{const m=planFoodMacros(f);return{k:a.k+m.k,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f};},{k:0,p:0,c:0,f:0});}
+// Total de una comida: si TODOS los alimentos están en el catálogo, se recalcula
+// por gramaje (exacto). Si alguno no está, se usan los macros que reportó la IA
+// para esa comida (que cuadran con el objetivo) — así NUNCA sale 0 ni descuadra.
+function planMealTot(c){
+  const foods=(c.foods||[]);const ms=foods.map(planFoodMacros);
+  const allMatch=foods.length>0&&ms.every(m=>m.match);
+  if(allMatch)return ms.reduce((a,m)=>({k:a.k+m.k,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f}),{k:0,p:0,c:0,f:0});
+  return {k:+c.kcal||0,p:+c.prot||0,c:+c.carb||0,f:+c.fat||0};
+}
 function planDayTot(dia){return (dia.comidas||[]).reduce((a,c)=>{const m=planMealTot(c);return{k:a.k+m.k,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f};},{k:0,p:0,c:0,f:0});}
 async function planGenerar(id){
   const dias=Math.max(1,Math.min(10,+$("plan_dias").value||4));
