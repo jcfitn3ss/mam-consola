@@ -639,9 +639,21 @@ async function verCliente(id){
       <span id="asigMsg" class="muted" style="font-size:12px"></span>`;
   }
   const pm=per.data||{};
+  const sm=susc.data||{};
+  const susActiva=sm.estado==='activa'&&sm.tier&&sm.tier!=='gratis';
+  const susFund=sm.tier==='fundador';
+  const susTxt=susFund?'fundador (gratis de por vida)':(sm.estado?`${sm.estado}${sm.tier?' · '+sm.tier:''}`:'sin suscripción');
   h+=`<h3>Acceso del cliente</h3>
     <div class="muted" style="font-size:11px;margin-bottom:6px">Si el cliente no puede entrar (olvidó su clave, o el correo de recuperación no le llega), cámbiasela aquí y pásasela por WhatsApp. No depende de correos.</div>
     <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+      <div style="font-weight:600;margin-bottom:4px">Suscripción</div>
+      <div class="muted" style="font-size:11px;margin-bottom:6px">Estado: <b style="color:${(susActiva||susFund)?'#5fd07f':'#e0b84a'}">${esc(susTxt)}</b>. ${(susActiva||susFund)?'El cliente puede usar la app.':'El cliente <b>NO pasa del paywall</b> hasta que pague por Apple o lo actives aquí (úsalo cuando confirmes el pago).'}</div>
+      ${susFund?'':(susActiva
+        ? `<button onclick="setAcceso('${id}','vencido')">Quitar acceso (marcar sin pago)</button>`
+        : `<button onclick="setAcceso('${id}','activa')">✅ Activar acceso (pago recibido)</button>`)}
+      <span id="accMsg_${id}" class="muted" style="font-size:12px"></span>
+    </div>
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" ${pm.acceso_bloqueado===true?'checked':''} onchange="setModulo('${id}','acceso_bloqueado',this.checked)"> <b>⏸️ Pausar acceso por falta de pago</b></label>
       <div class="muted" style="font-size:11px;margin:4px 0 8px">Si se marca, el cliente NO puede usar la app (ni el acompañamiento) hasta que reactives. Ve un mensaje para ponerse al día. Se quita al instante cuando lo desmarcas.</div>
@@ -1790,6 +1802,19 @@ async function resetClave(id){
   else if(data==='clave_corta'){alert('La contraseña es muy corta (mínimo 6).');}
   else if(data==='usuario_no_existe'){alert('No se encontró ese usuario.');}
   else{alert('Respuesta inesperada: '+data);}
+}
+// Activa (o quita) el ACCESO por suscripción del cliente. Con "pago estricto"
+// cada cliente nuevo cae en 'prueba' y NO pasa del paywall; aquí lo activas a
+// mano cuando confirmes su pago (o lo quitas si dejó de pagar). Reversible.
+async function setAcceso(id,estado){
+  const msg=$("accMsg_"+id);
+  if(estado==='activa'&&!confirm("¿Activar el acceso de este cliente?\n\nPodrá usar la app de inmediato. Úsalo solo cuando confirmes que pagó."))return;
+  if(estado!=='activa'&&!confirm("¿Quitar el acceso?\n\nEl cliente quedará en el paywall hasta que pague o lo reactives."))return;
+  if(msg)msg.textContent="Guardando…";
+  const {error}=await sb.from("suscripciones").upsert({user_id:id,estado,tier:'publico',updated_at:new Date().toISOString()},{onConflict:"user_id"});
+  if(error){if(msg)msg.textContent="Error: "+error.message;return;}
+  if(msg)msg.textContent=estado==='activa'?"✅ Acceso activado":"Acceso quitado";
+  setTimeout(()=>verCliente(id),700);
 }
 // Guarda el mensaje que el cliente ve cuando su acceso está en pausa por falta de pago.
 async function guardarAviso(id){
