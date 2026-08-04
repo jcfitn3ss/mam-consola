@@ -1327,7 +1327,7 @@ function planParseFoods(txt){
     const nombre=seg
       .replace(/\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidad(?:es)?|und?|u)\b/gi,' ')
       .replace(/\b(cocid[oa]s?|crud[oa]s?|al vapor|a la plancha|hervid[oa]s?|asad[oa]s?|magr[oa]s?|libre|deslactosad[oa])\b/gi,' ')
-      .replace(/\(.*?\)/g,' ').replace(/\s+/g,' ').trim();
+      .replace(/[()]/g,' ').replace(/\s+/g,' ').trim();
     return {nombre,gramos,unidades};
   });
 }
