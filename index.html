@@ -1058,6 +1058,9 @@ async function verCliente(id){
   };
   $("detalle").innerHTML=h;
   recetaRender();rcInit();hacerColapsables();
+  // Carga el plan y el informe guardados (para re-descargarlos/editarlos sin regenerar).
+  planCargarGuardado(id);
+  infCargarGuardado(id);
 }
 // Hace cada tarjeta del detalle un desplegable (clic en el título) para no verse invasivo.
 function hacerColapsables(){
@@ -1139,6 +1142,18 @@ async function generarInforme(id){
   INF_MES=data.mes;INF_HTML=data.html||"";const seg=data.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
   show("infArea",true);$("inf_seg").value=(Array.isArray(seg.texto)?seg.texto:[]).join("\n");
   renderShots();infPreview();$("infMsg").textContent="✓ Generado"+(data.publicado?" (publicado)":" (borrador)");
+}
+// Auto-carga el informe YA GUARDADO (lectura directa de la tabla, sin gastar IA)
+// para poder Ver / descargar el PDF de una, sin tener que pulsar "Generar".
+async function infCargarGuardado(id){
+  try{
+    const {data:fila}=await sb.from("informes").select("mes,html,seguimiento,publicado,generado_en").eq("user_id",id).order("generado_en",{ascending:false}).limit(1).maybeSingle();
+    if(!fila||!fila.html)return;
+    INF_MES=fila.mes;INF_HTML=fila.html;const seg=fila.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
+    show("infArea",true);const sg=$("inf_seg");if(sg)sg.value=(Array.isArray(seg.texto)?seg.texto:[]).join("\n");
+    renderShots();infPreview();
+    const m=$("infMsg");if(m)m.innerHTML=`✓ Informe de ${esc(fila.mes||'')} cargado (${fila.publicado?'publicado':'borrador'}). Puedes <b>Ver / descargar PDF</b> ya, o <b>Generar / actualizar</b> para refrescarlo con los datos de hoy.`;
+  }catch(e){}
 }
 async function subirCaptura(id){
   const inp=$("inf_file");const f=inp.files&&inp.files[0];if(!f)return;
@@ -1345,6 +1360,33 @@ async function planGenerar(id){
   $("planMsg").innerHTML="✓ Plan generado. Ajusta alimentos y gramos (los macros se recalculan solos). Cuando quede bien, <b>Aprobar y guardar</b>."+notaFuente;
   planRenderEditor();$("plan_acciones").classList.remove("hide");
   const f=$("plan_prev");if(f)f.classList.add("hide");
+  // Deja lista la vista previa/PDF de inmediato (sin tener que pulsar "Actualizar
+  // vista previa" antes de "Exportar PDF").
+  try{await planPreview();}catch(e){}
+}
+// Carga el plan de alimentación YA GUARDADO al abrir el cliente, para poder
+// RE-DESCARGARLO (Exportar PDF) o editarlo sin tener que regenerarlo. Si solo
+// hay borrador (datos sin html aprobado), lo muestra y avisa que falta aprobar.
+async function planCargarGuardado(id){
+  PLAN_DATOS=null;PLAN_HTML=null;
+  const msg=$("planMsg");const acc=$("plan_acciones");const f=$("plan_prev");
+  if(acc)acc.classList.add("hide");if(f)f.classList.add("hide");
+  let fila=null;
+  try{const r=await sb.from("planes_alimentacion").select("datos,html,generado_en,enviado_en,solicitado_en").eq("user_id",id).maybeSingle();fila=r.data;}catch(e){return;}
+  if(!fila||(!fila.html&&!fila.datos))return; // nada guardado aún
+  try{await planCargarCatalogo(id);}catch(e){}
+  if(fila.datos){
+    PLAN_DATOS=fila.datos;
+    (PLAN_DATOS.dias||[]).forEach(dia=>(dia.comidas||[]).forEach(c=>{c.foods=planParseFoods(c.alimentos);}));
+    planRenderEditor();
+  }
+  if(fila.html){PLAN_HTML=fila.html;if(f){f.classList.remove("hide");f.srcdoc=fila.html;}}
+  if(acc)acc.classList.remove("hide");
+  if(msg){
+    const fecha=fila.generado_en?(' ('+new Date(fila.generado_en).toLocaleDateString()+')'):'';
+    if(fila.html) msg.innerHTML=`✓ <b>Plan aprobado guardado</b>${fecha}. El cliente ya puede verlo y descargarlo en la app. Aquí puedes <b>Exportar PDF</b> para descargarlo, o editarlo y volver a <b>Aprobar y guardar</b>.`;
+    else msg.innerHTML=`Hay un <b>borrador</b> de plan sin aprobar${fecha}. Revísalo y pulsa <b>Aprobar y guardar</b> para que el cliente pueda verlo y descargarlo en la app.`;
+  }
 }
 function planRenderEditor(){
   const d=PLAN_DATOS;if(!d){$("plan_editor").innerHTML="";return;}
