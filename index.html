@@ -1317,7 +1317,8 @@ const RX_INSTRUCCION=/\b(licu|mezcl|bat[ié]|hornea|coc(?:in|er|é)|hierv|hervir
 function planEsInstruccion(s){return RX_INSTRUCCION.test(s)&&s.split(/\s+/).length>=2;}
 function planSoloAlimento(seg){const partes=seg.split(/\.(?=\s|$)/).map(p=>p.trim()).filter(Boolean);return (partes.find(p=>!planEsInstruccion(p))||"").trim();}
 function planParseFoods(txt){
-  return (txt||"").split(/\s*\+\s*|\n|;/).map(s=>planSoloAlimento(s.trim())).filter(Boolean).map(seg=>{
+  const limpio=(txt||"").replace(/\([^)]*\)/g,' '); // quita "(tomate, pepino)" antes de partir
+  return limpio.split(/\s*\+\s*|\n|;/).map(s=>planSoloAlimento(s.trim())).filter(Boolean).map(seg=>{
     let gramos=0,unidades=0;
     const mg=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:g|gr|gramos|ml)\b/i);
     if(mg)gramos=Math.round(parseFloat(mg[1].replace(",","."))||0);
@@ -1333,20 +1334,24 @@ function planParseFoods(txt){
 // Busca la entrada de catálogo de un alimento (exacto o difuso). Prefiere
 // coincidencia por prefijo/palabra completa y el nombre MÁS CORTO/específico
 // ("arroz"→"arroz blanco", "whey"→"Proteína whey", no el más largo que la contiene).
+function planMatchScore(n,k,qt){
+  if(k===n)return 1000;
+  if(k.startsWith(n+' '))return 200-k.length;
+  if(n.startsWith(k+' '))return 160+k.length;
+  if((' '+k+' ').includes(' '+n+' '))return 120-k.length;
+  if((' '+n+' ').includes(' '+k+' '))return 100+k.length;
+  const kt=k.split(' ').filter(w=>w.length>=4);
+  const shared=qt.filter(w=>kt.includes(w));
+  if(shared.length){const head=qt[0]&&kt.includes(qt[0])?40:0;return 30+shared.length*15+head-k.length*0.1;}
+  if(k.includes(n))return 25-k.length;
+  if(n.includes(k))return 20+k.length;
+  return -1;
+}
 function planCatDe(nombre){
-  const n=planNorm(nombre);let c=PLAN_CATMAP.get(n);if(c||!n)return c;
+  const n=planNorm(nombre);const ex=PLAN_CATMAP.get(n);if(ex||!n)return ex;
+  const qt=n.split(' ').filter(w=>w.length>=4);
   let best=null,bs=-1;
-  for(const [k,v] of PLAN_CATMAP){
-    let s=-1;
-    if(k===n)s=1000;
-    else if(k.startsWith(n+' '))s=200-k.length;
-    else if(n.startsWith(k+' '))s=160+k.length;
-    else if((' '+k+' ').includes(' '+n+' '))s=120-k.length;
-    else if((' '+n+' ').includes(' '+k+' '))s=100+k.length;
-    else if(k.includes(n))s=60-k.length;
-    else if(n.includes(k))s=40+k.length;
-    if(s>bs){bs=s;best=v;}
-  }
+  for(const [k,v] of PLAN_CATMAP){const s=planMatchScore(n,k,qt);if(s>bs){bs=s;best=v;}}
   return bs>=0?best:null;
 }
 // ¿El alimento va por UNIDAD? (tiene porcion_g en el banco, ej. huevo)
