@@ -1517,7 +1517,8 @@ const PLAN_SINONIMOS={
   "palta":"aguacate","aguacate hass":"aguacate","carne molida":"carne molida de res magra","carne de res molida":"carne molida de res magra",
   "pollo":"pechuga de pollo","pechuga":"pechuga de pollo","cottage":"queso cottage","requeson":"queso cottage","mozzarella":"queso mozzarella",
   "avena":"avena en hojuelas","hojuelas de avena":"avena en hojuelas","yogur griego":"yogur griego natural sin azucar","yogurt griego":"yogur griego natural sin azucar","yogurt":"yogur griego natural sin azucar",
-  "nuez":"nueces","chia":"semillas de chia","semillas de linaza":"linaza"
+  "nuez":"nueces","chia":"semillas de chia","semillas de linaza":"linaza",
+  "pimiento":"pimenton","zucchini":"calabacin","zapallo italiano":"calabacin","salsa de tomate":"salsa napolitana"
 };
 // Platos compuestos → ingredientes base (el escalador reparte gramos).
 const PLAN_COMPUESTOS={
@@ -1533,7 +1534,11 @@ const PLAN_COMPUESTOS={
   "sandwich de jamon":"pan tajado blanco, jamon de pavo","sanduche de jamon":"pan tajado blanco, jamon de pavo",
   "sandwich de huevo":"pan tajado blanco, huevo","sanduche de huevo":"pan tajado blanco, huevo",
   "huevos revueltos":"huevo","huevo revuelto":"huevo","huevos pericos":"huevo, tomate, cebolla",
-  "arroz con pollo":"arroz blanco, pechuga de pollo","tostadas de aguacate":"tostadas, aguacate","tostada de aguacate":"tostadas, aguacate"
+  "arroz con pollo":"arroz blanco, pechuga de pollo","tostadas de aguacate":"tostadas, aguacate","tostada de aguacate":"tostadas, aguacate",
+  "wrap de pollo":"tortilla de maiz, pechuga de pollo","wrap de atun":"tortilla de maiz, atun en agua","wrap de carne":"tortilla de maiz, carne molida de res magra","wrap de pavo":"tortilla de maiz, pechuga de pavo","wrap":"tortilla de maiz, pechuga de pollo",
+  "taco de pollo":"tortilla de maiz, pechuga de pollo","tacos de pollo":"tortilla de maiz, pechuga de pollo","quesadilla":"tortilla de maiz, queso mozzarella","burrito":"tortilla de maiz, carne molida de res magra, arroz blanco",
+  "arepa con huevo":"arepa, huevo","arepa con queso":"arepa, queso mozzarella","arepa rellena":"arepa, pechuga de pollo","pan con huevo":"pan tajado blanco, huevo",
+  "omelette":"huevo","omelet":"huevo","tortilla de huevo":"huevo","tortilla francesa":"huevo","ensalada de atun":"atun en agua, verduras mixtas","ensalada cesar":"pechuga de pollo, verduras mixtas"
 };
 function planCanon(nombre){return PLAN_SINONIMOS[planNorm(nombre)]||nombre;}
 async function planCargarCatalogo(id){
