@@ -1064,19 +1064,39 @@ async function verCliente(id){
 }
 // Hace cada tarjeta del detalle un desplegable (clic en el título) para no verse invasivo.
 function hacerColapsables(){
-  document.querySelectorAll("#detalle > .card").forEach((card,idx)=>{
+  const cards=[...document.querySelectorAll("#detalle > .card")];
+  if(!cards.length)return;
+  // Recuerda qué secciones (por título) están abiertas ENTRE re-renders (guardar
+  // repinta la ficha): antes se reiniciaba a "solo la primera" y perdías el sitio.
+  if(!window.ACORD_ABIERTOS){
+    window.ACORD_ABIERTOS=new Set();
+    const h0=cards[0].querySelector("h2"); if(h0)window.ACORD_ABIERTOS.add((h0.textContent||'').trim());
+  }
+  const abiertos=window.ACORD_ABIERTOS, conts=[];
+  cards.forEach((card)=>{
     const h=card.querySelector("h2");if(!h||h.dataset.col)return;h.dataset.col="1";
+    const titulo=(h.textContent||'').trim();
     const cont=document.createElement("div");
     const kids=[];let n=h.nextSibling;while(n){kids.push(n);n=n.nextSibling;}
     kids.forEach(k=>cont.appendChild(k));card.appendChild(cont);
-    const abierta=idx===0; cont.style.display=abierta?"block":"none";
+    const abierta=abiertos.has(titulo); cont.style.display=abierta?"block":"none";
     h.style.cursor="pointer";h.style.userSelect="none";
     const flecha=document.createElement("span");flecha.style.cssText="float:right;color:var(--muted);font-size:13px";flecha.textContent=abierta?"▾":"▸";h.appendChild(flecha);
     const lazyKey=card.dataset.lazy;
     const correrLazy=()=>{if(lazyKey&&!card.dataset.lazyRun&&LAZY[lazyKey]){card.dataset.lazyRun="1";try{LAZY[lazyKey]();}catch(e){}}};
     if(abierta)correrLazy();
-    h.addEventListener("click",()=>{const ab=cont.style.display==="none";cont.style.display=ab?"block":"none";flecha.textContent=ab?"▾":"▸";if(ab)correrLazy();});
+    conts.push({cont,flecha,titulo,correrLazy});
+    h.addEventListener("click",()=>{const ab=cont.style.display==="none";cont.style.display=ab?"block":"none";flecha.textContent=ab?"▾":"▸";if(ab){abiertos.add(titulo);correrLazy();}else{abiertos.delete(titulo);}});
   });
+  // Barra "Expandir / Colapsar todo" (una vez, arriba de la ficha).
+  const det=document.getElementById("detalle");
+  if(det&&!det.querySelector(".acordBar")){
+    const bar=document.createElement("div");bar.className="acordBar";bar.style.cssText="display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px";
+    const mk=(txt,fn)=>{const b=document.createElement("button");b.className="sm ghost";b.textContent=txt;b.onclick=fn;return b;};
+    bar.appendChild(mk("Expandir todo",()=>conts.forEach(c=>{c.cont.style.display="block";c.flecha.textContent="▾";abiertos.add(c.titulo);c.correrLazy();})));
+    bar.appendChild(mk("Colapsar todo",()=>conts.forEach(c=>{c.cont.style.display="none";c.flecha.textContent="▸";abiertos.delete(c.titulo);})));
+    det.insertBefore(bar,det.firstChild);
+  }
 }
 
 // ---------- Constructor de recetas por ingredientes + gramaje (cálculo IA) ----------
@@ -1298,6 +1318,25 @@ let PLAN_DATOS=null;
 let PLAN_CATMAP=new Map(); // norm(nombre) -> {nombre,k,p,c,f} por 100 g (oficial + del cliente)
 let PLAN_CATNAMES=[];
 function planNorm(s){return (s||"").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();}
+// Sinónimos coloquiales → nombre canónico del catálogo (detectar mejor lo que YA hay).
+const PLAN_SINONIMOS={
+  "papa dulce":"batata cocida","camote":"batata cocida","boniato":"batata cocida","sweet potato":"batata cocida","batata":"batata cocida",
+  "crema de mani":"mantequilla de mani","mani en pasta":"mantequilla de mani","peanut butter":"mantequilla de mani",
+  "atun":"atun en agua","lomitos de atun":"atun en agua",
+  "pan":"pan tajado blanco","pan blanco":"pan tajado blanco","pan tajado":"pan tajado blanco",
+  "claras":"clara de huevo","clara":"clara de huevo","whey":"proteina whey","proteina":"proteina whey",
+  "palta":"aguacate","aguacate hass":"aguacate","carne molida":"carne molida de res magra","carne de res molida":"carne molida de res magra"
+};
+// Platos compuestos → ingredientes base (el escalador reparte gramos).
+const PLAN_COMPUESTOS={
+  "sandwich de atun":"pan tajado blanco, atun en agua","sanduche de atun":"pan tajado blanco, atun en agua","sandwich atun":"pan tajado blanco, atun en agua",
+  "sandwich de pollo":"pan tajado blanco, pechuga de pollo","sanduche de pollo":"pan tajado blanco, pechuga de pollo",
+  "sandwich de jamon":"pan tajado blanco, jamon de pavo","sanduche de jamon":"pan tajado blanco, jamon de pavo",
+  "sandwich de huevo":"pan tajado blanco, huevo","sanduche de huevo":"pan tajado blanco, huevo",
+  "huevos revueltos":"huevo","huevo revuelto":"huevo","huevos pericos":"huevo, tomate, cebolla",
+  "arroz con pollo":"arroz blanco, pechuga de pollo","tostadas de aguacate":"tostadas, aguacate","tostada de aguacate":"tostadas, aguacate"
+};
+function planCanon(nombre){return PLAN_SINONIMOS[planNorm(nombre)]||nombre;}
 async function planCargarCatalogo(id){
   const [base,prop]=await Promise.all([
     sb.from("alimentos_base").select("nombre,k,p,c,f,porcion_g").eq("activo",true).eq("aprobado",true),
@@ -1318,7 +1357,8 @@ function planEsInstruccion(s){return RX_INSTRUCCION.test(s)&&s.split(/\s+/).leng
 function planSoloAlimento(seg){const partes=seg.split(/\.(?=\s|$)/).map(p=>p.trim()).filter(Boolean);return (partes.find(p=>!planEsInstruccion(p))||"").trim();}
 function planParseFoods(txt){
   const limpio=(txt||"").replace(/\([^)]*\)/g,' '); // quita "(tomate, pepino)" antes de partir
-  return limpio.split(/\s*\+\s*|\n|;/).map(s=>planSoloAlimento(s.trim())).filter(Boolean).map(seg=>{
+  const out=[];
+  limpio.split(/\s*\+\s*|\n|;/).map(s=>planSoloAlimento(s.trim())).filter(Boolean).forEach(seg=>{
     let gramos=0,unidades=0;
     const mg=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:g|gr|gramos|ml)\b/i);
     if(mg)gramos=Math.round(parseFloat(mg[1].replace(",","."))||0);
@@ -1328,8 +1368,12 @@ function planParseFoods(txt){
       .replace(/\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidad(?:es)?|und?|u)\b/gi,' ')
       .replace(/\b(cocid[oa]s?|crud[oa]s?|al vapor|a la plancha|hervid[oa]s?|asad[oa]s?|magr[oa]s?|libre|deslactosad[oa])\b/gi,' ')
       .replace(/[()]/g,' ').replace(/\s+/g,' ').trim();
-    return {nombre,gramos,unidades};
+    // Plato compuesto (sándwich de atún…) → se abre en sus ingredientes.
+    const comp=PLAN_COMPUESTOS[planNorm(nombre)];
+    if(comp){comp.split(/\s*,\s*/).forEach(ing=>out.push({nombre:planCanon(ing),gramos:0,unidades:0}));}
+    else{out.push({nombre:planCanon(nombre),gramos,unidades});}
   });
+  return out;
 }
 // Busca la entrada de catálogo de un alimento (exacto o difuso). Prefiere
 // coincidencia por prefijo/palabra completa y el nombre MÁS CORTO/específico
@@ -1348,7 +1392,7 @@ function planMatchScore(n,k,qt){
   return -1;
 }
 function planCatDe(nombre){
-  const n=planNorm(nombre);const ex=PLAN_CATMAP.get(n);if(ex||!n)return ex;
+  const n=planNorm(planCanon(nombre));const ex=PLAN_CATMAP.get(n);if(ex||!n)return ex;
   const qt=n.split(' ').filter(w=>w.length>=4);
   let best=null,bs=-1;
   for(const [k,v] of PLAN_CATMAP){const s=planMatchScore(n,k,qt);if(s>bs){bs=s;best=v;}}
