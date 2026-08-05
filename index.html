@@ -1073,8 +1073,10 @@ function hacerColapsables(){
   // Recuerda qué secciones (por título) están abiertas ENTRE re-renders (guardar
   // repinta la ficha): antes se reiniciaba a "solo la primera" y perdías el sitio.
   if(!window.ACORD_ABIERTOS){
+    // Con las PESTAÑAS ya se agrupa; dentro de cada pestaña las cards abren por
+    // defecto para editar de una (antes se colapsaban y el plan quedaba escondido).
     window.ACORD_ABIERTOS=new Set();
-    const h0=cards[0].querySelector("h2"); if(h0)window.ACORD_ABIERTOS.add((h0.textContent||'').trim());
+    cards.forEach(c=>{const hh=c.querySelector("h2");if(hh&&!c.dataset.lazy)window.ACORD_ABIERTOS.add((hh.textContent||'').trim());});
   }
   // Pestañas internas: clasifica cada card por área según su título.
   const clasTab=(t)=>{t=(t||'').toLowerCase();
@@ -1519,20 +1521,16 @@ function planRenderEditor(){
       (c.foods||[]).forEach((f,fi)=>{
         const esU=planEsUnidad(f.nombre);const cat=planCatDe(f.nombre);
         const valU=esU?((+f.unidades||(cat&&cat.pg?Math.round((+f.gramos||0)/cat.pg):0))||0):(Math.round(+f.gramos||0));
-        // Pista de resolución: a qué alimento del catálogo (y marca) se están
-        // tomando los macros, para que el entrenador REVISE que es el correcto.
-        let hint='';
-        if(!cat) hint=`<span style="color:var(--warn);font-size:10px;white-space:nowrap" title="No encontrado en el catálogo: no aporta macros">⚠ sin dato</span>`;
-        else{const dif=planNorm(cat.nombre)!==planNorm(f.nombre);const marca=cat.marca?(' · '+esc(cat.marca)):'';if(dif||cat.marca)hint=`<span class="muted" style="font-size:10px" title="Alimento del catálogo usado para los macros — revisa que sea el correcto (marca importa)">→ ${esc(cat.nombre)}${marca}</span>`;}
-        h+=`<div style="margin:3px 0">
-          <div style="display:flex;gap:6px;align-items:center">
-            <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
-            <input type="number" min="0" step="${esU?'1':'1'}" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
-            <span class="muted" style="font-size:11px">${esU?'unid':'g'}</span>
-            <span id="foodk-${di}-${ci}-${fi}" class="muted" style="font-size:11px;width:70px;text-align:right"></span>
-            <button class="sm ghost" onclick="planFoodDel(${di},${ci},${fi})" title="Quitar alimento" style="margin:0">×</button>
-          </div>
-          ${hint?`<div style="margin:1px 0 0 2px">${hint}</div>`:''}
+        // Solo un aviso discreto si el alimento NO se encontró (no aporta macros).
+        // El resto se edita igual que siempre: el nombre es libre y editable.
+        const hint=cat?'':`<span style="color:var(--warn);font-size:10px;white-space:nowrap" title="No está en el catálogo: no aporta macros. Cámbialo por uno del catálogo o revisa el nombre">⚠ sin dato</span>`;
+        h+=`<div style="display:flex;gap:6px;align-items:center;margin:3px 0;flex-wrap:wrap">
+          <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;min-width:120px;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
+          <input type="number" min="0" step="${esU?'1':'1'}" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
+          <span class="muted" style="font-size:11px">${esU?'unid':'g'}</span>
+          <span id="foodk-${di}-${ci}-${fi}" class="muted" style="font-size:11px;width:64px;text-align:right"></span>
+          ${hint}
+          <button class="sm ghost" onclick="planFoodDel(${di},${ci},${fi})" title="Quitar alimento" style="margin:0">×</button>
         </div>`;
       });
       h+=`<button class="sm ghost" onclick="planFoodAdd(${di},${ci})" style="margin-top:2px">+ Alimento</button>`;
@@ -1564,7 +1562,12 @@ function planSet(di,ci,fi,campo,val){
   const f=c.foods[fi];
   if(campo==='gramos'){f.gramos=Math.max(0,parseInt(val,10)||0);f.unidades=0;}
   else if(campo==='unidades'){f.unidades=Math.max(0,parseFloat(String(val).replace(',','.'))||0);f.gramos=0;}
-  else f[campo]=val;
+  else{
+    f[campo]=val;
+    // Si escribe un PLATO COMPUESTO (ej. "sándwich de atún"), se abre en sus
+    // ingredientes (pan + atún) como filas separadas, editables.
+    if(campo==='nombre'){const comp=PLAN_COMPUESTOS[planNorm(val)];if(comp){const ings=comp.split(/\s*,\s*/).map(n=>({nombre:n,gramos:0,unidades:0}));c.foods.splice(fi,1,...ings);planActualizarTotales();planRenderEditor();return;}}
+  }
   planActualizarTotales();
 }
 // Recalcula y pinta kcal por alimento, por comida y por día (vs objetivo).
