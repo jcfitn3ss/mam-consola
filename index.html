@@ -598,7 +598,7 @@ async function verCliente(id){
 
   // ---- Atleta (culturismo): SOLO el entrenador decide ----
   const A=atl.data;
-  h+=`<h3>Atleta (culturismo)</h3>
+  h+=`</div><div class="card"><h2 style="margin-top:0">Atleta de competencia</h2>
    <label style="display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer">
      <input type="checkbox" id="a_es" style="flex-shrink:0;margin:0" ${A?'checked':''} onchange="toggleAtleta('${id}',this.checked)"><span>Marcar como atleta de competencia</span>
    </label>
@@ -633,7 +633,7 @@ async function verCliente(id){
   if(MI_PRINCIPAL){
     const {data:asig}=await sb.from("entrenador_cliente").select("entrenador_id").eq("cliente_id",id);
     const asignados=new Set((asig||[]).map(a=>a.entrenador_id));
-    h+=`<h3>Entrenadores asignados</h3>
+    h+=`</div><div class="card"><h2 style="margin-top:0">Entrenadores asignados</h2>
       <div class="muted" style="font-size:11px;margin-bottom:6px">Marca quién atiende a este cliente (pueden ser varios). Tú, como principal, siempre lo ves.</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${TRAINERS.map(t=>`<span class="chip ${asignados.has(t.user_id)?'on':''}" onclick="toggleEntrenador('${id}','${t.user_id}',this)">${esc(t.nombre||t.user_id.slice(0,6))}</span>`).join("")}</div>
       <span id="asigMsg" class="muted" style="font-size:12px"></span>`;
@@ -643,7 +643,7 @@ async function verCliente(id){
   const susActiva=sm.estado==='activa'&&sm.tier&&sm.tier!=='gratis';
   const susFund=sm.tier==='fundador';
   const susTxt=susFund?'fundador (gratis de por vida)':(sm.estado?`${sm.estado}${sm.tier?' · '+sm.tier:''}`:'sin suscripción');
-  h+=`<h3>Acceso del cliente</h3>
+  h+=`</div><div class="card"><h2 style="margin-top:0">Acceso y suscripción</h2>
     <div class="muted" style="font-size:11px;margin-bottom:6px">Si el cliente no puede entrar (olvidó su clave, o el correo de recuperación no le llega), cámbiasela aquí y pásasela por WhatsApp. No depende de correos.</div>
     <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
@@ -660,7 +660,7 @@ async function verCliente(id){
       <textarea id="avisoPago_${id}" placeholder="Mensaje que verá el cliente (opcional). Ej: 'Tu mensualidad está pendiente, ponte al día para reactivar tu acceso.'" style="width:100%;min-height:54px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:12px;box-sizing:border-box">${esc(pm.aviso_pago||'')}</textarea>
       <button onclick="guardarAviso('${id}')" style="margin-top:6px">Guardar mensaje</button>
     </div>`;
-  h+=`<h3>Módulos de la app (visibles para el cliente)</h3>
+  h+=`</div><div class="card"><h2 style="margin-top:0">Módulos de la app</h2>
     <table class="chkTbl"><thead><tr><th class="c">Activo</th><th>Módulo</th><th>Qué ve el cliente</th></tr></thead><tbody>
       <tr><td class="c"><input type="checkbox" ${pm.ver_entreno!==false?'checked':''} onchange="setModulo('${id}','ver_entreno',this.checked)"></td><td>Pestaña Entreno</td><td class="d">Ver y registrar sus entrenamientos</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.ver_comida!==false?'checked':''} onchange="setModulo('${id}','ver_comida',this.checked)"></td><td>Pestaña Comida</td><td class="d">Registro de comidas y su plan</td></tr>
@@ -672,7 +672,7 @@ async function verCliente(id){
       ${MI_PRINCIPAL?`<tr><td class="c"><input type="checkbox" ${pm.moderador===true?'checked':''} onchange="setModulo('${id}','moderador',this.checked)"></td><td>🛡️ Moderador</td><td class="d">Persona de confianza que puede APROBAR los alimentos recomendados y MODERAR (quitar) recetas públicas — desde la app o la consola. Asígnalo a quienes hacen bien las recetas.</td></tr>`:''}
     </tbody></table>
     <span id="modMsg" class="muted" style="font-size:12px"></span>`;
-  h+=`<h3>Nivel y especialización</h3>`;
+  h+=`</div><div class="card"><h2 style="margin-top:0">Nivel y progresión</h2>`;
   const NIVCOL={principiante:'#5fd07f',intermedio:'#e0b84a',avanzado:'#e23b3b'};
   const nivBadge=(n)=>(n&&n!=='—')?`<span class="pill" style="background:${NIVCOL[n]||'#444'};color:#000;font-weight:700;font-size:13px">${cap(n)}</span>`:`<span class="muted" style="font-size:13px">— sin fijar —</span>`;
   h+=`<div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px">
@@ -727,7 +727,7 @@ async function verCliente(id){
      </div>`;
 
   // EDITOR objetivo/plan
-  h+=`<h3>Objetivo, calorías y enfoque (editable)</h3>
+  h+=`</div><div class="card"><h2 style="margin-top:0">Objetivo, calorías y enfoque</h2>
    <label class="lbl">Objetivo</label><select id="e_tipo">${OBJ.map(([v,l])=>`<option value="${v}" ${o.tipo===v?'selected':''}>${l}</option>`).join("")}</select>
    <label class="lbl">Fase</label><select id="e_fase">${FASES.map(f=>`<option value="${f}" ${plan.fase===f?'selected':''}>${f?cap(f):'(sin fase)'}</option>`).join("")}</select>
    <label class="lbl">Altura (cm)</label><input id="e_altura" type="number" min="120" max="230" placeholder="Ej. 175" value="${(per.data&&per.data.altura)||''}">
