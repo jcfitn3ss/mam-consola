@@ -90,6 +90,12 @@
   table.chkTbl td.c{width:36px;text-align:center}
   table.chkTbl td.d{color:var(--muted);font-size:12px}
   table.chkTbl label{cursor:pointer}
+  /* Baseline para tablas SIN clase dentro de tarjetas: header + zebra suaves para
+     que no se vean "a dos calidades". No toca las ya estilizadas (.data/.kv/.chkTbl). */
+  .card table:not(.data):not(.kv):not(.chkTbl){width:100%;border-collapse:collapse;margin:8px 0;font-size:12.5px}
+  .card table:not(.data):not(.kv):not(.chkTbl) th{color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.4px;font-weight:700;text-align:left;padding:7px 9px;border-bottom:1px solid var(--line)}
+  .card table:not(.data):not(.kv):not(.chkTbl) td{padding:7px 9px;border-bottom:1px solid #1d1d20;vertical-align:middle}
+  .card table:not(.data):not(.kv):not(.chkTbl) tbody tr:nth-child(even) td{background:rgba(255,255,255,.02)}
   /* Filas clave/valor: se leen como tabla limpia (alineadas + zebra por grupo) */
   .fila{padding:8px 10px;align-items:center;gap:12px;border-bottom:1px solid #1d1d20}
   .fila>span:first-child{flex:1;min-width:0}
@@ -213,6 +219,9 @@ document.addEventListener("input",e=>{
   const el=e.target;if(!el)return;
   const esTexto=(el.tagName==="TEXTAREA")||(el.tagName==="INPUT"&&(el.type===""||el.type==="text"||el.type==="search"));
   if(!esTexto)return;
+  // No forzar mayúscula en buscadores/filtros (estorba al teclear): por id o por data-nocaps.
+  if(el.dataset&&el.dataset.nocaps!==undefined)return;
+  if(el.id&&/buscar|search|filtro|_fcat/i.test(el.id))return;
   const v=el.value;if(!v)return;
   const c=v.charAt(0);
   if(c!==c.toUpperCase()&&c.toLowerCase()!==c.toUpperCase()){
@@ -250,7 +259,7 @@ function faseCicloJS(fechaInicio,duracion,periodo){
 }
 
 async function init(){const {data:{session}}=await sb.auth.getSession();if(session)await trasLogin();else show("login",true);}
-async function login(){$("loginErr").textContent="";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}await trasLogin();}
+async function login(){$("loginErr").textContent="Entrando…";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}$("loginErr").textContent="";await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
 function tab(t){["clientes","recordatorios","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
@@ -261,6 +270,7 @@ async function trasLogin(){
   if(!p||p.rol!=="entrenador"){show("login",true);$("loginErr").textContent="Esta cuenta no es de entrenador.";await sb.auth.signOut();return;}
   MI_PRINCIPAL=!!p.es_principal; // entrenador principal: puede asignar clientes a otros entrenadores
   show("login",false);show("app",true);show("logout",true);
+  const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
   const {data}=await sb.from("perfiles").select("user_id,nombre,rol,archivado").order("nombre");
   // Lista de PRIORIDAD (arriba): solo clientes reales, sin entrenadores ni archivados.
@@ -314,6 +324,10 @@ async function cargarPrioridad(){
     // Sesiones finalizadas recientes: para detectar al cliente que dejo de entrenar.
     sb.from("sesiones").select("user_id,fecha").eq("finalizada",true).gte("fecha",d60).order("fecha",{ascending:false}),
   ]);
+  // Si falló alguna consulta del radar, el score de prioridad queda INCOMPLETO
+  // (un cliente en riesgo podría verse en verde). Avisamos en la lista.
+  const _pf={'alertas':al,'sueño':su,'check-ins':ck,'planes':pl,'objetivos':ob,'perfiles':pf,'sesiones':se};
+  PRIO_FALLO=Object.entries(_pf).filter(([,r])=>r&&r.error).map(([k])=>k);
   const cnt={};(al.data||[]).forEach(a=>cnt[a.cliente_id]=(cnt[a.cliente_id]||0)+1);
   const sl={};(su.data||[]).forEach(s=>{(sl[s.user_id]=sl[s.user_id]||[]).push(+s.horas)});
   const lc={};(ck.data||[]).forEach(c=>{if(!lc[c.user_id])lc[c.user_id]=c});
@@ -366,7 +380,21 @@ function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("h
 async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();}
 
 // ===== Recordatorios diarios: tabla con qué tener en cuenta de cada cliente =====
-function waLink(tel,msg){const t=(tel||'').replace(/\D/g,'');if(!t)return null;const num=t.length===10?('57'+t):t;return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;}
+let PAIS_DEF='57'; // prefijo de país por defecto para números locales de 10 dígitos (Colombia)
+function waLink(tel,msg){
+  let t=(tel||'').replace(/[^\d+]/g,'');if(!t)return null;
+  // Respeta números que YA traen código de país: con '+', con '00', o >10 dígitos.
+  // Solo a los locales de 10 dígitos les anteponemos el prefijo por defecto.
+  if(t.startsWith('+'))t=t.slice(1);
+  else if(t.startsWith('00'))t=t.slice(2);
+  else if(/^\d{10}$/.test(t))t=PAIS_DEF+t;
+  t=t.replace(/\D/g,'');
+  return `https://wa.me/${t}?text=${encodeURIComponent(msg)}`;}
+// "Ya lo contacté hoy": se guarda por día en el navegador (localStorage) para que
+// el cliente atendido baje al final y no reaparezca idéntico. Se reinicia cada día.
+function _atKey(){return 'mam_atend_'+new Date().toISOString().slice(0,10);}
+function atSet(){try{return new Set(JSON.parse(localStorage.getItem(_atKey())||'[]'));}catch(e){return new Set();}}
+function atToggle(uid){const s=atSet();s.has(uid)?s.delete(uid):s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));verRecordatorios();}
 async function verRecordatorios(){
   const cont=$("v-recordatorios");if(!cont)return;
   cont.innerHTML='<div class="card">Cargando recordatorios del día…</div>';
@@ -388,6 +416,9 @@ async function verRecordatorios(){
     sb.from("fotos").select("user_id,fecha").gte("fecha",d40),
     sb.from("medidas").select("user_id,fecha").gte("fecha",d40),
   ]);
+  const _rf={'perfiles':pf,'sueño':su,'check-ins':ck,'journal':jr,'ciclo':ci,'sesiones':se,'planes':pl,'objetivos':ob,'pesos':pe,'fotos':fo,'medidas':me};
+  const recFallos=Object.entries(_rf).filter(([,r])=>r&&r.error).map(([k])=>k);
+  const ATEND=atSet();
   const P={};(pf.data||[]).forEach(p=>P[p.user_id]=p);
   const SU={};(su.data||[]).forEach(s=>{(SU[s.user_id]=SU[s.user_id]||[]).push(s)});
   const CK={};(ck.data||[]).forEach(c=>{if(!CK[c.user_id])CK[c.user_id]=c});
@@ -461,18 +492,22 @@ async function verRecordatorios(){
     else if(nota.length) wa=`Hola ${nom}, vi que ${nota.slice(0,2).join(' y ')}. Tómalo con calma hoy y cuéntame cómo te sientes para ajustar lo que necesites.`;
     else wa=`Hola ${nom}, ¿cómo vas con tus entrenos y tu alimentación esta semana? Cuéntame cómo te has sentido.`;
     return {c,pr,sen,nota,prio:prio+(cierraCiclo?5:0)+(faltanPesos?2:0),wa};
-  }).sort((a,b)=>b.prio-a.prio);
+  }).sort((a,b)=> (ATEND.has(a.c.user_id)?1:0)-(ATEND.has(b.c.user_id)?1:0) || b.prio-a.prio); // atendidos al final
 
-  let h=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia, ciclo en mujeres, cierre de ciclo de 4 semanas → fotos y medidas, y pesos semanales para quien no está sanando TCA). Ordenado por prioridad. El mensaje de WhatsApp es una sugerencia: edítalo antes de enviar.</div></div>`;
-  h+=`<div class="card" style="overflow-x:auto"><table class="data" style="min-width:820px"><thead><tr><th>Cliente</th><th>Señales de hoy</th><th>Qué tener en cuenta</th><th>WhatsApp</th></tr></thead><tbody>`;
+  const nAt=rows.filter(r=>ATEND.has(r.c.user_id)).length;
+  let h=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia, ciclo en mujeres, cierre de ciclo de 4 semanas → fotos y medidas, y pesos semanales para quien no está sanando TCA). Ordenado por prioridad. Marca "Atendido" cuando lo contactes: baja al final y no reaparece hoy.${nAt?` <b>${nAt} atendido(s) hoy.</b>`:''}</div></div>`;
+  if(recFallos.length)h+=`<div class="card"><div class="alert">⚠️ No cargó: <b>${esc(recFallos.join(", "))}</b>. Algunos recordatorios pueden faltar. <button class="sm" onclick="verRecordatorios()">Reintentar</button></div></div>`;
+  h+=`<div class="card" style="overflow-x:auto"><table class="data" style="min-width:880px"><thead><tr><th>Cliente</th><th>Señales de hoy</th><th>Qué tener en cuenta</th><th>WhatsApp</th><th>Hecho</th></tr></thead><tbody>`;
   rows.forEach(r=>{
     const wl=waLink(r.pr.telefono,r.wa);
+    const at=ATEND.has(r.c.user_id);
     const badge=r.nota.length?`<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700;font-size:10px;padding:1px 6px;margin-left:6px">${r.nota.length}</span>`:'';
-    h+=`<tr>
+    h+=`<tr style="${at?'opacity:.45':''}">
       <td style="white-space:nowrap"><a href="#" onclick="tab('clientes');verCliente('${r.c.user_id}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:700;text-decoration:none">${esc(r.c.nombre||'—')}</a>${r.pr.sexo==='F'?' <span class="muted" style="font-size:10px">♀</span>':''}${badge}</td>
       <td style="font-size:12px">${r.sen.map(s=>esc(s)).join(' · ')||'—'}</td>
       <td style="font-size:12px">${r.nota.length?`<span style="color:var(--warn)">${r.nota.map(esc).join('; ')}</span>`:'<span class="muted">Sin novedades. Check-in general.</span>'}</td>
       <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" style="color:#25d366;font-weight:700;text-decoration:none">WhatsApp →</a>`:'<span class="muted" style="font-size:11px">Sin teléfono</span>'} <button class="sm ghost" onclick="navigator.clipboard.writeText(${JSON.stringify(r.wa).replace(/"/g,'&quot;')});this.textContent='✓'" title="Copiar mensaje" style="margin:0;padding:3px 7px">Copiar</button></td>
+      <td style="white-space:nowrap;text-align:center"><button class="sm ${at?'':'ghost'}" onclick="atToggle('${r.c.user_id}')" style="margin:0;padding:3px 8px" title="${at?'Marcar como pendiente':'Marcar como atendido hoy'}">${at?'✓ Atendido':'Atendido'}</button></td>
     </tr>`;
   });
   h+=`</tbody></table></div>`;
@@ -503,6 +538,7 @@ function pagoInfo(c){
   return {txt:'Sin pagar',bg:'rgba(226,59,59,.16)',fg:'#ff8a8a',pagando:false};
 }
 let VER_PAGO='atencion'; // atencion | sinpagar | todos
+let PRIO_FALLO=[]; // consultas del radar de prioridad que fallaron (si las hay)
 function setVerPago(v){VER_PAGO=v;renderClientes();}
 function renderClientes(){
   const q=($("buscar").value||"").toLowerCase().trim();
@@ -522,6 +558,7 @@ function renderClientes(){
       <span class="pill" style="background:rgba(226,59,59,.16);color:#ff8a8a;font-weight:700">${sinPagar} sin pagar</span>
       <span style="flex:1"></span>${chip('atencion','Atención')}${chip('sinpagar','Sin pagar')}${chip('todos','Todos')}
     </div>`;
+  if(PRIO_FALLO.length)head=`<div class="alert" style="margin-bottom:8px">⚠️ No cargó: <b>${esc(PRIO_FALLO.join(", "))}</b>. El orden de prioridad puede estar incompleto. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>`+head;
   if(!q && VER_PAGO==='atencion'){
     const otros=CLIENTES.length-list.length;
     head += `<div class="muted" style="font-size:12px;margin-bottom:8px">${list.length?`${list.length} cliente(s) requieren atención.`:'Ningún cliente requiere atención ahora.'} Usa "Todos"/"Sin pagar" o el buscador para ver a los demás${otros>0?` (${otros} más)`:''}.</div>`;
@@ -579,6 +616,12 @@ async function verCliente(id){
     sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
     sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
   ]);
+  // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
+  // un fallo se veía igual que "sin datos" (ej. "Sin rutina generada" cuando en
+  // realidad la consulta falló) y el entrenador planeaba sobre info que no cargó.
+  const _cargas={'objetivos':obj,'suscripción':susc,'plan':pln,'check-ins':ck,'journal':jr,'comidas':cm,'fotos':fts,'pesos':pes,'medidas':meds,'series':ser,'rutina':rut,'sueño':sue,'plan de comidas':pc,'registro comida':reg,'intake':intk,'perfil':per,'ciclo':cic,'sesiones':ses,'macros día':mac,'atleta':atl,'especialización':esp,'historial series':serHist,'comidas 35d':cm30,'medidas históricas':medsAll,'calendario':cal,'fuerza':fz};
+  const _fallos=Object.entries(_cargas).filter(([,r])=>r&&r.error).map(([k])=>k);
+  const avisoCarga=_fallos.length?`<div class="card" style="border:1px solid var(--rojo);background:rgba(209,43,43,.08)"><b style="color:var(--rojo)">⚠️ Carga incompleta.</b> No se pudieron cargar: <b>${esc(_fallos.join(", "))}</b>. Lo que ves de esas secciones puede estar vacío por el fallo, no porque el cliente no tenga datos. <button class="sm" onclick="verCliente('${id}')">Reintentar</button></div>`:'';
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
   (reg.data||[]).forEach(a=>{const key=(a.descripcion||"").trim().toLowerCase();if(!key||vistos.has(key))return;vistos.add(key);REGALIM.push({desc:(a.descripcion||"").trim(),k:+a.kcal||0,p:+a.prot||0,c:+a.carb||0,f:+a.fat||0});});
@@ -630,7 +673,7 @@ async function verCliente(id){
   if(!hayNov)rep+=`<div class="muted">Sin novedades.</div>`;
   rep+=`</div>`;
 
-  let h=rep+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
+  let h=avisoCarga+rep+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
   h+=`<div class="kv">`+fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—")+`</div>`;
 
   // ---- Atleta (culturismo): SOLO el entrenador decide ----
@@ -914,8 +957,8 @@ async function verCliente(id){
   h+=`</div>`;
   // PARTE 6 nutrición: preferencias + plan + alerta alimentos
   const pref=(plan.dieta&&"")||"";
-  h+=`<h3>Plan de comidas del cliente</h3>`;
-  h+=`<div class="muted" style="font-size:12px;margin-bottom:6px">Es lo que el cliente ve en su app (modo Plan), por comida. Puedes generarlo/regenerarlo con IA usando sus calorías, macros y gustos.</div>`;
+  h+=`<h3>Plan de comidas del cliente <span class="pill" style="background:rgba(95,208,127,.16);color:var(--ok);font-weight:700;font-size:10px">EN LA APP</span></h3>`;
+  h+=`<div class="muted" style="font-size:12px;margin-bottom:6px"><b>Esto es lo que el cliente ve DENTRO de la app</b> (modo Plan), como tarjetas por comida. Se genera con IA usando sus calorías, macros y gustos. <span style="color:var(--muted)">(Distinto del <b>Plan de alimentación (PDF)</b> de más abajo, que es el documento descargable.)</span></div>`;
   h+=`<button class="sm" onclick="generarPlanComidas('${id}')">Generar plan por comidas (IA)</button> <span id="pcMsg" class="muted" style="font-size:12px"></span>`;
   const PC=(pc.data||[]);
   if(PC.length){
@@ -1020,8 +1063,8 @@ async function verCliente(id){
     </div></div>`;
 
   // Plan de alimentación MULTI-DÍA: generar con IA -> revisar/editar en texto -> aprobar -> exportar PDF.
-  h+=`<div class="card"><h2 style="margin-top:0">Plan de alimentación</h2>
-    <div class="muted" style="margin-bottom:8px">La IA arma un plan de varios días (alimentos y gramos, según lo que le gusta al cliente). <b>Revísalo y edítalo aquí</b>; cuando quede bien, apruébalo y expórtalo en PDF. No se exporta hasta que lo apruebes.</div>
+  h+=`<div class="card"><h2 style="margin-top:0">Plan de alimentación <span class="pill" style="background:rgba(226,59,59,.16);color:#ff8a8a;font-weight:700;font-size:10px">PDF DESCARGABLE</span></h2>
+    <div class="muted" style="margin-bottom:8px"><b>Este es el DOCUMENTO PDF</b> que el cliente descarga/comparte (no las tarjetas de arriba). La IA arma un plan de varios días (alimentos y gramos, según lo que le gusta al cliente). <b>Revísalo y edítalo aquí</b>; cuando quede bien, apruébalo y expórtalo en PDF. No se exporta hasta que lo apruebes.</div>
     <label class="lbl">Alimentos para este plan (opcional) — descríbelos o lístalos</label>
     <textarea id="plan_foods" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: pollo, arroz, avena, huevo, atún, papa, aguacate, banano, whey Gold Standard… Si lo dejas vacío, uso los alimentos que el cliente registró."></textarea>
     <div class="muted" style="font-size:11px;margin:2px 0 6px">Si escribes aquí, la IA arma el plan SOLO con estos alimentos (manda sobre la lista del cliente).</div>
@@ -1093,6 +1136,9 @@ async function verCliente(id){
     },
     entreno:()=>{try{anRender();}catch(e){}},
   };
+  // RACE CONDITION: si mientras cargaban las ~26 consultas el entrenador hizo clic
+  // en OTRO cliente, SEL ya cambió. No pintamos la ficha vieja encima de la nueva.
+  if(id!==SEL)return;
   $("detalle").innerHTML=h;
   recetaRender();rcInit();hacerColapsables();
   // Carga el plan y el informe guardados (para re-descargarlos/editarlos sin regenerar).
@@ -1718,8 +1764,8 @@ function editorRutinaHTML(){
         rows+=`<tr>
           <td><select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="margin:0;text-overflow:ellipsis">${opcionesEj(it.id,it.g)}</select></td>
           <td><input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="text-align:center;margin:0"></td>
-          <td><div style="display:flex;align-items:center;justify-content:center;gap:5px"><input class="rutRmin" type="number" placeholder="mín" value="${ex.rep_min!=null?ex.rep_min:''}" title="Reps mínimas" style="width:52px;text-align:center;margin:0"><span style="color:var(--muted)">–</span><input class="rutRmax" type="number" placeholder="máx" value="${ex.rep_max!=null?ex.rep_max:''}" title="Reps máximas" style="width:52px;text-align:center;margin:0"></div></td>
-          <td><input class="rutRir" type="number" placeholder="—" value="${ex.rir!=null?ex.rir:''}" title="RIR (reps en reserva)" style="text-align:center;margin:0"></td>
+          <td><div style="display:flex;align-items:center;justify-content:center;gap:5px"><input class="rutRmin" type="number" placeholder="mín" value="${it.rep_min!=null?it.rep_min:(ex.rep_min!=null?ex.rep_min:'')}" title="Reps mínimas (por cliente)" style="width:52px;text-align:center;margin:0"><span style="color:var(--muted)">–</span><input class="rutRmax" type="number" placeholder="máx" value="${it.rep_max!=null?it.rep_max:(ex.rep_max!=null?ex.rep_max:'')}" title="Reps máximas (por cliente)" style="width:52px;text-align:center;margin:0"></div></td>
+          <td><input class="rutRir" type="number" placeholder="—" value="${it.rir!=null?it.rir:(ex.rir!=null?ex.rir:'')}" title="RIR (reps en reserva) por cliente" style="text-align:center;margin:0"></td>
           <td><select data-d="${di}" data-i="${ii}" class="rutTec" style="margin:0">${TECNICAS.map(t=>`<option value="${t[0]}" ${tk===t[0]?'selected':''}>${t[1]}</option>`).join("")}</select></td>
           <td style="text-align:center;white-space:nowrap"><button class="sm ghost" onclick="rutMover(${di},${ii},-1)" title="Subir" style="padding:3px 6px;margin:0"${ii===0?' disabled':''}>↑</button> <button class="sm ghost" onclick="rutMover(${di},${ii},1)" title="Bajar" style="padding:3px 6px;margin:0"${ii===items.length-1?' disabled':''}>↓</button> <button class="sm ghost" onclick="rutQuitar(${di},${ii})" title="Quitar ejercicio" style="padding:3px 6px;margin:0">×</button></td>
         </tr>`;
@@ -1936,6 +1982,20 @@ async function guardarRutina(id){
   document.querySelectorAll(".rutSel").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(dias[di]&&dias[di].orden&&dias[di].orden[ii])dias[di].orden[ii].id=s.value;});
   document.querySelectorAll(".rutSer").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(dias[di]&&dias[di].orden&&dias[di].orden[ii]){const v=parseInt(s.value);if(v>0)dias[di].orden[ii].s=v;else delete dias[di].orden[ii].s;}});
   document.querySelectorAll(".rutTec").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=dias[di]&&dias[di].orden&&dias[di].orden[ii];if(it){const key=di+"|"+it.id;if(s.value&&s.value!=="normal")tec[key]=s.value;else delete tec[key];}});
+  // REPS (mín/máx) y RIR: se guardan como OVERRIDE POR CLIENTE dentro del slot de la
+  // rutina (dias[].orden[]), NO en el ejercicio global. Antes se escribían en la
+  // tabla `ejercicios` → cambiarle los reps a un cliente se los cambiaba a TODOS.
+  // Solo guardamos el override si DIFIERE del default del ejercicio (si es igual,
+  // lo quitamos y la app cae al default). La app lee it.rep_min ?? ex.rep_min.
+  let nRep=0;
+  document.querySelectorAll(".rutSel").forEach(s=>{
+    const di=+s.dataset.d,ii=+s.dataset.i;const it=dias[di]&&dias[di].orden&&dias[di].orden[ii];if(!it)return;
+    const rowEl=s.closest('tr')||s.parentElement;
+    const rmin=rowEl.querySelector('.rutRmin'),rmax=rowEl.querySelector('.rutRmax'),rir=rowEl.querySelector('.rutRir');
+    const ex=EJ.find(x=>String(x.id)===String(s.value))||{};
+    const setOv=(key,inp,def)=>{const before=it[key];if(!inp){return;}const v=(inp.value||'').trim();if(v===''){delete it[key];}else{const n=parseInt(v);if(isNaN(n)){delete it[key];}else if(n===def){delete it[key];}else{it[key]=n;}}if(it[key]!==before)nRep++;};
+    setOv('rep_min',rmin,ex.rep_min);setOv('rep_max',rmax,ex.rep_max);setOv('rir',rir,ex.rir);
+  });
   // UPSERT (no update): crea la fila si el cliente aún no tiene rutina, o la
   // actualiza si ya existe. Así SIEMPRE se puede guardar (antes, si no existía
   // la fila, el update afectaba 0 filas y "no guardaba").
@@ -1944,29 +2004,12 @@ async function guardarRutina(id){
   if(error){$("rutMsg").innerHTML=`<span class="alert">Error al guardar: ${esc(error.message)}. Cierra sesión y vuelve a entrar.</span>`;return;}
   if(!upd||!upd.length){$("rutMsg").innerHTML=`<span class="alert">No se guardó (sin permiso sobre este cliente). Cierra sesión y vuelve a entrar.</span>`;return;}
   RUT.dias=dias;RUT.tecnicas=tec;
-  // Reps (mín/máx) y RIR: se guardan en el ejercicio (aplican en la app).
-  const ejUpd={};
-  document.querySelectorAll(".rutSel").forEach(s=>{
-    const row=s.closest('tr')||s.parentElement, exId=s.value;
-    const ex=EJ.find(x=>String(x.id)===String(exId))||{};
-    const rmin=row.querySelector('.rutRmin'), rmax=row.querySelector('.rutRmax'), rir=row.querySelector('.rutRir');
-    const patch=ejUpd[exId]||{};
-    // Solo actualizamos lo que REALMENTE cambió (evita escrituras inútiles).
-    if(rmin&&rmin.value!==''&&parseInt(rmin.value)!==ex.rep_min)patch.rep_min=parseInt(rmin.value);
-    if(rmax&&rmax.value!==''&&parseInt(rmax.value)!==ex.rep_max)patch.rep_max=parseInt(rmax.value);
-    if(rir&&rir.value!==''&&parseInt(rir.value)!==ex.rir)patch.rir=parseInt(rir.value);
-    if(Object.keys(patch).length)ejUpd[exId]=patch;
-  });
-  // Todos los ejercicios EN PARALELO (antes era uno por uno = lento).
-  const entries=Object.entries(ejUpd);
-  const res=await Promise.all(entries.map(([id2,patch])=>sb.from("ejercicios").update(patch).eq("id",id2)));
-  let nEj=0;
-  res.forEach((r,i)=>{if(!r.error){const [id2,patch]=entries[i];const e=EJ.find(x=>String(x.id)===String(id2));if(e)Object.assign(e,patch);nEj++;}});
   // Recarga la rutina DESDE LA BASE y re-renderiza: así ves el estado REAL
-  // guardado (no una copia local). Confirma que sí quedó.
+  // guardado (no una copia local). Confirma que sí quedó. Los reps/RIR ya viajaron
+  // dentro de `dias` (override por cliente), no hay que escribir en `ejercicios`.
   const {data:fresh}=await sb.from("rutinas").select("*").eq("user_id",id).maybeSingle();
   if(fresh){RUT=fresh;const ed=$("editorRut");if(ed)ed.innerHTML=editorRutinaHTML();}
-  $("rutMsg").textContent=`✓ Rutina guardada y verificada (series, técnica y ${nEj} ejercicio(s) con reps/RIR aplicados a la app).`;
+  $("rutMsg").textContent=`✓ Rutina guardada y verificada (series, técnica y reps/RIR por cliente aplicados a la app).`;
 }
 async function toggleAtleta(id,on){
   if(on){
@@ -2019,6 +2062,9 @@ async function setAcceso(id,estado){
   const {error}=await sb.from("suscripciones").upsert({user_id:id,estado,tier:'publico',updated_at:new Date().toISOString()},{onConflict:"user_id"});
   if(error){if(msg)msg.textContent="Error: "+error.message;return;}
   if(msg)msg.textContent=estado==='activa'?"✅ Acceso activado":"Acceso quitado";
+  // Refresca el cache de suscripción para que el BADGE de pago de la lista no quede
+  // desactualizado (antes seguía diciendo "Sin pagar/Pagando" viejo hasta recargar).
+  [CLIENTES,TODOS].forEach(arr=>{const c=arr.find(x=>x.user_id===id);if(c){c._susE=estado;c._susT='publico';}});
   setTimeout(()=>verCliente(id),700);
 }
 // Guarda el mensaje que el cliente ve cuando su acceso está en pausa por falta de pago.
@@ -2313,7 +2359,7 @@ async function addAlimento(){
   const p=+$("a_p").value||0,c=+$("a_c").value||0,f=+$("a_f").value||0;
   const kIn=$("a_k").value.trim();const k=kIn!==""?(+kIn||0):Math.round(p*4+c*4+f*9);
   $("aMsg").textContent="Guardando…";
-  const {data,error}=await sb.from("alimentos_base").insert({nombre:nom,categoria:$("a_cat").value,p,c,f,k,activo:true}).select();
+  const {data,error}=await sb.from("alimentos_base").insert({nombre:nom,categoria:$("a_cat").value,p,c,f,k,activo:true,aprobado:true}).select();
   if(error){$("aMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   AB.push(data[0]);AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));$("aMsg").textContent="✓ Agregado.";$("a_nom").value=$("a_k").value="";$("a_p").value=$("a_c").value=$("a_f").value="0";renderAB();
 }
@@ -2339,8 +2385,8 @@ async function verComunidad(){
   const topRec=Object.entries(rc).sort((a,b)=>b[1]-a[1]).slice(0,10);
   const pp={};(intt.data||[]).forEach(i=>pp[i.user_id]=(pp[i.user_id]||0)+(i.puntos||0));(pts.data||[]).forEach(p=>pp[p.user_id]=Math.max(pp[p.user_id]||0,p.total||0));
   const topPts=Object.entries(pp).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const tabla=(arr,unidad)=>arr.length?`<table>${arr.map(([u,n],i)=>`<tr><td>${i+1}. ${esc(perfiles[u]||u.slice(0,8))}</td><td><b>${n}</b> ${unidad}</td></tr>`).join("")}</table>`:'<div class="muted">Sin datos aún.</div>';
-  $("v-comunidad").innerHTML=`<div class="card"><h2 style="margin-top:0">🏆 Top recetas subidas</h2>${tabla(topRec,"recetas")}</div><div class="card"><h2 style="margin-top:0">🎯 Top puntos (juego de adivinar)</h2>${tabla(topPts,"pts")}</div><div class="card muted">Reconoce a quienes más aportan: dales un premio o destácalos en la comunidad.</div>`;
+  const tabla=(arr,unidad)=>arr.length?`<table>${arr.map(([u,n],i)=>`<tr><td>${i+1}. <a href="#" onclick="tab('clientes');verCliente('${u}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:600;text-decoration:none">${esc(perfiles[u]||u.slice(0,8))}</a></td><td><b>${n}</b> ${unidad}</td></tr>`).join("")}</table>`:'<div class="muted">Sin datos aún.</div>';
+  $("v-comunidad").innerHTML=`<div class="card"><h2 style="margin-top:0">🏆 Top recetas subidas</h2>${tabla(topRec,"recetas")}</div><div class="card"><h2 style="margin-top:0">🎯 Top puntos (juego de adivinar)</h2>${tabla(topPts,"pts")}</div><div class="card muted">Toca el nombre de quien más aporta para abrir su ficha y reconocerlo (mensaje por WhatsApp desde Recordatorios/Acceso).</div>`;
 }
 
 // PARTE 8: Sugerencias agrupadas
@@ -2492,13 +2538,24 @@ async function iaInterpretar(){
     let h=`<div style="border:1px solid var(--line);border-radius:8px;padding:10px">`;
     h+=`<div style="margin-bottom:6px">${esc(data.resumen||'')}</div>`;
     if(!IA_ACC.length)h+=`<div class="muted" style="font-size:12px">No hay cambios aplicables.</div>`;
-    else{h+=IA_ACC.map(a=>`<div class="fila"><span style="font-size:12px">${esc(iaAccionTxt(a))}</span></div>`).join('');const aplicables=IA_ACC.filter(a=>a.tipo!=='nota').length;if(aplicables)h+=`<button style="margin-top:8px" onclick="iaAplicar()">Aplicar ${aplicables} cambio(s)</button>`;}
+    else{h+=IA_ACC.map(a=>`<div class="fila"><span style="font-size:12px">${esc(iaAccionTxt(a))}</span></div>${iaResuelto(a)}`).join('');const aplicables=IA_ACC.filter(a=>a.tipo!=='nota').length;if(aplicables)h+=`<button style="margin-top:8px" onclick="iaAplicar()">Aplicar ${aplicables} cambio(s)</button>`;}
     h+=`</div>`;$("ia_out").innerHTML=h;
   }catch(e){$("ia_msg").textContent="Error: "+((e&&e.message)||e);}
   finally{$("ia_btn").disabled=false;}
 }
 // Busca el id de un ejercicio por nombre (aproximado) en la biblioteca EJ.
 function iaEjId(nombre){const q=(nombre||'').toLowerCase().trim();if(!q)return null;const e=EJ.find(x=>(x.nombre||'').toLowerCase()===q)||EJ.find(x=>(x.nombre||'').toLowerCase().includes(q))||EJ.find(x=>q.includes((x.nombre||'').toLowerCase()));return e?e.id:null;}
+// Muestra a QUÉ ejercicio real resolvió cada nombre (el match es difuso: puede
+// equivocarse). Así el entrenador confirma antes de aplicar.
+function iaResuelto(a){
+  const nm=id=>{const e=EJ.find(x=>String(x.id)===String(id));return e?e.nombre:null;};
+  const chk=n=>{const r=iaEjId(n);const rn=r?nm(r):null;return rn?`"${n}" → ${rn}`:`"${n}" → ⚠ no encontrado`;};
+  const p=[];
+  if(a.ejercicio&&['series','tecnica','agregar_ejercicio','quitar_ejercicio'].includes(a.tipo))p.push(chk(a.ejercicio));
+  if(a.tipo==='swap'){if(a.ejercicio_actual)p.push(chk(a.ejercicio_actual));if(a.ejercicio_nuevo)p.push(chk(a.ejercicio_nuevo));}
+  if(Array.isArray(a.ejercicios))a.ejercicios.forEach(n=>p.push(chk(n)));
+  return p.length?`<div class="muted" style="font-size:11px;margin:-2px 0 4px 2px">${esc(p.join(' · '))}</div>`:'';
+}
 async function iaAplicar(){
   const id=IA_CTX.userId;let ok=0,fail=0,rutChanged=false;
   const OBJG={pecho:["Pecho"],dorsal:["Espalda"],espalda_alta:["Espalda"],deltoides:["Hombro"],brazos:["Bíceps","Tríceps"],biceps:["Bíceps"],triceps:["Tríceps"],cuadriceps:["Cuádriceps"],femoral:["Femoral/Glúteo"],gluteo:["Femoral/Glúteo"],pantorrilla:["Pantorrilla"]};
@@ -2518,7 +2575,20 @@ async function iaAplicar(){
     else if(a.tipo==='set_dia'){const di=(+a.sesion||1)-1;if(RUT&&RUT.dias&&RUT.dias[di]&&Array.isArray(a.ejercicios)){const orden=[],grupos=[];a.ejercicios.forEach(n=>{const eid=iaEjId(n);if(eid){const g=(EJ.find(x=>String(x.id)===String(eid))||{}).grupo||'';orden.push({id:eid,g,s:2});if(g&&!grupos.includes(g))grupos.push(g);}});if(orden.length){RUT.dias[di].orden=orden;RUT.dias[di].grupos=grupos;rutChanged=true;ok++;}else fail++;}else fail++;}
     else if(a.tipo==='plan_generar'){/* se maneja abajo, tras aplicar el resto */}
   }catch(e){fail++;}}
-  if(rutChanged){try{await sb.from("rutinas").update({dias:RUT.dias,tecnicas:RUT.tecnicas||{}}).eq("user_id",id);}catch(e){}}
+  let rutConflicto=false;
+  if(rutChanged){try{
+    // CONTROL DE CONCURRENCIA (igual que guardarRutina): si otra persona modificó
+    // la rutina desde que la cargaste, NO la pisamos con lo de la IA.
+    const {data:actual}=await sb.from("rutinas").select("updated_at").eq("user_id",id).maybeSingle();
+    if(actual&&actual.updated_at&&RUT.updated_at&&new Date(actual.updated_at)>new Date(RUT.updated_at)){
+      rutConflicto=true;
+    }else{
+      const nowIso=new Date().toISOString();
+      await sb.from("rutinas").update({dias:RUT.dias,tecnicas:RUT.tecnicas||{},updated_at:nowIso}).eq("user_id",id);
+      RUT.updated_at=nowIso;
+    }
+  }catch(e){}}
+  if(rutConflicto){$("ia_msg").innerHTML=`<span class="alert">⚠️ Otra persona modificó esta rutina mientras usabas la IA. NO apliqué los cambios de rutina para no borrar su trabajo. Abre de nuevo el cliente y reintenta.</span>`;return;}
   // Si pidió generar el plan de alimentación: cerramos el motor, llenamos el panel
   // del plan (alimentos + días) y lo generamos para que el entrenador lo revise/apruebe.
   const planAcc=IA_ACC.find(a=>a.tipo==='plan_generar');
@@ -2600,7 +2670,7 @@ function calInnerHTML(){
   });
   if(!(CAL.ajustes||[]).length)h+=`<tr><td colspan="6" class="muted" style="font-size:12px">Sin ajustes registrados aún.</td></tr>`;
   h+=`</tbody></table></div><button class="sm" onclick="calAddAjuste()" style="margin-top:6px">+ Registrar ajuste</button>`;
-  h+=`<div style="margin-top:12px"><button onclick="calSave()">Guardar calendario</button> <button class="ghost" onclick="calDuplicar()">Duplicar a otro usuario…</button> <span id="calMsg" class="muted"></span></div>`;
+  h+=`<div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button onclick="calSave()">Guardar calendario</button> <span style="display:inline-flex;gap:6px;align-items:center"><select id="calDupSel" style="max-width:210px"><option value="">Duplicar a otro cliente…</option>${CLIENTES.filter(c=>c.user_id!==CAL_CTX.userId).map(c=>`<option value="${c.user_id}">${esc(c.nombre||c.user_id.slice(0,8))}</option>`).join("")}</select><button class="ghost" onclick="calDuplicar()">Duplicar</button></span> <span id="calMsg" class="muted"></span></div>`;
   return h;
 }
 function calAddAjuste(){CAL.ajustes=CAL.ajustes||[];CAL.ajustes.unshift({fecha:hace(0),campo:'Calorías',de:'',a:'',razon:''});calRefresh();}
@@ -2616,7 +2686,7 @@ function calAddSemana(){CAL.semanas=CAL.semanas||[];CAL.semanas.push({semana:CAL
 function calMoverSem(i,dir){const a=CAL.semanas;const j=i+dir;if(j<0||j>=a.length)return;const t=a[i];a[i]=a[j];a[j]=t;calRefresh();}
 function calDupSem(i){const s=CAL.semanas[i];if(!s)return;const copia=JSON.parse(JSON.stringify(s));copia.semana=(+s.semana||i+1)+1;CAL.semanas.splice(i+1,0,copia);calRefresh();}
 async function calSave(){const row={user_id:CAL_CTX.userId,anio:CAL.anio||null,objetivo_general:CAL.objetivo_general||null,fecha_show:CAL.fecha_show||null,fases:CAL.fases||[],semanas:CAL.semanas||[],volumen:CAL.volumen||{},ajustes:CAL.ajustes||[],updated_at:new Date().toISOString()};const {error}=await sb.from("calendario_atleta").upsert(row,{onConflict:"user_id"});$("calMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Calendario guardado.";}
-async function calDuplicar(){const dest=prompt('user_id del usuario destino (cópialo de la lista de clientes):');if(!dest)return;const row={user_id:dest.trim(),anio:CAL.anio||null,objetivo_general:CAL.objetivo_general||null,fecha_show:CAL.fecha_show||null,fases:CAL.fases||[],semanas:CAL.semanas||[],volumen:CAL.volumen||{},ajustes:CAL.ajustes||[],updated_at:new Date().toISOString()};const {error}=await sb.from("calendario_atleta").upsert(row,{onConflict:"user_id"});$("calMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:("✓ Duplicado a "+esc(dest.trim())+". Ábrelo desde su perfil para ajustar fechas.");}
+async function calDuplicar(){const sel=$("calDupSel");const dest=sel?sel.value:'';if(!dest){$("calMsg").innerHTML='<span class="alert">Elige un cliente destino en la lista.</span>';return;}const nom=(CLIENTES.find(c=>c.user_id===dest)||{}).nombre||dest.slice(0,8);if(!confirm('Duplicar este calendario a '+nom+'? Sobrescribe el calendario que tenga.'))return;const row={user_id:dest,anio:CAL.anio||null,objetivo_general:CAL.objetivo_general||null,fecha_show:CAL.fecha_show||null,fases:CAL.fases||[],semanas:CAL.semanas||[],volumen:CAL.volumen||{},ajustes:CAL.ajustes||[],updated_at:new Date().toISOString()};const {error}=await sb.from("calendario_atleta").upsert(row,{onConflict:"user_id"});$("calMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:("✓ Duplicado a "+esc(nom)+". Ábrelo desde su perfil para ajustar fechas.");}
 
 // ===== Análisis de entreno (gráficas SVG, tema oscuro) =====
 const AN_COLORS=['#e23b3b','#4c8dff','#22c55e','#f59e0b','#a855f7','#14b8a6','#ec4899'];
