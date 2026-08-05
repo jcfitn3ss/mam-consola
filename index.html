@@ -497,9 +497,9 @@ function renderClientes(){
     const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
     const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">⚠ En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
     const ms=c._mes?`<div style="font-size:12px;margin-top:3px;color:var(--rojo)">Informe mes ${c._mes} listo</div>`:"";
-    const tcol={alto:"#e23b3b",medio:"#e0b84a",bajo:"#5f7dd0"};
+    const tcol={alto:"var(--rojo)",medio:"var(--warn)",bajo:"#5f7dd0"};
     const tk=c._ticket?`<span class="pill" style="background:${tcol[c._ticket]||'#444'};color:#000;font-weight:700">${esc(c._ticket.toUpperCase())}</span>`:"";
-    const pa=c._presu?`<span class="pill" style="background:#15391f;color:#5fd07f">presupuesto+</span>`:"";
+    const pa=c._presu?`<span class="pill" style="background:#15391f;color:var(--ok)">presupuesto+</span>`:"";
     const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${tk}${pa}${esc(c._obj||"")}</span>`;
     return `<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')"><div style="display:flex;justify-content:space-between;align-items:center"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${inact}${rs}${ms}</button>`;
   }).join("")||(q?'<div class="muted">Sin coincidencias para tu búsqueda.</div>':''));
@@ -648,7 +648,7 @@ async function verCliente(id){
     <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
       <div style="font-weight:600;margin-bottom:4px">Suscripción</div>
-      <div class="muted" style="font-size:11px;margin-bottom:6px">Estado: <b style="color:${(susActiva||susFund)?'#5fd07f':'#e0b84a'}">${esc(susTxt)}</b>. ${(susActiva||susFund)?'El cliente puede usar la app.':'El cliente <b>NO pasa del paywall</b> hasta que pague por Apple o lo actives aquí (úsalo cuando confirmes el pago).'}</div>
+      <div class="muted" style="font-size:11px;margin-bottom:6px">Estado: <b style="color:${(susActiva||susFund)?'var(--ok)':'var(--warn)'}">${esc(susTxt)}</b>. ${(susActiva||susFund)?'El cliente puede usar la app.':'El cliente <b>NO pasa del paywall</b> hasta que pague por Apple o lo actives aquí (úsalo cuando confirmes el pago).'}</div>
       ${susFund?'':(susActiva
         ? `<button onclick="setAcceso('${id}','vencido')">Quitar acceso (marcar sin pago)</button>`
         : `<button onclick="setAcceso('${id}','activa')">✅ Activar acceso (pago recibido)</button>`)}
@@ -673,7 +673,7 @@ async function verCliente(id){
     </tbody></table>
     <span id="modMsg" class="muted" style="font-size:12px"></span>`;
   h+=`</div><div class="card"><h2 style="margin-top:0">Nivel y progresión</h2>`;
-  const NIVCOL={principiante:'#5fd07f',intermedio:'#e0b84a',avanzado:'#e23b3b'};
+  const NIVCOL={principiante:'var(--ok)',intermedio:'var(--warn)',avanzado:'var(--rojo)'};
   const nivBadge=(n)=>(n&&n!=='—')?`<span class="pill" style="background:${NIVCOL[n]||'#444'};color:#000;font-weight:700;font-size:13px">${cap(n)}</span>`:`<span class="muted" style="font-size:13px">— sin fijar —</span>`;
   h+=`<div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
@@ -2497,7 +2497,7 @@ function calInnerHTML(){
   h+=`<div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px"><table class="calTbl" style="font-size:12px;min-width:920px;width:100%;border-collapse:collapse">
     <thead><tr><th style="width:6px;padding:0"></th><th>Sem</th><th>Fecha ini</th><th>Fecha fin</th><th>Fase</th><th style="text-align:center">Peso obj</th><th style="text-align:center">Kcal obj</th><th>Notas</th><th style="text-align:center">Acciones</th></tr></thead><tbody>`;
   CAL.semanas.forEach((s,i)=>{const col=calFaseColor(s.fase);const hi=i===cur;
-    h+=`<tr class="calRow"${hi?' style="background:rgba(181,23,24,.10)"':''}>
+    h+=`<tr class="calRow"${hi?' style="background:rgba(226,59,59,.10)"':''}>
       <td style="padding:0;width:6px;background:${col||'transparent'}"></td>
       <td style="white-space:nowrap"><input value="${esc(String(s.semana||i+1))}" onchange="CAL.semanas[${i}].semana=this.value" style="width:40px;text-align:center;margin:0">${hi?' <span class="pill" style="background:var(--rojo);color:#fff;font-size:9px;padding:1px 5px;font-weight:700">ACTUAL</span>':''}</td>
       <td><input type="date" value="${s.ini||''}" onchange="CAL.semanas[${i}].ini=this.value;calRefresh()" style="width:130px;margin:0"></td>
