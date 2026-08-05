@@ -601,7 +601,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz,recCli]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz,recCli,regLog]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -629,12 +629,13 @@ async function verCliente(id){
     sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
     sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
     sb.from("recetas").select("*").eq("owner",id).order("nombre"),
+    sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at").eq("user_id",id).gte("fecha",hace(21)).order("fecha",{ascending:false}).order("created_at",{ascending:true}),
   ]);
   const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
   // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
   // un fallo se veía igual que "sin datos" (ej. "Sin rutina generada" cuando en
   // realidad la consulta falló) y el entrenador planeaba sobre info que no cargó.
-  const _cargas={'objetivos':obj,'suscripción':susc,'plan':pln,'check-ins':ck,'journal':jr,'comidas':cm,'fotos':fts,'pesos':pes,'medidas':meds,'series':ser,'rutina':rut,'sueño':sue,'plan de comidas':pc,'registro comida':reg,'intake':intk,'perfil':per,'ciclo':cic,'sesiones':ses,'macros día':mac,'atleta':atl,'especialización':esp,'historial series':serHist,'comidas 35d':cm30,'medidas históricas':medsAll,'calendario':cal,'fuerza':fz,'recetas':recCli};
+  const _cargas={'objetivos':obj,'suscripción':susc,'plan':pln,'check-ins':ck,'journal':jr,'comidas':cm,'fotos':fts,'pesos':pes,'medidas':meds,'series':ser,'rutina':rut,'sueño':sue,'plan de comidas':pc,'registro comida':reg,'intake':intk,'perfil':per,'ciclo':cic,'sesiones':ses,'macros día':mac,'atleta':atl,'especialización':esp,'historial series':serHist,'comidas 35d':cm30,'medidas históricas':medsAll,'calendario':cal,'fuerza':fz,'recetas':recCli,'registro diario':regLog};
   const _fallos=Object.entries(_cargas).filter(([,r])=>r&&r.error).map(([k])=>k);
   const avisoCarga=_fallos.length?`<div class="card" style="border:1px solid var(--rojo);background:rgba(209,43,43,.08)"><b style="color:var(--rojo)">⚠️ Carga incompleta.</b> No se pudieron cargar: <b>${esc(_fallos.join(", "))}</b>. Lo que ves de esas secciones puede estar vacío por el fallo, no porque el cliente no tenga datos. <button class="sm" onclick="verCliente('${id}')">Reintentar</button></div>`:'';
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
@@ -1024,6 +1025,32 @@ async function verCliente(id){
   h+=J.length?J.map(j=>`<div style="border-left:2px solid var(--line);padding-left:10px;margin:6px 0"><div class="muted" style="font-size:11px">${esc(j.fecha)}</div>${esc(j.texto)}</div>`).join(""):`<div class="muted">Sin entradas.</div>`;
   // (Las fotos comparativas se movieron a la card "Progreso físico" de arriba.)
   h+=`</div>`;
+
+  // ---- Registro diario de comidas: lo que el cliente registra en la app, por día
+  // (antes no había dónde verlo). Agrupado por fecha, con total del día vs objetivo.
+  {
+    const RL=(regLog.data||[]);const objK=+o.kcal||0;const nom1=(nom||'el cliente').split(' ')[0];
+    let rh=`<div class="card"><h2 style="margin-top:0">Registro diario de comidas <span class="muted" style="font-size:12px;font-weight:400">· lo que ${esc(nom1)} registra en la app (últimos 21 días)</span></h2>`;
+    if(!RL.length){rh+=`<div class="muted">Sin comidas registradas en los últimos 21 días.</div>`;}
+    else{
+      const porDia={};RL.forEach(c=>{(porDia[c.fecha]=porDia[c.fecha]||[]).push(c);});
+      const fechas=Object.keys(porDia).sort((a,b)=>b.localeCompare(a));
+      rh+=fechas.map(f=>{
+        const items=porDia[f];
+        const t=items.reduce((a,c)=>({k:a.k+(+c.kcal||0),p:a.p+(+c.prot||0),c:a.c+(+c.carb||0),f:a.f+(+c.fat||0)}),{k:0,p:0,c:0,f:0});
+        const diff=objK?Math.round(t.k)-objK:0;const col=objK&&Math.abs(diff)>objK*0.12?'var(--rojo)':'var(--ok)';
+        const filas=items.map(c=>`<tr><td class="muted" style="white-space:nowrap;font-size:11px;vertical-align:top">${esc(c.momento||'')}</td><td>${esc(c.descripcion||'')}</td><td style="white-space:nowrap;text-align:right;font-size:12px">${Math.round(c.kcal||0)} kcal <span class="muted">P${Math.round(c.prot||0)}/C${Math.round(c.carb||0)}/G${Math.round(c.fat||0)}</span></td></tr>`).join('');
+        return `<details style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:0 10px"${f===fechas[0]?' open':''}>
+          <summary style="cursor:pointer;padding:9px 0;font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
+            <span>${esc(f)} <span class="muted" style="font-weight:400;font-size:12px">· ${items.length} registro(s)</span></span>
+            <b style="color:${col};font-size:12.5px;white-space:nowrap">${Math.round(t.k)} kcal · P${Math.round(t.p)}/C${Math.round(t.c)}/G${Math.round(t.f)}${objK?` (obj ${objK}${diff>0?' +'+diff:diff<0?' '+diff:' ✓'})`:''}</b>
+          </summary>
+          <table style="margin-bottom:8px"><tbody>${filas}</tbody></table>
+        </details>`;
+      }).join('');
+    }
+    rh+=`</div>`;h+=rh;
+  }
 
   // ===== Comparativa y gráficas: DIFERIDAS (se insertan tras pintar el detalle,
   // para que abrir un cliente sea instantáneo). Placeholder aquí.
