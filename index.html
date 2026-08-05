@@ -588,7 +588,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz,recCli]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -615,11 +615,13 @@ async function verCliente(id){
     sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:true}),
     sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
     sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
+    sb.from("recetas").select("*").eq("owner",id).order("nombre"),
   ]);
+  const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
   // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
   // un fallo se veía igual que "sin datos" (ej. "Sin rutina generada" cuando en
   // realidad la consulta falló) y el entrenador planeaba sobre info que no cargó.
-  const _cargas={'objetivos':obj,'suscripción':susc,'plan':pln,'check-ins':ck,'journal':jr,'comidas':cm,'fotos':fts,'pesos':pes,'medidas':meds,'series':ser,'rutina':rut,'sueño':sue,'plan de comidas':pc,'registro comida':reg,'intake':intk,'perfil':per,'ciclo':cic,'sesiones':ses,'macros día':mac,'atleta':atl,'especialización':esp,'historial series':serHist,'comidas 35d':cm30,'medidas históricas':medsAll,'calendario':cal,'fuerza':fz};
+  const _cargas={'objetivos':obj,'suscripción':susc,'plan':pln,'check-ins':ck,'journal':jr,'comidas':cm,'fotos':fts,'pesos':pes,'medidas':meds,'series':ser,'rutina':rut,'sueño':sue,'plan de comidas':pc,'registro comida':reg,'intake':intk,'perfil':per,'ciclo':cic,'sesiones':ses,'macros día':mac,'atleta':atl,'especialización':esp,'historial series':serHist,'comidas 35d':cm30,'medidas históricas':medsAll,'calendario':cal,'fuerza':fz,'recetas':recCli};
   const _fallos=Object.entries(_cargas).filter(([,r])=>r&&r.error).map(([k])=>k);
   const avisoCarga=_fallos.length?`<div class="card" style="border:1px solid var(--rojo);background:rgba(209,43,43,.08)"><b style="color:var(--rojo)">⚠️ Carga incompleta.</b> No se pudieron cargar: <b>${esc(_fallos.join(", "))}</b>. Lo que ves de esas secciones puede estar vacío por el fallo, no porque el cliente no tenga datos. <button class="sm" onclick="verCliente('${id}')">Reintentar</button></div>`:'';
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
@@ -965,16 +967,39 @@ async function verCliente(id){
     const ORD={Desayuno:0,Snack:1,Almuerzo:2,Cena:3};
     PC.sort((a,b)=>(a.orden!=null&&b.orden!=null?a.orden-b.orden:((ORD[a.momento]??9)-(ORD[b.momento]??9))));
     h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">`;
-    h+=PC.map(x=>`<div style="border:1px solid var(--line);border-radius:8px;padding:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${esc(x.momento||'Comida')}</b><span class="muted" style="font-size:11px;white-space:nowrap">${Math.round(x.kcal||0)} kcal · P${Math.round(x.prot||0)}/C${Math.round(x.carb||0)}/G${Math.round(x.fat||0)}</span></div>
-      <div style="font-size:13px;margin-top:4px">${esc(x.descripcion||'')}</div>
-      <button class="sm ghost" style="margin-top:6px;padding:3px 8px" onclick="borrarComidaPlan('${x.id}','${id}')">Quitar</button>
+    h+=PC.map(x=>`<div class="pcCard" data-id="${x.id}" style="border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div class="pcView">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${esc(x.momento||'Comida')}</b><span class="muted" style="font-size:11px;white-space:nowrap">${Math.round(x.kcal||0)} kcal · P${Math.round(x.prot||0)}/C${Math.round(x.carb||0)}/G${Math.round(x.fat||0)}</span></div>
+        <div style="font-size:13px;margin-top:4px">${esc(x.descripcion||'')}</div>
+        <div style="margin-top:6px;display:flex;gap:6px"><button class="sm ghost" style="padding:3px 8px" onclick="pcEditar('${x.id}')">Editar</button><button class="sm ghost" style="padding:3px 8px" onclick="borrarComidaPlan('${x.id}','${id}')">Quitar</button></div>
+      </div>
+      <div class="pcEdit" style="display:none">
+        <label class="lbl">Momento</label><input class="pcMomento" data-nocaps value="${esc(x.momento||'')}" placeholder="Ej: Desayuno" style="margin:0">
+        <label class="lbl" style="margin-top:6px">Alimentos / descripción</label><textarea class="pcDesc" rows="2" style="width:100%;box-sizing:border-box">${esc(x.descripcion||'')}</textarea>
+        <div class="row" style="gap:6px;margin-top:4px">
+          <div><label class="lbl">Kcal</label><input class="pcK" type="number" value="${Math.round(x.kcal||0)}" style="margin:0;width:80px"></div>
+          <div><label class="lbl">Prot</label><input class="pcP" type="number" value="${Math.round(x.prot||0)}" style="margin:0;width:70px"></div>
+          <div><label class="lbl">Carb</label><input class="pcC" type="number" value="${Math.round(x.carb||0)}" style="margin:0;width:70px"></div>
+          <div><label class="lbl">Grasa</label><input class="pcF" type="number" value="${Math.round(x.fat||0)}" style="margin:0;width:70px"></div>
+        </div>
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center"><button class="sm" style="padding:3px 10px" onclick="pcGuardar('${x.id}','${id}')">Guardar</button><button class="sm ghost" style="padding:3px 8px" onclick="pcCancelar('${x.id}')">Cancelar</button><span class="pcMsg muted" style="font-size:12px"></span></div>
+      </div>
     </div>`).join("");
     h+=`</div>`;
     const tot=PC.reduce((a,x)=>({k:a.k+(+x.kcal||0),p:a.p+(+x.prot||0),c:a.c+(+x.carb||0),f:a.f+(+x.fat||0)}),{k:0,p:0,c:0,f:0});
     h+=`<div class="fila" style="margin-top:8px"><b>Total del día</b><b>${Math.round(tot.k)} kcal · P${Math.round(tot.p)}/C${Math.round(tot.c)}/G${Math.round(tot.f)}</b></div>`;
   } else h+=`<div class="muted" style="margin-top:6px">Sin plan aún. Genera uno con IA (botón de arriba) o créalo abajo por momento.</div>`;
   RECUID=id;
+  // ---- Recetas propias del cliente: verlas, agregarlas al plan o quitarlas ----
+  h+=`<h3>Recetas del cliente</h3>`;
+  if(RECCLI.length){
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:6px">Recetas que el cliente guardó. Puedes agregarlas a su plan (aparecen en su app) o quitarlas.</div>`;
+    h+=`<div style="display:flex;flex-direction:column;gap:6px">`+RECCLI.map(r=>`<div style="border:1px solid var(--line);border-radius:8px;padding:8px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${esc(r.nombre||'Receta')}</b><span class="muted" style="font-size:11px;white-space:nowrap">${Math.round(r.kcal||0)} kcal · P${Math.round(r.prot||0)}/C${Math.round(r.carb||0)}/G${Math.round(r.fat||0)}</span></div>
+      ${r.ingredientes?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(r.ingredientes)}</div>`:''}
+      <div style="margin-top:5px;display:flex;gap:6px"><button class="sm ghost" style="padding:3px 8px" onclick="recAddPlan('${r.id}','${id}')">Agregar al plan</button></div>
+    </div>`).join("")+`</div>`;
+  } else h+=`<div class="muted" style="font-size:12px;margin-bottom:6px">El cliente aún no tiene recetas guardadas.</div>`;
   h+=`<h3>Crear receta / comida (ingredientes + gramaje)</h3>
    <div class="muted" style="font-size:12px;margin-bottom:6px">Escribe los ingredientes y sus gramos; la plataforma calcula kcal y macros automáticamente. Luego guárdala como receta o agrégala al plan del cliente (aparece en su app).</div>
    <input id="rc_nom" placeholder="Nombre (ej: Bowl de pollo y arroz)">
@@ -1249,6 +1274,27 @@ async function rcAddPlan(){
 async function borrarComidaPlan(id,cli){
   if(!confirm('¿Quitar esta comida del plan del cliente?'))return;
   const {error}=await sb.from("plan_comidas").delete().eq("id",id);
+  if(error){alert(error.message);return;}
+  verCliente(cli);
+}
+// ---- Edición IN-PLACE de cada comida del plan (momento, descripción y macros) ----
+function pcEditar(id){const c=document.querySelector('.pcCard[data-id="'+id+'"]');if(!c)return;c.querySelector('.pcView').style.display='none';c.querySelector('.pcEdit').style.display='';}
+function pcCancelar(id){const c=document.querySelector('.pcCard[data-id="'+id+'"]');if(!c)return;c.querySelector('.pcEdit').style.display='none';c.querySelector('.pcView').style.display='';}
+async function pcGuardar(id,cli){
+  const c=document.querySelector('.pcCard[data-id="'+id+'"]');if(!c)return;
+  const g=s=>c.querySelector(s);
+  const patch={momento:(g('.pcMomento').value||'').trim()||'Comida',descripcion:(g('.pcDesc').value||'').trim(),kcal:Math.round(+g('.pcK').value||0),prot:Math.round(+g('.pcP').value||0),carb:Math.round(+g('.pcC').value||0),fat:Math.round(+g('.pcF').value||0)};
+  const m=g('.pcMsg');if(m)m.textContent='Guardando…';
+  const {error}=await sb.from("plan_comidas").update(patch).eq("id",id);
+  if(error){if(m)m.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  verCliente(cli);
+}
+// ---- Recetas del cliente: agregar al plan / quitar ----
+async function recAddPlan(rid,cli){
+  const {data:r,error:e1}=await sb.from("recetas").select("*").eq("id",rid).maybeSingle();
+  if(e1||!r){alert(e1?e1.message:'No se encontró la receta.');return;}
+  const desc=(r.nombre?r.nombre+': ':'')+(r.ingredientes||'');
+  const {error}=await sb.from("plan_comidas").insert({user_id:cli,momento:r.tipo||'Comida',descripcion:desc,kcal:Math.round(r.kcal||0),prot:Math.round(r.prot||0),carb:Math.round(r.carb||0),fat:Math.round(r.fat||0)});
   if(error){alert(error.message);return;}
   verCliente(cli);
 }
