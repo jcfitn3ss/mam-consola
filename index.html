@@ -1339,12 +1339,12 @@ const PLAN_COMPUESTOS={
 function planCanon(nombre){return PLAN_SINONIMOS[planNorm(nombre)]||nombre;}
 async function planCargarCatalogo(id){
   const [base,prop]=await Promise.all([
-    sb.from("alimentos_base").select("nombre,k,p,c,f,porcion_g").eq("activo",true).eq("aprobado",true),
+    sb.from("alimentos_base").select("nombre,marca,k,p,c,f,porcion_g").eq("activo",true).eq("aprobado",true),
     sb.from("alimentos_propios").select("nombre,k,p,c,f").eq("user_id",id)
   ]);
   PLAN_CATMAP=new Map();
   // pg = gramos por UNIDAD (ej. huevo 50 g). Si lo tiene, el alimento va por unidad.
-  const add=a=>{const n=planNorm(a.nombre);if(n&&!PLAN_CATMAP.has(n))PLAN_CATMAP.set(n,{nombre:a.nombre,k:+a.k||0,p:+a.p||0,c:+a.c||0,f:+a.f||0,pg:+a.porcion_g||0});};
+  const add=a=>{const n=planNorm(a.nombre);if(n&&!PLAN_CATMAP.has(n))PLAN_CATMAP.set(n,{nombre:a.nombre,marca:a.marca||'',k:+a.k||0,p:+a.p||0,c:+a.c||0,f:+a.f||0,pg:+a.porcion_g||0});};
   (base.data||[]).forEach(add);(prop.data||[]).forEach(add);
   PLAN_CATNAMES=[...PLAN_CATMAP.values()].map(x=>x.nombre).sort((a,b)=>a.localeCompare(b));
 }
@@ -1369,9 +1369,12 @@ function planParseFoods(txt){
       .replace(/\b(cocid[oa]s?|crud[oa]s?|al vapor|a la plancha|hervid[oa]s?|asad[oa]s?|magr[oa]s?|libre|deslactosad[oa])\b/gi,' ')
       .replace(/[()]/g,' ').replace(/\s+/g,' ').trim();
     // Plato compuesto (sándwich de atún…) → se abre en sus ingredientes.
+    // Los alimentos normales se guardan TAL CUAL los escribió el entrenador
+    // (no se reescriben): el sinónimo solo se usa al resolver los macros (planCatDe),
+    // así se respeta el alimento/marca específico que él eligió.
     const comp=PLAN_COMPUESTOS[planNorm(nombre)];
-    if(comp){comp.split(/\s*,\s*/).forEach(ing=>out.push({nombre:planCanon(ing),gramos:0,unidades:0}));}
-    else{out.push({nombre:planCanon(nombre),gramos,unidades});}
+    if(comp){comp.split(/\s*,\s*/).forEach(ing=>out.push({nombre:ing,gramos:0,unidades:0}));}
+    else{out.push({nombre,gramos,unidades});}
   });
   return out;
 }
@@ -1392,8 +1395,15 @@ function planMatchScore(n,k,qt){
   return -1;
 }
 function planCatDe(nombre){
-  const n=planNorm(planCanon(nombre));const ex=PLAN_CATMAP.get(n);if(ex||!n)return ex;
-  const qt=n.split(' ').filter(w=>w.length>=4);
+  const nRaw=planNorm(nombre);if(!nRaw)return null;
+  // 1) match EXACTO del nombre tal cual → respeta lo específico/de marca que el
+  //    entrenador escribió (no lo pisa un sinónimo).
+  const exRaw=PLAN_CATMAP.get(nRaw);if(exRaw)return exRaw;
+  // 2) sinónimo coloquial (papa dulce → batata) antes del match difuso.
+  const nc=planNorm(planCanon(nombre));
+  if(nc!==nRaw){const exC=PLAN_CATMAP.get(nc);if(exC)return exC;}
+  // 3) match difuso sobre el nombre (ya canónico) por prefijo/palabra.
+  const n=nc;const qt=n.split(' ').filter(w=>w.length>=4);
   let best=null,bs=-1;
   for(const [k,v] of PLAN_CATMAP){const s=planMatchScore(n,k,qt);if(s>bs){bs=s;best=v;}}
   return bs>=0?best:null;
@@ -1487,12 +1497,20 @@ function planRenderEditor(){
       (c.foods||[]).forEach((f,fi)=>{
         const esU=planEsUnidad(f.nombre);const cat=planCatDe(f.nombre);
         const valU=esU?((+f.unidades||(cat&&cat.pg?Math.round((+f.gramos||0)/cat.pg):0))||0):(Math.round(+f.gramos||0));
-        h+=`<div style="display:flex;gap:6px;align-items:center;margin:3px 0">
-          <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
-          <input type="number" min="0" step="${esU?'1':'1'}" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
-          <span class="muted" style="font-size:11px">${esU?'unid':'g'}</span>
-          <span id="foodk-${di}-${ci}-${fi}" class="muted" style="font-size:11px;width:70px;text-align:right"></span>
-          <button class="sm ghost" onclick="planFoodDel(${di},${ci},${fi})" title="Quitar alimento" style="margin:0">×</button>
+        // Pista de resolución: a qué alimento del catálogo (y marca) se están
+        // tomando los macros, para que el entrenador REVISE que es el correcto.
+        let hint='';
+        if(!cat) hint=`<span style="color:var(--warn);font-size:10px;white-space:nowrap" title="No encontrado en el catálogo: no aporta macros">⚠ sin dato</span>`;
+        else{const dif=planNorm(cat.nombre)!==planNorm(f.nombre);const marca=cat.marca?(' · '+esc(cat.marca)):'';if(dif||cat.marca)hint=`<span class="muted" style="font-size:10px" title="Alimento del catálogo usado para los macros — revisa que sea el correcto (marca importa)">→ ${esc(cat.nombre)}${marca}</span>`;}
+        h+=`<div style="margin:3px 0">
+          <div style="display:flex;gap:6px;align-items:center">
+            <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
+            <input type="number" min="0" step="${esU?'1':'1'}" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
+            <span class="muted" style="font-size:11px">${esU?'unid':'g'}</span>
+            <span id="foodk-${di}-${ci}-${fi}" class="muted" style="font-size:11px;width:70px;text-align:right"></span>
+            <button class="sm ghost" onclick="planFoodDel(${di},${ci},${fi})" title="Quitar alimento" style="margin:0">×</button>
+          </div>
+          ${hint?`<div style="margin:1px 0 0 2px">${hint}</div>`:''}
         </div>`;
       });
       h+=`<button class="sm ghost" onclick="planFoodAdd(${di},${ci})" style="margin-top:2px">+ Alimento</button>`;
