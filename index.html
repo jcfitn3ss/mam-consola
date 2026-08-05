@@ -2793,6 +2793,30 @@ function an1RM(meso,keyIds){
   const xl=xs.filter(w=>datasets.some(d=>d.pts.find(p=>p.x===w)));
   return svgChart(datasets,xl.length?xl:xs,'kg');
 }
+// ===== Volumen semanal por grupo muscular (series efectivas / grupo / semana) =====
+function anVolumenGrupo(meso){
+  const xs=[];for(let w=meso.ini;w<=meso.fin;w++)xs.push(w);
+  const byG={};
+  anEfectivas().forEach(s=>{const w=anSemanaDeFecha(s.fecha);if(w==null||w<meso.ini||w>meso.fin)return;const g=AN.grById[String(s.ejercicio_id)]||'Otros';(byG[g]=byG[g]||{});byG[g][w]=(byG[g][w]||0)+1;});
+  const grupos=Object.keys(byG).sort((a,b)=>xs.reduce((t,w)=>t+(byG[b][w]||0),0)-xs.reduce((t,w)=>t+(byG[a][w]||0),0));
+  const datasets=grupos.map((g,i)=>({label:g,color:AN_COLORS[i%AN_COLORS.length],pts:xs.filter(w=>byG[g][w]).map(w=>({x:w,y:byG[g][w],tip:`Sem ${w} · ${g} · ${byG[g][w]} series`}))})).filter(d=>d.pts.length);
+  const xl=xs.filter(w=>datasets.some(d=>d.pts.find(p=>p.x===w)));
+  return {chart:svgChart(datasets,xl.length?xl:xs,'series'),grupos,byG,xs};
+}
+function anVolTendencia(vol){
+  const rows=vol.grupos.map(g=>{const ws=vol.xs.filter(w=>vol.byG[g][w]);if(!ws.length)return null;const a=vol.byG[g][ws[0]],b=vol.byG[g][ws[ws.length-1]];return {g,a,b,d:b-a,tot:vol.xs.reduce((t,w)=>t+(vol.byG[g][w]||0),0)};}).filter(Boolean);
+  if(!rows.length)return '<div class="muted" style="font-size:12px">Sin datos suficientes.</div>';
+  return `<table class="data" style="font-size:12px;width:100%"><tr><th>Músculo</th><th>Series/sem inicial</th><th>Series/sem final</th><th>Total bloque</th><th>Tendencia</th></tr>${rows.map(r=>`<tr><td>${esc(r.g)}</td><td>${r.a}</td><td>${r.b}</td><td class="muted">${r.tot}</td><td style="color:${r.d>0?'var(--ok)':r.d<0?'var(--rojo)':'var(--muted)'};font-weight:700">${r.d>0?'▲ +'+r.d:r.d<0?'▼ '+r.d:'= 0'}</td></tr>`).join('')}</table>`;
+}
+// ===== Estancamiento con fatiga: 1RM plano/a la baja mientras el RPE sube =====
+function anEstancamiento(meso){
+  const byEj={};
+  anEfectivas().forEach(s=>{const w=anSemanaDeFecha(s.fecha);if(w==null||w<meso.ini||w>meso.fin)return;const k=String(s.ejercicio_id);(byEj[k]=byEj[k]||{});(byEj[k][w]=byEj[k][w]||{e:0,rpe:[]});const e=epley1RM(s.peso,s.reps);if(e>byEj[k][w].e)byEj[k][w].e=e;if(s.rpe!=null&&s.rpe!=='')byEj[k][w].rpe.push(+s.rpe);});
+  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null,out=[];
+  Object.keys(byEj).forEach(k=>{const ws=Object.keys(byEj[k]).map(Number).sort((a,b)=>a-b);if(ws.length<2)return;const w0=ws[0],w1=ws[ws.length-1];const e0=byEj[k][w0].e,e1=byEj[k][w1].e;const r0=avg(byEj[k][w0].rpe),r1=avg(byEj[k][w1].rpe);const pct=e0>0?(e1-e0)/e0*100:0;const dRpe=(r0!=null&&r1!=null)?r1-r0:null;if(pct<=1.5&&dRpe!=null&&dRpe>=0.5)out.push({id:k,nombre:AN.ejById[k]||'',grupo:AN.grById[k]||'',pct:Math.round(pct*10)/10,dRpe:Math.round(dRpe*10)/10});});
+  return out.sort((a,b)=>b.dRpe-a.dRpe);
+}
+function anTablaEstanc(rows){if(!rows.length)return '<div class="muted" style="font-size:12px">Sin señales de estancamiento con fatiga en este bloque. 💪</div>';return `<table class="data" style="font-size:12px;width:100%"><tr><th>Ejercicio</th><th>Músculo</th><th>Δ 1RM</th><th>Δ RPE</th></tr>${rows.map(r=>`<tr><td>${esc(r.nombre)}</td><td class="muted">${esc(r.grupo)}</td><td style="color:var(--warn);font-weight:700">${r.pct>0?'+':''}${r.pct}%</td><td style="color:var(--rojo);font-weight:700">+${r.dRpe}</td></tr>`).join('')}</table>`;}
 function anCardHTML(){
   const ejs=anEjerciciosConDatos();
   if(!ejs.length)return `<div class="card"><h2 style="margin-top:0">Análisis de entreno</h2><div class="muted">Aún no hay registros de entrenamiento suficientes para analizar.</div></div>`;
@@ -2820,6 +2844,11 @@ function anCardHTML(){
     <h3 style="margin:10px 0 2px">Progresión 1RM estimado — levantamientos clave</h3>
     <div style="max-height:150px;overflow:auto;margin-bottom:6px;border:1px solid var(--line);border-radius:8px;padding:4px;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:0 8px">${keyChk}</div>
     <div id="an_1rm"></div>
+    <h3 style="margin:12px 0 2px">Volumen semanal por grupo muscular</h3>
+    <div id="an_vol"></div>
+    <div id="an_vol_tend" style="margin-top:6px"></div>
+    <h3 style="margin:12px 0 2px">Estancamiento con fatiga <span class="muted" style="font-weight:400;font-size:11px">(1RM plano/↓ y RPE ↑)</span></h3>
+    <div id="an_estanc"></div>
   </div>`;
 }
 function anRender(){
@@ -2840,6 +2869,10 @@ function anRender(){
   $("an_fatiga").innerHTML=anFatiga(meso);
   const keyIds=[...document.querySelectorAll('.an_key:checked')].map(c=>c.value);
   $("an_1rm").innerHTML=an1RM(meso,keyIds);
+  const vol=anVolumenGrupo(meso);
+  $("an_vol").innerHTML=vol.chart;
+  $("an_vol_tend").innerHTML=anVolTendencia(vol);
+  $("an_estanc").innerHTML=anTablaEstanc(anEstancamiento(meso));
 }
 
 // ===== Visor de fotos (lightbox) =====
