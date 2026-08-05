@@ -67,6 +67,10 @@
   .card{padding:16px 18px}
   .card>h2:first-child,.card>h3:first-child{margin-top:0}
   h2{border-bottom:1px solid var(--line);padding-bottom:9px}
+  /* Pestañas internas de la ficha del cliente */
+  .fichaTabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:10px;position:sticky;top:0;background:var(--bg);z-index:5}
+  .fichaTabs .tabBtn{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--muted);font-weight:600;font-size:13px;padding:9px 13px;margin-bottom:-1px;border-radius:0;cursor:pointer}
+  .fichaTabs .tabBtn.on{color:var(--txt);border-bottom-color:var(--rojo)}
   input[type=checkbox]{width:16px;height:16px;accent-color:var(--rojo);vertical-align:middle}
   /* Tablas con encabezado + zebra, contenedor redondeado */
   table.data,table.kv,table.chkTbl{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:8px 0}
@@ -1072,10 +1076,18 @@ function hacerColapsables(){
     window.ACORD_ABIERTOS=new Set();
     const h0=cards[0].querySelector("h2"); if(h0)window.ACORD_ABIERTOS.add((h0.textContent||'').trim());
   }
+  // Pestañas internas: clasifica cada card por área según su título.
+  const clasTab=(t)=>{t=(t||'').toLowerCase();
+    if(/entrenamiento|rutina|nivel|progresi[oó]n|mesociclo|programaci|an[aá]lisis de entreno|especializaci/.test(t))return 'entreno';
+    if(/objetivo|nutrici|macros|refeed|informe mensual|plan de alimentaci/.test(t))return 'nutricion';
+    if(/progreso f[ií]sico|comparativa|gr[aá]ficas|calendario|pliegues/.test(t))return 'progreso';
+    if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos/.test(t))return 'gestion';
+    return 'resumen';};
   const abiertos=window.ACORD_ABIERTOS, conts=[];
   cards.forEach((card)=>{
     const h=card.querySelector("h2");if(!h||h.dataset.col)return;h.dataset.col="1";
     const titulo=(h.textContent||'').trim();
+    card.dataset.tab=clasTab(titulo);
     const cont=document.createElement("div");
     const kids=[];let n=h.nextSibling;while(n){kids.push(n);n=n.nextSibling;}
     kids.forEach(k=>cont.appendChild(k));card.appendChild(cont);
@@ -1096,6 +1108,16 @@ function hacerColapsables(){
     bar.appendChild(mk("Expandir todo",()=>conts.forEach(c=>{c.cont.style.display="block";c.flecha.textContent="▾";abiertos.add(c.titulo);c.correrLazy();})));
     bar.appendChild(mk("Colapsar todo",()=>conts.forEach(c=>{c.cont.style.display="none";c.flecha.textContent="▸";abiertos.delete(c.titulo);})));
     det.insertBefore(bar,det.firstChild);
+  }
+  // Barra de PESTAÑAS internas (encima de todo): agrupa las cards por área y
+  // muestra solo las de la pestaña activa. Recuerda la pestaña entre re-renders.
+  if(det&&!det.querySelector(".fichaTabs")){
+    const TABS=[['resumen','Resumen'],['entreno','Entreno'],['nutricion','Nutrición'],['progreso','Progreso'],['gestion','Gestión']];
+    const tabsEl=document.createElement("div");tabsEl.className="fichaTabs";
+    const mostrar=(id)=>{window.FICHA_TAB=id;cards.forEach(c=>{c.style.display=((c.dataset.tab||'resumen')===id)?"":"none";});[...tabsEl.children].forEach(b=>b.classList.toggle("on",b.dataset.tab===id));};
+    TABS.forEach(([id,label])=>{const b=document.createElement("button");b.className="tabBtn";b.dataset.tab=id;b.textContent=label;b.onclick=()=>mostrar(id);tabsEl.appendChild(b);});
+    det.insertBefore(tabsEl,det.firstChild);
+    mostrar(window.FICHA_TAB||'resumen');
   }
 }
 
