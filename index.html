@@ -253,6 +253,7 @@ const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Pes
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
 let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[],LAZY={};
+let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null;
 
 const $=id=>document.getElementById(id);
 const show=(id,on)=>$(id).classList.toggle("hide",!on);
@@ -1146,6 +1147,11 @@ async function verCliente(id){
       <label class="lbl">Capturas de WhatsApp (evidencia de cumplimiento)</label>
       <input id="inf_file" type="file" accept="image/*" onchange="subirCaptura('${id}')">
       <div id="inf_shots" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+      <label class="lbl" style="margin-top:14px">Fotos de progreso (antes / después)</label>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">Elige la foto de <b>ANTES (izquierda)</b> y la de <b>DESPUÉS (derecha)</b> por fila (Frente, Espaldas, o la pose que quieras). Si no eliges, el informe usa automáticamente la más antigua vs. la más reciente por pose. Guarda el seguimiento para aplicar los cambios.</div>
+      <div id="inf_fotos"></div>
+      <div style="margin-top:6px"><button class="sm ghost" onclick="addFilaFoto()">+ Agregar fila</button></div>
+      <div id="inf_galeria" class="hide" style="margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px;background:rgba(255,255,255,.02)"></div>
       <div class="row" style="margin-top:10px">
         <div><button class="ghost" onclick="guardarSeg('${id}')">Guardar seguimiento</button></div>
         <div><button onclick="publicarInforme('${id}')">Publicar y notificar</button></div>
@@ -1373,13 +1379,56 @@ function infPreview(){const f=$("inf_prev");if(f)f.srcdoc=INF_HTML;}
 function renderShots(){const el=$("inf_shots");if(!el)return;el.innerHTML=INF_SHOTS.map((s,i)=>`<div style="width:120px"><img src="${esc(s.url)}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><input data-i="${i}" class="shotNota" placeholder="nota (opcional)" value="${esc(s.nota||'')}" style="font-size:11px;padding:5px"><button class="sm ghost" style="width:100%" onclick="quitarShot(${i})">Quitar</button></div>`).join("");}
 function quitarShot(i){INF_SHOTS.splice(i,1);renderShots();}
 function leerNotas(){document.querySelectorAll(".shotNota").forEach(inp=>{const i=+inp.dataset.i;if(INF_SHOTS[i])INF_SHOTS[i].nota=inp.value;});}
+// ---- Editor de fotos de progreso (antes/después) ----
+function filasDefaultFoto(){return [{pose:'Frente',antes:null,despues:null},{pose:'Espaldas',antes:null,despues:null}];}
+function fFechaCorta(f){if(!f)return'';const p=String(f).slice(0,10).split('-');const M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];const i=+p[1]-1;return (i>=0&&i<12)?(+p[2]+' '+M[i]+' '+p[0]):f;}
+function resolverFoto(x){if(!x||!x.path)return null;const lib=INF_FOTOS_LIB.find(f=>f.path===x.path);return {path:x.path,fecha:x.fecha||(lib&&lib.fecha)||'',url:(lib&&lib.url)||''};}
+async function cargarFotosEditor(id, selGuardada){
+  INF_CID=id;
+  try{const {data}=await invokeFn("informe",{body:{action:"listar-fotos",user_id:id}});INF_FOTOS_LIB=(data&&Array.isArray(data.fotos))?data.fotos:[];}
+  catch(e){INF_FOTOS_LIB=[];}
+  INF_FOTOS_SEL=(Array.isArray(selGuardada)&&selGuardada.length)
+    ? selGuardada.map(r=>({pose:r.pose||'',antes:resolverFoto(r.antes),despues:resolverFoto(r.despues)}))
+    : filasDefaultFoto();
+  renderFotosEditor();
+}
+function slotFoto(i,slot,lbl){
+  const it=INF_FOTOS_SEL[i]&&INF_FOTOS_SEL[i][slot];
+  if(it&&(it.url||it.path))
+    return `<div style="text-align:center"><div style="font-size:10px;color:var(--muted);letter-spacing:.5px">${lbl}</div><img src="${esc(it.url)}" style="width:88px;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">${esc(fFechaCorta(it.fecha))}</div><button class="sm ghost" style="font-size:10px;padding:2px 6px" onclick="pickSlot(${i},'${slot}')">Cambiar</button> <button class="sm ghost" style="font-size:10px;padding:2px 6px" onclick="quitarSlot(${i},'${slot}')">✕</button></div>`;
+  return `<div style="text-align:center"><div style="font-size:10px;color:var(--muted);letter-spacing:.5px">${lbl}</div><div onclick="pickSlot(${i},'${slot}')" style="width:88px;height:110px;border:1px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:11px">Elegir</div></div>`;
+}
+function renderFotosEditor(){
+  const el=$("inf_fotos");if(!el)return;
+  el.innerHTML=INF_FOTOS_SEL.map((r,i)=>`<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+    <input value="${esc(r.pose||'')}" onchange="setPoseFoto(${i},this.value)" placeholder="Pose" style="width:100px;font-size:12px">
+    ${slotFoto(i,'antes','ANTES')}<div style="color:var(--muted)">→</div>${slotFoto(i,'despues','DESPUÉS')}
+    <button class="sm ghost" style="margin-left:auto" onclick="quitarFilaFoto(${i})">Quitar fila</button>
+  </div>`).join("")||`<div class="muted" style="font-size:12px">Sin filas. Agrega una con "+ Agregar fila".</div>`;
+}
+function setPoseFoto(i,v){if(INF_FOTOS_SEL[i])INF_FOTOS_SEL[i].pose=v;}
+function addFilaFoto(){INF_FOTOS_SEL.push({pose:'',antes:null,despues:null});renderFotosEditor();}
+function quitarFilaFoto(i){INF_FOTOS_SEL.splice(i,1);renderFotosEditor();}
+function quitarSlot(i,slot){if(INF_FOTOS_SEL[i])INF_FOTOS_SEL[i][slot]=null;renderFotosEditor();}
+function pickSlot(i,slot){
+  INF_PICK={i,slot};const g=$("inf_galeria");if(!g)return;g.classList.remove("hide");
+  if(!INF_FOTOS_LIB.length){g.innerHTML='<div class="muted" style="font-size:12px">Este cliente no tiene fotos subidas en la app.</div>';return;}
+  // Agrupar las fotos por fecha (una sección por día).
+  const grupos={};INF_FOTOS_LIB.forEach((f,idx)=>{(grupos[f.fecha]=grupos[f.fecha]||[]).push(Object.assign({idx},f));});
+  const cuerpo=Object.keys(grupos).sort().map(fch=>`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--rojo2);font-weight:700;letter-spacing:.5px;margin-bottom:5px">${esc(fFechaCorta(fch))}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${grupos[fch].map(f=>`<div onclick="asignarFoto(${f.idx})" style="width:92px;cursor:pointer;text-align:center"><img src="${esc(f.url)}" style="width:92px;height:112px;object-fit:cover;border-radius:6px;border:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">${esc(f.tipo||'')}</div></div>`).join("")}</div></div>`).join("");
+  g.innerHTML=`<div style="font-size:12px;margin-bottom:8px">Elige la foto para <b>${slot==='antes'?'ANTES (izquierda)':'DESPUÉS (derecha)'}</b> · fila ${i+1} <button class="sm ghost" style="float:right" onclick="cerrarGaleria()">Cerrar</button></div>${cuerpo}`;
+}
+function cerrarGaleria(){const g=$("inf_galeria");if(g)g.classList.add("hide");INF_PICK=null;}
+function asignarFoto(idx){if(!INF_PICK)return;const f=INF_FOTOS_LIB[idx];if(!f)return;INF_FOTOS_SEL[INF_PICK.i][INF_PICK.slot]={path:f.path,fecha:f.fecha,url:f.url};cerrarGaleria();renderFotosEditor();}
+function fotosPayload(){return INF_FOTOS_SEL.map(r=>({pose:r.pose||'',antes:(r.antes&&r.antes.path)?{path:r.antes.path,fecha:r.antes.fecha}:null,despues:(r.despues&&r.despues.path)?{path:r.despues.path,fecha:r.despues.fecha}:null})).filter(r=>r.antes||r.despues);}
+
 async function generarInforme(id){
   $("infMsg").textContent="Generando informe (datos + IA)…";
   const {data,error}=await invokeFn("informe",{body:{action:"generar",user_id:id}});
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   INF_MES=data.mes;INF_HTML=data.html||"";const seg=data.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
   show("infArea",true);$("inf_seg").value=(Array.isArray(seg.texto)?seg.texto:[]).join("\n");
-  renderShots();infPreview();$("infMsg").textContent="✓ Generado"+(data.publicado?" (publicado)":" (borrador)");
+  renderShots();infPreview();cargarFotosEditor(id, seg.fotos);$("infMsg").textContent="✓ Generado"+(data.publicado?" (publicado)":" (borrador)");
 }
 // Auto-carga el informe YA GUARDADO (lectura directa de la tabla, sin gastar IA)
 // para poder Ver / descargar el PDF de una, sin tener que pulsar "Generar".
@@ -1389,7 +1438,7 @@ async function infCargarGuardado(id){
     if(!fila||!fila.html)return;
     INF_MES=fila.mes;INF_HTML=fila.html;const seg=fila.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
     show("infArea",true);const sg=$("inf_seg");if(sg)sg.value=(Array.isArray(seg.texto)?seg.texto:[]).join("\n");
-    renderShots();infPreview();
+    renderShots();infPreview();cargarFotosEditor(id, seg.fotos);
     const m=$("infMsg");if(m)m.innerHTML=`✓ Informe de ${esc(fila.mes||'')} cargado (${fila.publicado?'publicado':'borrador'}). Puedes <b>Ver / descargar PDF</b> ya, o <b>Generar / actualizar</b> para refrescarlo con los datos de hoy.`;
   }catch(e){}
 }
@@ -1407,9 +1456,9 @@ async function guardarSeg(id){
   leerNotas();
   const texto=$("inf_seg").value.split("\n").map(s=>s.trim()).filter(Boolean);
   $("infMsg").textContent="Guardando seguimiento…";
-  const {data,error}=await invokeFn("informe",{body:{action:"guardar-seguimiento",user_id:id,mes:INF_MES,seguimiento:{texto,screenshots:INF_SHOTS}}});
+  const {data,error}=await invokeFn("informe",{body:{action:"guardar-seguimiento",user_id:id,mes:INF_MES,seguimiento:{texto,screenshots:INF_SHOTS,fotos:fotosPayload()}}});
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
-  INF_HTML=data.html||INF_HTML;infPreview();$("infMsg").textContent="✓ Seguimiento guardado.";
+  INF_HTML=data.html||INF_HTML;infPreview();$("infMsg").textContent="✓ Seguimiento y fotos guardados.";
 }
 async function publicarInforme(id){
   $("infMsg").textContent="Publicando…";
@@ -1728,10 +1777,16 @@ function planRenderEditor(){
         <button class="sm ghost" onclick="planQuitarDia(${di})" title="Quitar día" style="margin:0">×</button>
       </div>`;
     (dia.comidas||[]).forEach((c,ci)=>{
+      const nCom=(dia.comidas||[]).length;
       h+=`<div style="border-top:1px dashed var(--line);padding-top:6px;margin-top:6px">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:2px">
           <input class="plMom" data-d="${di}" data-c="${ci}" value="${esc(c.momento||'')}" style="width:130px;margin:0;font-weight:700" oninput="planSet(${di},${ci},-1,'momento',this.value)">
           <span id="mealtot-${di}-${ci}" class="muted" style="font-size:11px"></span>
+          <span style="margin-left:auto;white-space:nowrap;display:flex;gap:2px">
+            <button class="sm ghost" onclick="planMoverComida(${di},${ci},-1)" title="Subir" style="margin:0;padding:2px 7px"${ci===0?' disabled':''}>↑</button>
+            <button class="sm ghost" onclick="planMoverComida(${di},${ci},1)" title="Bajar" style="margin:0;padding:2px 7px"${ci===nCom-1?' disabled':''}>↓</button>
+            <button class="sm ghost" onclick="planQuitarComida(${di},${ci})" title="Quitar esta comida" style="margin:0;padding:2px 8px">×</button>
+          </span>
         </div>`;
       (c.foods||[]).forEach((f,fi)=>{
         const esU=planEsUnidad(f.nombre);const cat=planCatDe(f.nombre);
@@ -1751,7 +1806,7 @@ function planRenderEditor(){
       h+=`<button class="sm ghost" onclick="planFoodAdd(${di},${ci})" style="margin-top:2px">+ Alimento</button>`;
       h+=`</div>`;
     });
-    h+=`<button class="sm ghost" onclick="planAgregarComida(${di})" style="margin-top:6px">+ Agregar comida</button></div>`;
+    h+=`<button class="sm ghost" onclick="planAgregarComida(${di})" style="margin-top:6px">+ Agregar comida / snack</button></div>`;
   });
   h+=`<button class="sm ghost" onclick="planAgregarDia()">+ Agregar día</button>`;
   // Reglas operativas
@@ -1825,7 +1880,11 @@ function planRecoger(){
   });
   return d;
 }
-function planAgregarComida(di){planRecoger();if(PLAN_DATOS.dias[di]){PLAN_DATOS.dias[di].comidas.push({momento:"COMIDA",alimentos:"",foods:[]});planRenderEditor();}}
+function planAgregarComida(di){planRecoger();if(PLAN_DATOS.dias[di]){PLAN_DATOS.dias[di].comidas.push({momento:"SNACK",alimentos:"",foods:[]});planRenderEditor();}}
+// Quitar una comida entera del día (recalcula los totales al re-renderizar).
+function planQuitarComida(di,ci){planRecoger();const dia=PLAN_DATOS.dias[di];if(!dia||!dia.comidas[ci])return;if(!confirm('¿Quitar "'+(dia.comidas[ci].momento||'esta comida')+'" del día '+(di+1)+'?'))return;dia.comidas.splice(ci,1);planRenderEditor();}
+// Mover una comida arriba/abajo dentro del día (dir=-1 sube, +1 baja).
+function planMoverComida(di,ci,dir){planRecoger();const dia=PLAN_DATOS.dias[di];if(!dia)return;const j=ci+dir;if(j<0||j>=dia.comidas.length)return;const t=dia.comidas[ci];dia.comidas[ci]=dia.comidas[j];dia.comidas[j]=t;planRenderEditor();}
 function planAgregarDia(){planRecoger();const m=(PLAN_DATOS.dias[0]&&PLAN_DATOS.dias[0].comidas.map(c=>({momento:c.momento,alimentos:"",foods:[]})))||[{momento:"DESAYUNO",alimentos:"",foods:[]}];PLAN_DATOS.dias.push({titulo:"",comidas:m});planRenderEditor();}
 function planQuitarDia(di){planRecoger();PLAN_DATOS.dias.splice(di,1);planRenderEditor();}
 function planAgregarRegla(){planRecoger();PLAN_DATOS.reglas.push({titulo:"",texto:""});planRenderEditor();}
