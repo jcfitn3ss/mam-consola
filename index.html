@@ -359,6 +359,10 @@ async function cargarPrioridad(){
   const ult={};(se.data||[]).forEach(s=>{if(s.user_id&&s.fecha&&!ult[s.user_id])ult[s.user_id]=s.fecha});
   CLIENTES.forEach(c=>{const u=c.user_id;let sc=0;const r=[];
     const G=gm[u]||{};c._ticket=G.ticket||"";c._presu=!!G.presupuesto_adicional;c._pago=!!G.pago_confirmado;
+    // No terminó el registro inicial (sin objetivo = no completó onboarding): no
+    // puede recibir plan. Lo subimos a "Atención" para perseguirlo.
+    c._sinObj=!obj[u];
+    if(c._sinObj){sc+=4;r.push("⚠ no terminó su registro");}
     const na=cnt[u]||0;if(na){sc+=3*na;r.push(na+" alerta"+(na>1?"s":""));}
     const h=sl[u]||[];const sp=h.length?h.reduce((a,x)=>a+x,0)/h.length:null;if(sp!=null&&sp<7){sc+=3;r.push("Duerme "+sp.toFixed(1)+"h");}
     const k=lc[u];if(k){if((k.dart||0)>=6){sc+=3;r.push("Dolor "+k.dart);}if((k.fatiga||0)>=7){sc+=2;r.push("Fatiga "+k.fatiga);}if(k.energia!=null&&k.energia<=3){sc+=2;r.push("Energía "+k.energia);}}
