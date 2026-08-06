@@ -1149,6 +1149,7 @@ async function verCliente(id){
       <div class="row" style="margin-top:10px">
         <div><button class="ghost" onclick="guardarSeg('${id}')">Guardar seguimiento</button></div>
         <div><button onclick="publicarInforme('${id}')">Publicar y notificar</button></div>
+        <div><button class="ghost" onclick="infEnviar('${id}')">✉ Enviar por correo</button></div>
         <div><button class="ghost" onclick="descargarInformePDF()">Ver / descargar PDF</button></div>
       </div>
       <iframe id="inf_prev" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
@@ -1169,6 +1170,7 @@ async function verCliente(id){
     <div id="plan_acciones" class="hide" style="margin-top:10px">
       <button onclick="planGuardar('${id}')">Aprobar y guardar</button>
       <button class="ghost" onclick="planExportar()">Exportar PDF</button>
+      <button class="ghost" onclick="marcarPlanEnviado('${id}')">✉ Enviar por correo</button>
       <button class="ghost" onclick="planPreview()">Actualizar vista previa</button>
       <span id="planMsg2" class="muted" style="font-size:12px"></span>
     </div>
@@ -1414,6 +1416,12 @@ async function publicarInforme(id){
   const {data,error}=await invokeFn("informe",{body:{action:"publicar",user_id:id,mes:INF_MES}});
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   INF_HTML=data.html||INF_HTML;infPreview();$("infMsg").textContent="✓ Publicado. Al cliente le llegó la notificación.";
+}
+async function infEnviar(id){
+  $("infMsg").textContent="Enviando por correo…";
+  const {data,error}=await invokeFn("informe",{body:{action:"enviar",user_id:id,mes:INF_MES}});
+  if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
+  $("infMsg").innerHTML=data.enviado?`✓ <b>Informe enviado por correo</b> a ${esc(data.to||"el cliente")}.`:("✓ "+esc(data.nota||"Marcado."));
 }
 function imprimirIframe(fid,html){
   const f=$(fid);
@@ -1837,10 +1845,10 @@ async function planGuardar(id){
 }
 function planExportar(){if(!PLAN_HTML){alert("Primero aprueba/guarda o actualiza la vista previa.");return;}imprimirIframe("plan_prev",PLAN_HTML);}
 async function marcarPlanEnviado(id){
-  $("planMsg").textContent="Marcando…";
+  $("planMsg").textContent="Enviando por correo…";
   const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"enviar",user_id:id}});
   if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
-  $("planMsg").textContent="✓ "+(data.nota||"Marcado como enviado.");
+  $("planMsg").innerHTML=data.enviado?`✓ <b>Plan enviado por correo</b> a ${esc(data.to||"el cliente")}.`:("✓ "+esc(data.nota||"Marcado como enviado."));
 }
 
 // Constructor de recetas interactivo (a partir de alimentos ya registrados).
