@@ -301,6 +301,14 @@ async function trasLogin(){
     const marcar=c=>{const s=sm[c.user_id]||{};c._susE=s.estado||null;c._susT=s.tier||null;};
     CLIENTES.forEach(marcar);TODOS.forEach(marcar);
   }catch(e){/* si falla, la lista igual funciona sin el badge de pago */}
+  // Correos de cada persona (para invitar testers de Android / contacto). RPC
+  // segura: solo el entrenador los ve. Si falla, la lista funciona igual.
+  try{
+    const {data:cors}=await sb.rpc('correos_clientes');
+    const em={};(cors||[]).forEach(r=>{em[r.user_id]=r.email;});
+    const marcarE=c=>{c._email=em[c.user_id]||'';};
+    CLIENTES.forEach(marcarE);TODOS.forEach(marcarE);
+  }catch(e){/* sin correos: la lista funciona igual */}
   await cargarPrioridad();
   await cargarSolicitudes();
 }
@@ -552,7 +560,18 @@ function pagoInfo(c){
 }
 let VER_PAGO='atencion'; // atencion | sinpagar | todos
 let PRIO_FALLO=[]; // consultas del radar de prioridad que fallaron (si las hay)
+let LISTA_VIS=[]; // clientes actualmente visibles en la lista (para copiar correos)
 function setVerPago(v){VER_PAGO=v;renderClientes();}
+// Copia los correos de los clientes VISIBLES (respeta el filtro/búsqueda actual),
+// uno por línea, para pegarlos en la lista de testers de Play o para contactar.
+function copiarCorreos(){
+  const correos=[...new Set((LISTA_VIS||[]).map(c=>c._email).filter(Boolean))];
+  if(!correos.length){alert('No hay correos cargados para estos clientes.');return;}
+  navigator.clipboard.writeText(correos.join('\n')).then(()=>alert('✓ '+correos.length+' correo(s) copiados (uno por línea). Pégalos en la lista de testers de Play o donde los necesites.')).catch(()=>{
+    // Respaldo si clipboard falla: mostrar en un prompt para copiar a mano.
+    prompt('Copia estos correos:',correos.join(', '));
+  });
+}
 function renderClientes(){
   const q=($("buscar").value||"").toLowerCase().trim();
   $("nCli").textContent=CLIENTES.length;
@@ -569,7 +588,7 @@ function renderClientes(){
   let head=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <span class="pill" style="background:rgba(95,208,127,.16);color:var(--ok);font-weight:700">${pagan} pagando</span>
       <span class="pill" style="background:rgba(226,59,59,.16);color:#ff8a8a;font-weight:700">${sinPagar} sin pagar</span>
-      <span style="flex:1"></span>${chip('atencion','Atención')}${chip('sinpagar','Sin pagar')}${chip('todos','Todos')}
+      <span style="flex:1"></span><button class="sm ghost" style="padding:5px 10px" onclick="copiarCorreos()" title="Copiar los correos (para invitar testers de Android o contactar)">✉ Copiar correos</button>${chip('atencion','Atención')}${chip('sinpagar','Sin pagar')}${chip('todos','Todos')}
     </div>`;
   if(PRIO_FALLO.length)head=`<div class="alert" style="margin-bottom:8px">⚠️ No cargó: <b>${esc(PRIO_FALLO.join(", "))}</b>. El orden de prioridad puede estar incompleto. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>`+head;
   if(!q && VER_PAGO==='atencion'){
@@ -577,6 +596,7 @@ function renderClientes(){
     head += `<div class="muted" style="font-size:12px;margin-bottom:8px">${list.length?`${list.length} cliente(s) requieren atención.`:'Ningún cliente requiere atención ahora.'} Usa "Todos"/"Sin pagar" o el buscador para ver a los demás${otros>0?` (${otros} más)`:''}.</div>`;
   }
   list.sort((a,b)=> (pagoInfo(a).pagando?1:0)-(pagoInfo(b).pagando?1:0) || (b._sc||0)-(a._sc||0)); // sin pagar arriba
+  LISTA_VIS=list; // para "Copiar correos"
   $("clientes").innerHTML=head+(list.map(c=>{
     const ic=c._sc>=5?"🔴":c._sc>=2?"🟡":"🟢";
     const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
@@ -588,7 +608,8 @@ function renderClientes(){
     const pg=pagoInfo(c);
     const pagoBadge=`<span class="pill" style="background:${pg.bg};color:${pg.fg};font-weight:700;font-size:11px">${pg.txt}</span>`;
     const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${pagoBadge}${tk}${pa}${esc(c._obj||"")}</span>`;
-    return `<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${inact}${rs}${ms}</button>`;
+    const emL=c._email?`<div class="muted" style="font-size:11px;margin-top:2px;user-select:text">✉ ${esc(c._email)}</div>`:"";
+    return `<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${emL}${inact}${rs}${ms}</button>`;
   }).join("")||(q?'<div class="muted">Sin coincidencias para tu búsqueda.</div>':'<div class="muted">Sin clientes en este filtro.</div>'));
 }
 
@@ -739,7 +760,9 @@ async function verCliente(id){
   const susActiva=sm.estado==='activa'&&sm.tier&&sm.tier!=='gratis';
   const susFund=sm.tier==='fundador';
   const susTxt=susFund?'fundador (gratis de por vida)':(sm.estado?`${sm.estado}${sm.tier?' · '+sm.tier:''}`:'sin suscripción');
+  const _em=((TODOS.find(c=>c.user_id===id)||CLIENTES.find(c=>c.user_id===id)||{})._email)||'';
   h+=`</div><div class="card"><h2 style="margin-top:0">Acceso y suscripción</h2>
+    ${_em?`<div class="fila" style="border:0;padding:0 0 8px"><span class="muted">Correo</span><b style="user-select:text">${esc(_em)} <button class="sm ghost" style="padding:2px 7px;margin-left:6px" onclick="navigator.clipboard.writeText('${esc(_em)}');this.textContent='✓'">Copiar</button></b></div>`:''}
     <div class="muted" style="font-size:11px;margin-bottom:6px">Si el cliente no puede entrar (olvidó su clave, o el correo de recuperación no le llega), cámbiasela aquí y pásasela por WhatsApp. No depende de correos.</div>
     <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
