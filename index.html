@@ -655,7 +655,7 @@ async function verCliente(id){
     sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
     sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
     sb.from("recetas").select("*").eq("owner",id).order("nombre"),
-    sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at").eq("user_id",id).gte("fecha",hace(21)).order("fecha",{ascending:false}).order("created_at",{ascending:true}),
+    sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at,foto_url,saciedad,disfrute,ruido,fibra").eq("user_id",id).gte("fecha",hace(21)).order("fecha",{ascending:false}).order("created_at",{ascending:true}).limit(500),
   ]);
   const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
   // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
@@ -1077,7 +1077,7 @@ async function verCliente(id){
   // (antes no había dónde verlo). Agrupado por fecha, con total del día vs objetivo.
   {
     const RL=(regLog.data||[]);const objK=+o.kcal||0;const nom1=(nom||'el cliente').split(' ')[0];
-    let rh=`<div class="card"><h2 style="margin-top:0">Registro diario de comidas <span class="muted" style="font-size:12px;font-weight:400">· lo que ${esc(nom1)} registra en la app (últimos 21 días)</span></h2>`;
+    let rh=`<div class="card"><h2 style="margin-top:0">Registro diario de comidas <span class="muted" style="font-size:12px;font-weight:400">· TODAS las comidas de ${esc(nom1)} con foto (últimos 21 días · toca la foto para verla grande)</span></h2>`;
     if(!RL.length){rh+=`<div class="muted">Sin comidas registradas en los últimos 21 días.</div>`;}
     else{
       const porDia={};RL.forEach(c=>{(porDia[c.fecha]=porDia[c.fecha]||[]).push(c);});
@@ -1086,7 +1086,16 @@ async function verCliente(id){
         const items=porDia[f];
         const t=items.reduce((a,c)=>({k:a.k+(+c.kcal||0),p:a.p+(+c.prot||0),c:a.c+(+c.carb||0),f:a.f+(+c.fat||0)}),{k:0,p:0,c:0,f:0});
         const diff=objK?Math.round(t.k)-objK:0;const col=objK&&Math.abs(diff)>objK*0.12?'var(--rojo)':'var(--ok)';
-        const filas=items.map(c=>`<tr><td class="muted" style="white-space:nowrap;font-size:11px;vertical-align:top">${esc(c.momento||'')}</td><td>${esc(c.descripcion||'')}</td><td style="white-space:nowrap;text-align:right;font-size:12px">${Math.round(c.kcal||0)} kcal <span class="muted">P${Math.round(c.prot||0)}/C${Math.round(c.carb||0)}/G${Math.round(c.fat||0)}</span></td></tr>`).join('');
+        const filas=items.map(c=>{
+          const foto=c.foto_url?`<a href="${esc(c.foto_url)}" target="_blank" title="Ver foto grande"><img src="${esc(c.foto_url)}" loading="lazy" style="width:58px;height:58px;object-fit:cover;border-radius:8px;border:1px solid var(--line);margin:0 8px 2px 0;float:left"></a>`:'';
+          const ex=[];
+          if(c.saciedad!=null)ex.push('saciedad '+c.saciedad+'/5');
+          if(c.disfrute!=null)ex.push('disfrute '+c.disfrute+'/5');
+          if(c.ruido!=null&&c.ruido>0)ex.push('ruido '+c.ruido+'/5');
+          if(c.fibra)ex.push('fibra '+Math.round(c.fibra)+'g');
+          const exl=ex.length?`<div class="muted" style="font-size:10.5px;margin-top:2px">${ex.join(' · ')}</div>`:'';
+          return `<tr><td class="muted" style="white-space:nowrap;font-size:11px;vertical-align:top;padding-top:4px">${esc(c.momento||'')}</td><td style="vertical-align:top;padding:4px 0"><div style="overflow:hidden">${foto}<div style="font-size:12.5px">${esc(c.descripcion||'')}</div>${exl}</div></td><td style="white-space:nowrap;text-align:right;font-size:12px;vertical-align:top;padding-top:4px">${Math.round(c.kcal||0)} kcal <span class="muted">P${Math.round(c.prot||0)}/C${Math.round(c.carb||0)}/G${Math.round(c.fat||0)}</span></td></tr>`;
+        }).join('');
         return `<details style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:0 10px"${f===fechas[0]?' open':''}>
           <summary style="cursor:pointer;padding:9px 0;font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
             <span>${esc(f)} <span class="muted" style="font-weight:400;font-size:12px">· ${items.length} registro(s)</span></span>
