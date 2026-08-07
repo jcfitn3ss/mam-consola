@@ -286,7 +286,7 @@ async function trasLogin(){
   show("login",false);show("app",true);show("logout",true);
   const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
-  const {data}=await sb.from("perfiles").select("user_id,nombre,rol,archivado").order("nombre");
+  const {data}=await sb.from("perfiles").select("user_id,nombre,rol,archivado,altura").order("nombre");
   // Lista de PRIORIDAD (arriba): solo clientes reales, sin entrenadores ni archivados.
   CLIENTES=(data||[]).filter(c=>c.rol!=='entrenador' && !c.archivado);
   // Lista COMPLETA para el desplegable "Ir a…": TODOS los no archivados (incluidos
@@ -582,10 +582,13 @@ function renderClientes(){
   $("nCli").textContent=CLIENTES.length;
   const pagan=CLIENTES.filter(c=>pagoInfo(c).pagando).length;
   const sinPagar=CLIENTES.length-pagan;
-  // Filtro: búsqueda por nombre; o por PAGO (sin pagar / todos); o "atención" (default).
+  const sinAltura=CLIENTES.filter(c=>!(Number(c.altura)>0)).length;
+  // Filtro: búsqueda por nombre; o por PAGO (sin pagar / todos); o datos por
+  // completar (sin altura); o "atención" (default).
   const list = q
     ? CLIENTES.filter(c=>(c.nombre||"").toLowerCase().includes(q))
     : VER_PAGO==='sinpagar' ? CLIENTES.filter(c=>!pagoInfo(c).pagando)
+    : VER_PAGO==='sinaltura' ? CLIENTES.filter(c=>!(Number(c.altura)>0))
     : VER_PAGO==='todos' ? CLIENTES.slice()
     : CLIENTES.filter(c=>c._sc>=2 || c._inact || c._mes);
   // Resumen de pago + filtros (siempre visible, incluso al buscar).
@@ -593,7 +596,8 @@ function renderClientes(){
   let head=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <span class="pill" style="background:rgba(95,208,127,.16);color:var(--ok);font-weight:700">${pagan} pagando</span>
       <span class="pill" style="background:rgba(226,59,59,.16);color:#ff8a8a;font-weight:700">${sinPagar} sin pagar</span>
-      <span style="flex:1"></span><button class="sm ghost" style="padding:5px 10px" onclick="copiarCorreos()" title="Copiar los correos (para invitar testers de Android o contactar)">✉ Copiar correos</button>${chip('atencion','Atención')}${chip('sinpagar','Sin pagar')}${chip('todos','Todos')}
+      ${sinAltura?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${sinAltura} sin altura</span>`:''}
+      <span style="flex:1"></span><button class="sm ghost" style="padding:5px 10px" onclick="copiarCorreos()" title="Copiar los correos (para invitar testers de Android o contactar)">✉ Copiar correos</button>${chip('atencion','Atención')}${chip('sinpagar','Sin pagar')}${sinAltura?chip('sinaltura','Sin altura'):''}${chip('todos','Todos')}
     </div>`;
   if(PRIO_FALLO.length)head=`<div class="alert" style="margin-bottom:8px">⚠️ No cargó: <b>${esc(PRIO_FALLO.join(", "))}</b>. El orden de prioridad puede estar incompleto. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>`+head;
   if(!q && VER_PAGO==='atencion'){
@@ -607,6 +611,7 @@ function renderClientes(){
     const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
     const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">⚠ En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
     const ms=c._mes?`<div style="font-size:12px;margin-top:3px;color:var(--rojo)">Informe mes ${c._mes} listo</div>`:"";
+    const sinAlt=!(Number(c.altura)>0)?`<div style="font-size:12px;margin-top:3px;color:var(--warn);font-weight:600">📏 Falta altura — el plan la necesita</div>`:"";
     const tcol={alto:"var(--rojo)",medio:"var(--warn)",bajo:"#5f7dd0"};
     const tk=c._ticket?`<span class="pill" style="background:${tcol[c._ticket]||'#444'};color:#000;font-weight:700">${esc(c._ticket.toUpperCase())}</span>`:"";
     const pa=c._presu?`<span class="pill" style="background:#15391f;color:var(--ok)">presupuesto+</span>`:"";
@@ -614,7 +619,7 @@ function renderClientes(){
     const pagoBadge=`<span class="pill" style="background:${pg.bg};color:${pg.fg};font-weight:700;font-size:11px">${pg.txt}</span>`;
     const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${pagoBadge}${tk}${pa}${esc(c._obj||"")}</span>`;
     const emL=c._email?`<div class="muted" style="font-size:11px;margin-top:2px;user-select:text">✉ ${esc(c._email)}</div>`:"";
-    return `<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${emL}${inact}${rs}${ms}</button>`;
+    return `<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${emL}${inact}${sinAlt}${rs}${ms}</button>`;
   }).join("")||(q?'<div class="muted">Sin coincidencias para tu búsqueda.</div>':'<div class="muted">Sin clientes en este filtro.</div>'));
 }
 
@@ -2400,6 +2405,8 @@ async function guardarObj(id){
   const r2=await sb.from("planes").upsert({user_id:id,enfoque:enf,fase,rir_objetivo},{onConflict:"user_id"});
   const r3=await sb.from("perfiles").update({altura}).eq("user_id",id);
   $("saveMsg").innerHTML=(r1.error||r2.error||r3.error)?`<span class="alert">${esc((r1.error||r2.error||r3.error).message)}</span>`:"✓ Guardado.";
+  // Refleja la altura en la lista (quita el badge "sin altura" y actualiza el contador).
+  if(!r3.error){const c=CLIENTES.find(x=>x.user_id===id);if(c)c.altura=altura;renderClientes();}
 }
 async function guardarGestion(id){
   $("gMsg").textContent="Guardando…";
