@@ -824,6 +824,25 @@ async function verCliente(id){
        <button class="sm" style="margin-top:6px" onclick="guardarEsp('${id}')">Guardar especialización</button> <span id="eMsg" class="muted"></span>
      </div>`;
 
+  // SEMANA DEL MESOCICLO: la semana avanza sola por calendario desde el inicio
+  // del plan. Si un cliente quedó desfasado (ej. rutina regenerada le reinició
+  // el inicio), el entrenador la ajusta aquí sin depender de nadie.
+  {
+    const _P = pln.data || {};
+    const _semAct = semanaActual(_P.inicio, _P.semanas);
+    h+=`<h3>Semana del mesociclo</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">Avanza sola por calendario desde el inicio del plan. Si el cliente quedó desfasado, ajústala (cambia la fecha de inicio del plan). No borra su registro.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="sm ghost" onclick="setSemanaMeso('${id}',${Math.max(1,_semAct-1)})">◀ Anterior</button>
+        <b>Semana ${_semAct}${_P.semanas?` de ${_P.semanas}`:''}</b>
+        <button class="sm ghost" onclick="setSemanaMeso('${id}',${_semAct+1})">Siguiente ▶</button>
+        <input id="semMesoN" type="number" min="1" value="${_semAct}" style="width:64px;margin:0">
+        <button class="sm" onclick="setSemanaMeso('${id}',+document.getElementById('semMesoN').value)">Ir a semana</button>
+        <span id="semMesoMsg" class="muted" style="font-size:12px"></span>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Inicio del plan: <b>${_P.inicio?esc(_P.inicio):'—'}</b></div>`;
+  }
+
   // MESOCICLO DE FUERZA (powerlifting: RPT + progresión inversa). Solo compuestos marcados.
   h+=`<h3>Mesociclo de fuerza (powerlifting)</h3>`;
   const rutEjIds=[...new Set((RUT&&RUT.dias?RUT.dias:[]).flatMap(d=>(d.orden||[]).map(o=>String(o.id))))];
@@ -2239,6 +2258,19 @@ async function resetClave(id){
 // Activa (o quita) el ACCESO por suscripción del cliente. Con "pago estricto"
 // cada cliente nuevo cae en 'prueba' y NO pasa del paywall; aquí lo activas a
 // mano cuando confirmes su pago (o lo quitas si dejó de pagar). Reversible.
+// Ajusta la SEMANA del mesociclo moviendo la fecha de inicio del plan
+// (inicio = hoy - (semana-1)*7). No toca el registro del cliente.
+async function setSemanaMeso(id,semana){
+  semana=Math.max(1,Math.round(+semana||1));
+  const msg=$("semMesoMsg");
+  const d=new Date();d.setDate(d.getDate()-(semana-1)*7);
+  const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  if(msg)msg.textContent="Guardando…";
+  const {error}=await sb.from("planes").update({inicio:iso,updated_at:new Date().toISOString()}).eq("user_id",id);
+  if(error){if(msg)msg.innerHTML='<span class="alert">'+esc(error.message)+'</span>';return;}
+  if(msg)msg.textContent="✓ Semana "+semana+" (inicio "+iso+")";
+  setTimeout(()=>verCliente(id),650);
+}
 async function setAcceso(id,estado){
   const msg=$("accMsg_"+id);
   if(estado==='activa'&&!confirm("¿Activar el acceso de este cliente?\n\nPodrá usar la app de inmediato. Úsalo solo cuando confirmes que pagó."))return;
