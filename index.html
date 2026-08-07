@@ -824,23 +824,21 @@ async function verCliente(id){
        <button class="sm" style="margin-top:6px" onclick="guardarEsp('${id}')">Guardar especialización</button> <span id="eMsg" class="muted"></span>
      </div>`;
 
-  // SEMANA DEL MESOCICLO: la semana avanza sola por calendario desde el inicio
-  // del plan. Si un cliente quedó desfasado (ej. rutina regenerada le reinició
-  // el inicio), el entrenador la ajusta aquí sin depender de nadie.
+  // SEMANA DEL MESOCICLO: la semana la calcula la app SOLA por calendario desde
+  // la fecha de inicio del plan. Este control NO "salta" semanas (eso re-agrupa
+  // el historial y muestra semanas como completadas sin estarlo); sirve solo
+  // para CORREGIR la fecha real de arranque si quedó mal.
   {
     const _P = pln.data || {};
     const _semAct = semanaActual(_P.inicio, _P.semanas);
     h+=`<h3>Semana del mesociclo</h3>
-      <div class="muted" style="font-size:12px;margin-bottom:6px">Avanza sola por calendario desde el inicio del plan. Si el cliente quedó desfasado, ajústala (cambia la fecha de inicio del plan). No borra su registro.</div>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">La app la calcula por calendario: hoy está en <b>Semana ${_semAct}${_P.semanas?` de ${_P.semanas}`:''}</b> (inicio <b>${_P.inicio?esc(_P.inicio):'—'}</b>). La semana avanza sola cada 7 días. <b>Cambia la fecha SOLO para corregir el arranque real</b> — no para adelantar: mover la fecha re-agrupa su historial por semanas.</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="sm ghost" onclick="setSemanaMeso('${id}',${Math.max(1,_semAct-1)})">◀ Anterior</button>
-        <b>Semana ${_semAct}${_P.semanas?` de ${_P.semanas}`:''}</b>
-        <button class="sm ghost" onclick="setSemanaMeso('${id}',${_semAct+1})">Siguiente ▶</button>
-        <input id="semMesoN" type="number" min="1" value="${_semAct}" style="width:64px;margin:0">
-        <button class="sm" onclick="setSemanaMeso('${id}',+document.getElementById('semMesoN').value)">Ir a semana</button>
+        <label class="lbl" style="margin:0">Fecha de inicio del plan</label>
+        <input id="inicioPlan_${id}" type="date" value="${_P.inicio?esc(_P.inicio):''}" style="width:auto;margin:0">
+        <button class="sm" onclick="setInicioPlan('${id}')">Guardar inicio</button>
         <span id="semMesoMsg" class="muted" style="font-size:12px"></span>
-      </div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Inicio del plan: <b>${_P.inicio?esc(_P.inicio):'—'}</b></div>`;
+      </div>`;
   }
 
   // MESOCICLO DE FUERZA (powerlifting: RPT + progresión inversa). Solo compuestos marcados.
@@ -2267,17 +2265,17 @@ async function resetClave(id){
 // Activa (o quita) el ACCESO por suscripción del cliente. Con "pago estricto"
 // cada cliente nuevo cae en 'prueba' y NO pasa del paywall; aquí lo activas a
 // mano cuando confirmes su pago (o lo quitas si dejó de pagar). Reversible.
-// Ajusta la SEMANA del mesociclo moviendo la fecha de inicio del plan
-// (inicio = hoy - (semana-1)*7). No toca el registro del cliente.
-async function setSemanaMeso(id,semana){
-  semana=Math.max(1,Math.round(+semana||1));
-  const msg=$("semMesoMsg");
-  const d=new Date();d.setDate(d.getDate()-(semana-1)*7);
-  const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+// CORRIGE la fecha de inicio del plan (solo para arreglar el arranque real).
+// NO es para "saltar" semanas: la semana la calcula la app por calendario y
+// mover la fecha re-agrupa el historial (por eso pide confirmación).
+async function setInicioPlan(id){
+  const el=$("inicioPlan_"+id);const v=(el&&el.value||"").trim();const msg=$("semMesoMsg");
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){if(msg)msg.innerHTML='<span class="alert">Fecha inválida (AAAA-MM-DD)</span>';return;}
+  if(!confirm("¿Cambiar la fecha de inicio del plan a "+v+"?\n\nEsto RE-AGRUPA su historial de entrenamiento por semanas. Úsalo solo para corregir la fecha real de arranque, no para adelantar semanas."))return;
   if(msg)msg.textContent="Guardando…";
-  const {error}=await sb.from("planes").update({inicio:iso,updated_at:new Date().toISOString()}).eq("user_id",id);
+  const {error}=await sb.from("planes").update({inicio:v,updated_at:new Date().toISOString()}).eq("user_id",id);
   if(error){if(msg)msg.innerHTML='<span class="alert">'+esc(error.message)+'</span>';return;}
-  if(msg)msg.textContent="✓ Semana "+semana+" (inicio "+iso+")";
+  if(msg)msg.textContent="✓ Inicio guardado ("+v+")";
   setTimeout(()=>verCliente(id),650);
 }
 async function setAcceso(id,estado){
