@@ -831,12 +831,23 @@ async function verCliente(id){
   {
     const _P = pln.data || {};
     const _semAct = semanaActual(_P.inicio, _P.semanas);
+    const _off = Math.round(+_P.semana_offset || 0);
     h+=`<h3>Semana del mesociclo</h3>
-      <div class="muted" style="font-size:12px;margin-bottom:6px">La app la calcula por calendario: hoy está en <b>Semana ${_semAct}${_P.semanas?` de ${_P.semanas}`:''}</b> (inicio <b>${_P.inicio?esc(_P.inicio):'—'}</b>). La semana avanza sola cada 7 días. <b>Cambia la fecha SOLO para corregir el arranque real</b> — no para adelantar: mover la fecha re-agrupa su historial por semanas.</div>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">Por calendario hoy es <b>Semana ${_semAct}${_P.semanas?` de ${_P.semanas}`:''}</b> (inicio <b>${_P.inicio?esc(_P.inicio):'—'}</b>). Avanza sola cada 7 días.</div>
+      <div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px">
+        <div style="font-size:12px;margin-bottom:6px"><b>Adelantar la progresión</b> — para un cliente que va más rápido (o más lento). Sube/baja la semana de <b>RIR, volumen y descarga</b> <b>SIN tocar su historial</b> ni el calendario. Lo natural es dejarlo en 0; úsalo solo si de verdad va adelantado.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="sm ghost" onclick="setSemanaOffset('${id}',${_off-1})">◀ Atrasar</button>
+          <b>Progresión: semana ${_semAct + _off}${_off?` <span style="color:var(--rojo2)">(${_off>0?'+':''}${_off})</span>`:''}</b>
+          <button class="sm ghost" onclick="setSemanaOffset('${id}',${_off+1})">Adelantar ▶</button>
+          ${_off?`<button class="sm ghost" onclick="setSemanaOffset('${id}',0)">Volver a normal</button>`:''}
+          <span id="offMsg" class="muted" style="font-size:12px"></span>
+        </div>
+      </div>
+      <div class="muted" style="font-size:11px;margin-bottom:4px">¿La fecha de inicio quedó mal? Corrígela (⚠️ re-agrupa el historial por semanas; solo para arreglar el arranque real, no para adelantar):</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <label class="lbl" style="margin:0">Fecha de inicio del plan</label>
         <input id="inicioPlan_${id}" type="date" value="${_P.inicio?esc(_P.inicio):''}" style="width:auto;margin:0">
-        <button class="sm" onclick="setInicioPlan('${id}')">Guardar inicio</button>
+        <button class="sm ghost" onclick="setInicioPlan('${id}')">Guardar inicio</button>
         <span id="semMesoMsg" class="muted" style="font-size:12px"></span>
       </div>`;
   }
@@ -2268,6 +2279,17 @@ async function resetClave(id){
 // CORRIGE la fecha de inicio del plan (solo para arreglar el arranque real).
 // NO es para "saltar" semanas: la semana la calcula la app por calendario y
 // mover la fecha re-agrupa el historial (por eso pide confirmación).
+// Adelanta/atrasa la PROGRESIÓN (RIR/volumen/deload) de un cliente que va más
+// rápido/lento, SIN tocar su historial ni el calendario (planes.semana_offset).
+async function setSemanaOffset(id,off){
+  off=Math.round(+off||0);
+  const msg=$("offMsg");
+  if(msg)msg.textContent="Guardando…";
+  const {error}=await sb.from("planes").update({semana_offset:off,updated_at:new Date().toISOString()}).eq("user_id",id);
+  if(error){if(msg)msg.innerHTML='<span class="alert">'+esc(error.message)+'</span>';return;}
+  if(msg)msg.textContent="✓ Progresión "+(off>0?"+"+off:off)+" semanas";
+  setTimeout(()=>verCliente(id),650);
+}
 async function setInicioPlan(id){
   const el=$("inicioPlan_"+id);const v=(el&&el.value||"").trim();const msg=$("semMesoMsg");
   if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){if(msg)msg.innerHTML='<span class="alert">Fecha inválida (AAAA-MM-DD)</span>';return;}
