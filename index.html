@@ -629,7 +629,12 @@ const nombreEj=id=>{const e=EJ.find(x=>String(x.id)===String(id));return e?e.nom
 const cap=s=>!s?"":s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();
 
 async function verCliente(id){
-  SEL=id;renderClientes();$("detalle").innerHTML='<div class="card">Cargando…</div>';
+  // Recarga del MISMO cliente (tras guardar/editar una tarjeta): preservamos la
+  // posición de scroll y NO parpadeamos a "Cargando…" (dejamos la ficha visible),
+  // para no perder el sitio ni el contexto en cada micro-edición. Las tarjetas
+  // abiertas y la pestaña activa ya se conservan (ACORD_ABIERTOS / FICHA_TAB).
+  const _mismo=(SEL===id);const _scrollY=_mismo?(window.scrollY||0):0;
+  SEL=id;renderClientes();if(!_mismo)$("detalle").innerHTML='<div class="card">Cargando…</div>';
   const wk=weekId(),d7=hace(7);
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
@@ -1289,6 +1294,9 @@ async function verCliente(id){
   if(id!==SEL)return;
   $("detalle").innerHTML=h;
   recetaRender();rcInit();hacerColapsables();
+  // Restaura el scroll en recargas del mismo cliente (tras editar/guardar) para no
+  // saltar al inicio. rAF: tras el primer paint, cuando ya hay altura de contenido.
+  if(_mismo&&_scrollY>0){requestAnimationFrame(()=>{try{window.scrollTo(0,_scrollY);}catch(_){}});}
   // Carga el plan y el informe guardados (para re-descargarlos/editarlos sin regenerar).
   planCargarGuardado(id);
   infCargarGuardado(id);
