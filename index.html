@@ -1209,6 +1209,9 @@ async function verCliente(id){
     <label class="lbl">Alimentos para este plan (opcional) — descríbelos o lístalos</label>
     <textarea id="plan_foods" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: pollo, arroz, avena, huevo, atún, papa, aguacate, banano, whey Gold Standard… Si lo dejas vacío, uso los alimentos que el cliente registró."></textarea>
     <div class="muted" style="font-size:11px;margin:2px 0 6px">Si escribes aquí, la IA arma el plan SOLO con estos alimentos (manda sobre la lista del cliente).</div>
+    <label class="lbl">Estructura / instrucciones (opcional) — cómo quieres los platos</label>
+    <textarea id="plan_instrucciones" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: Desayuno siempre huevos con arepa; almuerzo pollo o carne con arroz y ensalada; cena proteína con verduras; nada de yogur ni avena en almuerzo/cena."></textarea>
+    <div class="muted" style="font-size:11px;margin:2px 0 6px">Instrucciones de estructura que la IA debe obedecer (además de lo que el cliente contó en su registro).</div>
     <div class="row" style="align-items:flex-end;margin-bottom:6px">
       <div style="flex:0"><label class="lbl">Días del plan</label><input id="plan_dias" type="number" min="1" max="10" value="4" style="width:80px"></div>
       <div style="flex:0"><label class="lbl">Comidas al día</label><input id="plan_comidas" type="number" min="2" max="7" value="4" style="width:90px"></div>
@@ -1768,9 +1771,10 @@ async function planGenerar(id){
   const dias=Math.max(1,Math.min(10,+$("plan_dias").value||4));
   const comidas=Math.max(2,Math.min(7,+$("plan_comidas").value||4));
   const foodsEl=$("plan_foods");const alimentos=(foodsEl&&foodsEl.value.trim())||"";
+  const insEl=$("plan_instrucciones");const instrucciones=(insEl&&insEl.value.trim())||"";
   $("planMsg").textContent="Generando plan con IA… (unos segundos)";$("plan_editor").innerHTML="";
   await planCargarCatalogo(id);
-  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,comidas,alimentos}});
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,comidas,alimentos,instrucciones}});
   if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   PLAN_DATOS=data.datos;
   // Convierte cada comida a filas de alimentos editables (nombre + gramos).
@@ -2850,7 +2854,9 @@ async function iaAplicar(){
   if(planAcc){
     iaCerrar();
     if($("plan_foods"))$("plan_foods").value=planAcc.alimentos||"";
+    if($("plan_instrucciones"))$("plan_instrucciones").value=planAcc.instrucciones||"";
     if($("plan_dias")&&planAcc.dias)$("plan_dias").value=Math.max(1,Math.min(10,+planAcc.dias||4));
+    if($("plan_comidas")&&planAcc.comidas)$("plan_comidas").value=Math.max(2,Math.min(7,+planAcc.comidas||4));
     try{await planGenerar(id);}catch(e){}
     return;
   }
