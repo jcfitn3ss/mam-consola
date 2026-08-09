@@ -1211,6 +1211,7 @@ async function verCliente(id){
     <div class="muted" style="font-size:11px;margin:2px 0 6px">Si escribes aquí, la IA arma el plan SOLO con estos alimentos (manda sobre la lista del cliente).</div>
     <div class="row" style="align-items:flex-end;margin-bottom:6px">
       <div style="flex:0"><label class="lbl">Días del plan</label><input id="plan_dias" type="number" min="1" max="10" value="4" style="width:80px"></div>
+      <div style="flex:0"><label class="lbl">Comidas al día</label><input id="plan_comidas" type="number" min="2" max="7" value="4" style="width:90px"></div>
       <div><button onclick="planGenerar('${id}')">Generar con IA</button></div>
     </div>
     <span id="planMsg" class="muted" style="font-size:12px"></span>
@@ -1765,10 +1766,11 @@ function planMealTot(c){
 function planDayTot(dia){return (dia.comidas||[]).reduce((a,c)=>{const m=planMealTot(c);return{k:a.k+m.k,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f};},{k:0,p:0,c:0,f:0});}
 async function planGenerar(id){
   const dias=Math.max(1,Math.min(10,+$("plan_dias").value||4));
+  const comidas=Math.max(2,Math.min(7,+$("plan_comidas").value||4));
   const foodsEl=$("plan_foods");const alimentos=(foodsEl&&foodsEl.value.trim())||"";
   $("planMsg").textContent="Generando plan con IA… (unos segundos)";$("plan_editor").innerHTML="";
   await planCargarCatalogo(id);
-  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,alimentos}});
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,comidas,alimentos}});
   if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   PLAN_DATOS=data.datos;
   // Convierte cada comida a filas de alimentos editables (nombre + gramos).
