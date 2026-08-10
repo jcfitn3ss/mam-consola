@@ -593,6 +593,40 @@ function volverLista(){SEL=null;$("detalle").innerHTML='';renderClientes();windo
 // (mismo almacén per-día que "Atendido"); mañana reaparece si sigue con alerta.
 function resolverHoy(uid){const s=atSet();s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));renderClientes();}
 function reabrirResueltos(){localStorage.setItem(_atKey(),JSON.stringify([]));renderClientes();}
+// ---- COMPARACIONES (fotos / medidas / pliegues) por fecha ----
+function cmpFotosLlenar(){
+  const F=window.__cmpF||[];const a=document.getElementById('cmpFa'),b=document.getElementById('cmpFb');if(!a||!b)return;
+  const tipo=(document.getElementById('cmpFtipo')||{}).value||'';
+  const items=F.map((f,i)=>({i,f})).filter(x=>!tipo||String(x.f.tipo||'').trim()===tipo);
+  const opts=items.map(x=>`<option value="${x.i}">${esc(x.f.fecha||'')}${x.f.tipo?' · '+esc(x.f.tipo):''}</option>`).join('');
+  a.innerHTML=opts;b.innerHTML=opts;
+  if(items.length){a.value=items[0].i;b.value=items[items.length-1].i;}
+  cmpFotos();
+}
+function cmpFotos(){
+  const F=window.__cmpF||[];const v=document.getElementById('cmpFotoView');if(!v)return;
+  const a=+((document.getElementById('cmpFa')||{}).value),b=+((document.getElementById('cmpFb')||{}).value);
+  const fa=F[a],fb=F[b];if(!fa||!fb){v.innerHTML='';return;}
+  let extra='';
+  if(fa.fecha&&fb.fecha){const d=Math.round((new Date(fb.fecha)-new Date(fa.fecha))/864e5);if(!isNaN(d))extra=`<div class="muted" style="font-size:11px;text-align:center;margin-top:6px">${Math.abs(d)} días entre A y B</div>`;}
+  const mm=(fa.tipo&&fb.tipo&&fa.tipo!==fb.tipo)?`<div style="font-size:11px;color:var(--warn);text-align:center;margin-top:2px">⚠ Poses distintas (${esc(fa.tipo)} vs ${esc(fb.tipo)}) — compara la misma pose para decidir mejor</div>`:'';
+  const cel=(f,idx,lbl)=>`<div style="flex:1;min-width:150px;text-align:center"><div class="muted" style="font-size:11px;margin-bottom:3px">${lbl} · ${esc(f.fecha||'')}${f.tipo?' · '+esc(f.tipo):''}</div><img src="${esc(f.url)}" style="width:100%;max-height:560px;object-fit:contain;border-radius:8px;background:#000;cursor:pointer" onclick="lbOpen(window.__cmpF,${idx})"></div>`;
+  v.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap">${cel(fa,a,'A (antes)')}${cel(fb,b,'B (después)')}</div>${mm}${extra}`;
+}
+function _cmpTabla(A,B,keys,unitFn){
+  const rows=keys.map(([k,l])=>{const va=A?A[k]:null,vb=B?B[k]:null;if(va==null&&vb==null)return '';const u=unitFn(k);const d=(va!=null&&vb!=null)?Math.round((vb-va)*10)/10:null;const col=d==null?'var(--muted)':(d<0?'var(--ok)':d>0?'var(--warn)':'var(--muted)');return `<tr><td>${l}</td><td>${va!=null?va+u:'—'}</td><td>${vb!=null?vb+u:'—'}</td><td style="color:${col};font-weight:600">${d==null?'—':(d>0?'+':'')+d+u}</td></tr>`;}).join('');
+  return `<table style="font-size:12px;width:100%;border-collapse:collapse"><tr><th style="text-align:left">Medida</th><th>A</th><th>B</th><th>Δ</th></tr>${rows}</table>`;
+}
+function cmpMed(){
+  const M=window.__cmpM||[];const v=document.getElementById('cmpMedView');if(!v)return;
+  const A=M[+((document.getElementById('cmpMa')||{}).value)],B=M[+((document.getElementById('cmpMb')||{}).value)];if(!A||!B){v.innerHTML='';return;}
+  v.innerHTML=_cmpTabla(A,B,[['cintura','Cintura'],['cadera','Cadera'],['pecho','Pecho'],['brazo','Brazo'],['muslo','Muslo']],()=>' cm');
+}
+function cmpPlg(){
+  const P=window.__cmpP||[];const v=document.getElementById('cmpPlgView');if(!v)return;
+  const A=P[+((document.getElementById('cmpPa')||{}).value)],B=P[+((document.getElementById('cmpPb')||{}).value)];if(!A||!B){v.innerHTML='';return;}
+  v.innerHTML=_cmpTabla(A,B,[['tricipital','Tricipital'],['subescapular','Subescapular'],['pectoral','Pectoral'],['abdominal','Abdominal'],['suprailiaco','Suprailíaco'],['muslo','Muslo'],['pantorrilla','Pantorrilla'],['grasa','% Grasa']],(k)=>k==='grasa'?' %':' mm');
+}
 // Fecha de inicio específica del mesociclo (planes.inicio). Recalcula semana/progresión.
 async function guardarInicioPlan(id){
   const v=$("g_inicio")?$("g_inicio").value:"";
@@ -672,7 +706,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz,recCli,regLog]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz,recCli,regLog,plg]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -701,6 +735,7 @@ async function verCliente(id){
     sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
     sb.from("recetas").select("*").eq("owner",id).order("nombre"),
     sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at,foto_url,saciedad,disfrute,ruido,fibra").eq("user_id",id).gte("fecha",hace(21)).order("fecha",{ascending:false}).order("created_at",{ascending:true}).limit(500),
+    sb.from("pliegues").select("*").eq("user_id",id).order("fecha",{ascending:true}),
   ]);
   const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
   // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
@@ -1052,29 +1087,41 @@ async function verCliente(id){
   if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">↩ Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><span id="rutMsg" class="muted"></span></div>`;
   h+=`</div>`;
 
-  // ===== PROGRESO FÍSICO: peso + medidas + fotos, TODO EN UNA SOLA SECCIÓN =====
+  // ===== PROGRESO FÍSICO (peso) + COMPARACIONES organizadas (fotos/medidas/pliegues) =====
   {
-    const Fp=fts.data||[]; window.__fotos=Fp;
-    const mLast=md[0]||null, mPrev=md[1]||null;
-    const medRow=(lbl,key,unit)=>{ if(!mLast||mLast[key]==null) return ''; const a=mLast[key]; const b=(mPrev&&mPrev[key]!=null)?mPrev[key]:null; const d=b!=null?(a-b):null; return `<div class="fila"><span>${lbl}</span><span>${a} ${unit}${d!=null?` <span class="muted">(${d>0?'+':''}${(+d).toFixed(1)})</span>`:''}</span></div>`; };
-    h+=`<div class="card"><h2 style="margin-top:0">Progreso físico</h2>`;
-    h+=`<div class="muted" style="font-size:12px;margin-bottom:6px">Peso, medidas y fotos del cliente, todo junto.</div>`;
-    h+=`<h3>Peso</h3>`;
+    window.__fotos=fts.data||[]; // compat con las fotos iniciales del intake
+    h+=`<div class="card"><h2 style="margin-top:0">📈 Peso</h2>`;
     h+=`<div class="fila"><span>Actual</span><span>${peso!=null?`${pU(peso)} ${U_PESO}`:'—'}${dp!=null?` <span class="muted">(${dp>0?'+':''}${dU(dp)} ${U_PESO} total)</span>`:''}</span></div>`;
     if(pesos.length) h+=`<div class="muted" style="font-size:11px;margin-top:4px">Últimos registros</div>`+pesos.slice(0,8).map(p=>`<div class="fila"><span class="muted">${esc(p.fecha)}</span><span>${pU(p.peso)} ${U_PESO}</span></div>`).join("");
     else h+=`<div class="muted" style="font-size:12px">Sin pesos registrados.</div>`;
-    h+=`<h3>Medidas (completas — primera vs última)</h3>`;
-    {
-      const MA=(medsAll&&medsAll.data)||[];const mm0=MA[0],mm1=MA[MA.length-1];
-      const mrow=(lbl,k)=>{if(!mm0&&!mm1)return'';const a=mm0?mm0[k]:null,b=mm1?mm1[k]:null;if(a==null&&b==null)return'';const d=(a!=null&&b!=null&&MA.length>1)?Math.round((b-a)*10)/10:null;return `<tr><td>${lbl}</td><td>${a!=null?a+' cm':'—'}</td><td>${b!=null?b+' cm':'—'}</td><td class="muted">${d==null?'—':(d>0?'+':'')+d+' cm'}</td></tr>`;};
-      if(MA.length){h+=`<table style="font-size:12px;width:100%;border-collapse:collapse"><tr><th style="text-align:left">Medida</th><th>Primera<br><span class="muted" style="font-size:10px">${esc(mm0?mm0.fecha||'':'')}</span></th><th>Última<br><span class="muted" style="font-size:10px">${esc(mm1?mm1.fecha||'':'')}</span></th><th>Δ</th></tr>${mrow('Cintura','cintura')}${mrow('Cadera','cadera')}${mrow('Pecho','pecho')}${mrow('Brazo','brazo')}${mrow('Muslo','muslo')}</table>`;}
-      else h+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
+    h+=`</div>`;
+
+    // COMPARACIONES: el cliente (sobre todo atletas) sube MUCHAS fotos y medidas.
+    // Aquí el entrenador ELIGE por fecha qué comparar; la app arma la comparativa sola.
+    const F=(fts.data||[]).filter(f=>f.url);window.__cmpF=F;         // fotos (asc por fecha)
+    const M=(medsAll&&medsAll.data)||[];window.__cmpM=M;             // medidas (asc)
+    const P=(plg&&plg.data)||[];window.__cmpP=P;                     // pliegues (asc)
+    const tipos=[...new Set(F.map(f=>String(f.tipo||'').trim()).filter(Boolean))];
+    const optF=F.map((f,i)=>`<option value="${i}">${esc(f.fecha||'')}${f.tipo?' · '+esc(f.tipo):''}</option>`).join('');
+    h+=`<div class="card"><h2 style="margin-top:0">📸 Comparaciones</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Elige por fecha qué comparar. Ideal para atletas con muchas fotos y medidas.</div>`;
+    // ---- FOTOS (a tamaño completo, seleccionables por fecha/pose) ----
+    h+=`<h3 style="margin-top:0">Fotos comparativas</h3>`;
+    if(F.length){
+      if(tipos.length>1)h+=`<div style="margin-bottom:6px"><label class="lbl">Filtrar por pose/tipo (para comparar la misma pose)</label><select id="cmpFtipo" onchange="cmpFotosLlenar()" style="max-width:260px"><option value="">Todas las poses</option>${tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>`;
+      h+=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px"><div style="flex:1;min-width:150px"><label class="lbl">Foto A (antes)</label><select id="cmpFa" onchange="cmpFotos()">${optF}</select></div><div style="flex:1;min-width:150px"><label class="lbl">Foto B (después)</label><select id="cmpFb" onchange="cmpFotos()">${optF}</select></div></div>`;
+      h+=`<div id="cmpFotoView"></div>`;
+      h+=`<div class="muted" style="font-size:11px;margin-top:10px">Todas las fotos (${F.length}) — clic para ampliar</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${F.map((f,i)=>`<div style="text-align:center"><img class="thumb" onclick="lbOpen(window.__cmpF,${i})" src="${esc(f.url)}"><div class="muted" style="font-size:10px;max-width:82px">${esc(f.fecha||'')}${f.tipo?'<br>'+esc(f.tipo):''}</div></div>`).join('')}</div>`;
+    } else h+=`<div class="muted" style="font-size:12px">Sin fotos.</div>`;
+    // ---- MEDIDAS (comparar dos fechas a elección) ----
+    h+=`<h3>Medidas — compara dos fechas</h3>`;
+    if(M.length){
+      h+=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px"><div><label class="lbl">Fecha A</label><select id="cmpMa" onchange="cmpMed()">${M.map((m,i)=>`<option value="${i}"${i===0?' selected':''}>${esc(m.fecha||'')}</option>`).join('')}</select></div><div><label class="lbl">Fecha B</label><select id="cmpMb" onchange="cmpMed()">${M.map((m,i)=>`<option value="${i}"${i===M.length-1?' selected':''}>${esc(m.fecha||'')}</option>`).join('')}</select></div></div><div id="cmpMedView"></div>`;
+    } else h+=`<div class="muted" style="font-size:12px">Sin medidas registradas.</div>`;
+    // ---- PLIEGUES (solo si hay registros; típico en atletas) ----
+    if(P.length){
+      h+=`<h3>Pliegues — compara dos fechas</h3>`;
+      h+=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px"><div><label class="lbl">Fecha A</label><select id="cmpPa" onchange="cmpPlg()">${P.map((p,i)=>`<option value="${i}"${i===0?' selected':''}>${esc(p.fecha||'')}</option>`).join('')}</select></div><div><label class="lbl">Fecha B</label><select id="cmpPb" onchange="cmpPlg()">${P.map((p,i)=>`<option value="${i}"${i===P.length-1?' selected':''}>${esc(p.fecha||'')}</option>`).join('')}</select></div></div><div id="cmpPlgView"></div>`;
     }
-    h+=`<h3>Fotos comparativas</h3>`;
-    if(Fp.length){
-      h+=`<div class="row"><div><div class="muted" style="font-size:11px">Primera (${esc(Fp[0].fecha)})</div>${Fp[0].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,0)" src="${esc(Fp[0].url)}">`:''}</div>${Fp.length>1?`<div><div class="muted" style="font-size:11px">Última (${esc(Fp[Fp.length-1].fecha)})</div>${Fp[Fp.length-1].url?`<img class="foto" style="cursor:pointer" onclick="lbOpen(window.__fotos,${Fp.length-1})" src="${esc(Fp[Fp.length-1].url)}">`:''}</div>`:''}</div>`;
-      h+=`<div class="muted" style="font-size:11px;margin-top:8px">Todas las fotos (clic para ampliar)</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${Fp.map((f,i)=>f.url?`<div style="text-align:center"><img class="thumb" onclick="lbOpen(window.__fotos,${i})" src="${esc(f.url)}"><div class="muted" style="font-size:10px;max-width:82px">${esc(f.fecha||'')}${f.tipo?'<br>'+esc(f.tipo):''}</div></div>`:'').join("")}</div>`;
-    } else h+=`<div class="muted">Sin fotos.</div>`;
     h+=`</div>`;
   }
 
@@ -1363,7 +1410,7 @@ function hacerColapsables(){
   const clasTab=(t)=>{t=(t||'').toLowerCase();
     if(/entrenamiento|rutina|nivel|progresi[oó]n|mesociclo|programaci|an[aá]lisis de entreno|especializaci/.test(t))return 'entreno';
     if(/objetivo|nutrici|macros|refeed|informe mensual|plan de alimentaci|registro.*comida|plan de comidas/.test(t))return 'nutricion';
-    if(/progreso f[ií]sico|comparativa|gr[aá]ficas|calendario|pliegues/.test(t))return 'progreso';
+    if(/progreso f[ií]sico|comparativa|comparaciones|gr[aá]ficas|calendario|pliegues|peso|medidas|fotos/.test(t))return 'progreso';
     if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos|acceso|suscripci/.test(t))return 'gestion';
     return 'resumen';};
   const abiertos=window.ACORD_ABIERTOS, conts=[];
@@ -1402,6 +1449,10 @@ function hacerColapsables(){
     det.insertBefore(tabsEl,det.firstChild);
     mostrar(window.FICHA_TAB||'resumen');
   }
+  // Inicializa las comparaciones (fotos/medidas/pliegues): rellena A=primera, B=última.
+  try{cmpFotosLlenar();}catch(e){}
+  try{cmpMed();}catch(e){}
+  try{cmpPlg();}catch(e){}
 }
 
 // ---------- Constructor de recetas por ingredientes + gramaje (cálculo IA) ----------
