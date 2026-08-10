@@ -664,7 +664,7 @@ async function verCliente(id){
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("comidas").select("descripcion,kcal,prot,carb,fat").eq("user_id",id).order("id",{ascending:false}).limit(120),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura,unidad_peso").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
@@ -697,6 +697,11 @@ async function verCliente(id){
   const dv=Object.values(dias);const prom=dv.length?{k:Math.round(dv.reduce((a,x)=>a+x.k,0)/dv.length),p:Math.round(dv.reduce((a,x)=>a+x.p,0)/dv.length),c:Math.round(dv.reduce((a,x)=>a+x.c,0)/dv.length),f:Math.round(dv.reduce((a,x)=>a+x.f,0)/dv.length)}:null;
   const C=(ck.data||[])[0];const J=jr.data||[];
   const pesos=pes.data||[];const peso=pesos[0]?pesos[0].peso:null;const peso0=pesos[pesos.length-1]?pesos[pesos.length-1].peso:null;const dp=(peso!=null&&peso0!=null)?(peso-peso0).toFixed(1):null;
+  // Unidad de peso del CLIENTE (kg/lb): el peso se guarda en kg; aquí solo se MUESTRA
+  // en su unidad para que el entrenador vea lo mismo que el cliente. Cálculos = kg.
+  const U_PESO=(per&&per.unidad_peso==='lb')?'lb':'kg';const _LBK=2.2046226218;
+  const pU=(kg)=>kg==null||kg===''||isNaN(+kg)?null:Math.round((U_PESO==='lb'?+kg*_LBK:+kg)*10)/10; // kg → nº en su unidad
+  const dU=(dkg)=>dkg==null||isNaN(+dkg)?null:(Math.round((U_PESO==='lb'?+dkg*_LBK:+dkg)*10)/10); // delta en su unidad
   const md=meds.data||[];const cint=md[0]?md[0].cintura:null;
   // Promedio de sueño = SOLO sobre las noches REGISTRADas (÷ nº de registros, no ÷ días).
   const suRec=(sue.data||[]).filter(s=>s.horas!=null);const sNoches=suRec.length;const sprom=sNoches?(suRec.reduce((a,x)=>a+(+x.horas||0),0)/sNoches):null;
@@ -730,7 +735,7 @@ async function verCliente(id){
   rep+=`<h3 style="margin:8px 0 2px">Novedades</h3>`;
   let hayNov=false;
   if(alsCli.length){rep+=fila("Alertas abiertas",alsCli.length+": "+alsCli.slice(0,3).map(a=>a.tipo).join(", "),true);hayNov=true;}
-  if(dp!=null){rep+=fila("Cambio de peso",(dp>0?'+':'')+dp+" kg");hayNov=true;}
+  if(dp!=null){rep+=fila("Cambio de peso",(dp>0?'+':'')+dU(dp)+" "+U_PESO);hayNov=true;}
   if(prom&&o.kcal)rep+=fila("Adherencia calorías",`${prom.k} real vs ${o.kcal} objetivo`,Math.abs(prom.k-o.kcal)>300),hayNov=true;
   if(J[0]){rep+=`<div style="margin-top:4px"><span class="muted" style="font-size:11px">Último journal (${esc(J[0].fecha)})</span><div>${esc((J[0].texto||'').slice(0,160))}</div></div>`;hayNov=true;}
   if(!hayNov)rep+=`<div class="muted">Sin novedades.</div>`;
@@ -1024,8 +1029,8 @@ async function verCliente(id){
     h+=`<div class="card"><h2 style="margin-top:0">Progreso físico</h2>`;
     h+=`<div class="muted" style="font-size:12px;margin-bottom:6px">Peso, medidas y fotos del cliente, todo junto.</div>`;
     h+=`<h3>Peso</h3>`;
-    h+=`<div class="fila"><span>Actual</span><span>${peso!=null?`${peso} kg`:'—'}${dp!=null?` <span class="muted">(${dp>0?'+':''}${dp} kg total)</span>`:''}</span></div>`;
-    if(pesos.length) h+=`<div class="muted" style="font-size:11px;margin-top:4px">Últimos registros</div>`+pesos.slice(0,8).map(p=>`<div class="fila"><span class="muted">${esc(p.fecha)}</span><span>${p.peso} kg</span></div>`).join("");
+    h+=`<div class="fila"><span>Actual</span><span>${peso!=null?`${pU(peso)} ${U_PESO}`:'—'}${dp!=null?` <span class="muted">(${dp>0?'+':''}${dU(dp)} ${U_PESO} total)</span>`:''}</span></div>`;
+    if(pesos.length) h+=`<div class="muted" style="font-size:11px;margin-top:4px">Últimos registros</div>`+pesos.slice(0,8).map(p=>`<div class="fila"><span class="muted">${esc(p.fecha)}</span><span>${pU(p.peso)} ${U_PESO}</span></div>`).join("");
     else h+=`<div class="muted" style="font-size:12px">Sin pesos registrados.</div>`;
     h+=`<h3>Medidas (completas — primera vs última)</h3>`;
     {
@@ -1187,7 +1192,7 @@ async function verCliente(id){
     h+=`<h3>Aplicar a un día</h3>`;
     h+=`<label class="lbl">Fecha</label><select id="md_fecha">${fechasSem.map((f,i)=>`<option value="${f}" ${f===hoy?'selected':''}>${DIAS[i]} ${esc(f)}${f===hoy?' (hoy)':''}</option>`).join("")}</select>`;
     h+=`<div class="row" style="margin-top:6px"><div><button class="sm" onclick="aplicarRefeed('${id}')">Aplicar refeed</button></div><div><button class="sm ghost" onclick="quitarMacrosDia('${id}')">Normal (quitar)</button></div></div>`;
-    if(refeedCalc)h+=`<div class="muted" style="font-size:12px;margin-top:4px">Refeed calculado (peso ${pesoAct} kg): ${refeedCalc.kcal} kcal · P${refeedCalc.prot}/C${refeedCalc.carb}/G${refeedCalc.fat}. Carbohidratos idealmente antes de entrenar.</div>`;
+    if(refeedCalc)h+=`<div class="muted" style="font-size:12px;margin-top:4px">Refeed calculado (peso ${pU(pesoAct)} ${U_PESO}): ${refeedCalc.kcal} kcal · P${refeedCalc.prot}/C${refeedCalc.carb}/G${refeedCalc.fat}. Carbohidratos idealmente antes de entrenar.</div>`;
     else h+=`<div class="muted" style="font-size:12px;margin-top:4px">Falta peso reciente para calcular el refeed.</div>`;
     h+=`<h3>Custom (macros manuales)</h3>`;
     h+=`<div class="row"><div><label class="lbl">Kcal</label><input id="md_kcal" type="number" value="${base.kcal||''}"></div><div><label class="lbl">Prot</label><input id="md_prot" type="number" value="${base.prot||''}" oninput="recalcMd()"></div><div><label class="lbl">Carb</label><input id="md_carb" type="number" value="${base.carb||''}" oninput="recalcMd()"></div><div><label class="lbl">Grasa</label><input id="md_fat" type="number" value="${base.fat||''}" oninput="recalcMd()"></div></div>`;
@@ -1283,13 +1288,13 @@ async function verCliente(id){
       const kcalDs=[{label:'Consumido',color:'#e23b3b',pts:kdates.map(f=>({x:f,y:Math.round(kByDay[f]),tip:fmtF(f)+' · '+Math.round(kByDay[f])+' kcal'}))}];
       if(o.kcal)kcalDs.push({label:'Objetivo',color:'#4c8dff',pts:kdates.map(f=>({x:f,y:+o.kcal,tip:'Objetivo '+o.kcal+' kcal'}))});
       const pesAsc=[...(pes.data||[])].reverse().filter(p=>p.peso!=null);
-      const pesoDs=[{label:'Peso (kg)',color:'#22c55e',pts:pesAsc.map(p=>({x:p.fecha,y:+p.peso,tip:fmtF(p.fecha)+' · '+p.peso+' kg'}))}];
+      const pesoDs=[{label:'Peso ('+U_PESO+')',color:'#22c55e',pts:pesAsc.map(p=>({x:p.fecha,y:pU(p.peso),tip:fmtF(p.fecha)+' · '+pU(p.peso)+' '+U_PESO}))}];
       const sueAsc=[...(sue.data||[])].reverse().filter(s=>s.horas!=null);
       const sueDs=[{label:'Sueño (h)',color:'#a855f7',pts:sueAsc.map(s=>({x:s.fecha,y:+s.horas,tip:fmtF(s.fecha)+' · '+s.horas+' h'}))}];
       const M=medsAll.data||[];const m0=M[0],m1=M[M.length-1];
       const medRow=(lbl,k,u)=>{if(!m0)return'';const a=m0[k],b=m1?m1[k]:null;if(a==null&&b==null)return'';const d=(a!=null&&b!=null&&M.length>1)?Math.round((b-a)*10)/10:null;return `<tr><td>${lbl}</td><td>${a!=null?a+' '+u:'—'}</td><td>${b!=null?b+' '+u:'—'}</td><td class="muted">${d==null?'—':(d>0?'+':'')+d+' '+u}</td></tr>`;};
       let cg=`<h3 style="margin-top:0">Calorías (últimos días) vs objetivo</h3>${svgChart(kcalDs,kdates,'kcal',fmtF)}`;
-      cg+=`<h3>Peso</h3>${svgChart(pesoDs,pesAsc.map(p=>p.fecha),'kg',fmtF)}`;
+      cg+=`<h3>Peso</h3>${svgChart(pesoDs,pesAsc.map(p=>p.fecha),U_PESO,fmtF)}`;
       cg+=`<h3>Sueño</h3>${svgChart(sueDs,sueAsc.map(s=>s.fecha),'h',fmtF)}`;
       cg+=`<h3>Medidas — primera vs última</h3>`;
       if(M.length){cg+=`<table style="font-size:12px;width:100%"><tr><th>Medida</th><th>Primera<br><span class="muted" style="font-size:10px">${esc(m0?m0.fecha||'':'')}</span></th><th>Última<br><span class="muted" style="font-size:10px">${esc(m1?m1.fecha||'':'')}</span></th><th>Δ</th></tr>${medRow('Cintura','cintura','cm')}${medRow('Cadera','cadera','cm')}${medRow('Pecho','pecho','cm')}${medRow('Brazo','brazo','cm')}${medRow('Muslo','muslo','cm')}</table>`;}
