@@ -156,7 +156,7 @@
 
     <div id="v-clientes">
       <div id="solicitudes"></div>
-      <div class="card">
+      <div class="card" id="listaCard">
         <h2 style="margin-top:0">Clientes (<span id="nCli">0</span>) · por prioridad</h2>
         <label class="lbl" style="margin-top:0">Ir a cualquier persona (todos, incluido tú)</label>
         <select id="cliDrop" onchange="if(this.value)verCliente(this.value)" style="margin-bottom:8px"></select>
@@ -588,8 +588,11 @@ function copiarCorreos(){
     prompt('Copia estos correos:',correos.join(', '));
   });
 }
+function volverLista(){SEL=null;$("detalle").innerHTML='';renderClientes();window.scrollTo(0,0);}
 function renderClientes(){
   const q=($("buscar").value||"").toLowerCase().trim();
+  // FOCO un-cliente-a-la-vez: si hay cliente abierto, la lista se esconde; si no, se ve.
+  const _lc=document.getElementById('listaCard');if(_lc)_lc.style.display=SEL?'none':'';
   $("nCli").textContent=CLIENTES.length;
   const pagan=CLIENTES.filter(c=>pagoInfo(c).pagando).length;
   const sinPagar=CLIENTES.length-pagan;
@@ -643,7 +646,11 @@ async function verCliente(id){
   // para no perder el sitio ni el contexto en cada micro-edición. Las tarjetas
   // abiertas y la pestaña activa ya se conservan (ACORD_ABIERTOS / FICHA_TAB).
   const _mismo=(SEL===id);const _scrollY=_mismo?(window.scrollY||0):0;
-  SEL=id;renderClientes();if(!_mismo)$("detalle").innerHTML='<div class="card">Cargando…</div>';
+  SEL=id;renderClientes();
+  // FOCO: al abrir un cliente se esconde la lista y se ve SOLO su ficha (un cliente
+  // a la vez). "← Volver a la lista" (volverLista) la muestra de nuevo.
+  const _lc=document.getElementById('listaCard');if(_lc)_lc.style.display='none';
+  if(!_mismo)$("detalle").innerHTML='<div class="card">Cargando…</div>';
   const wk=weekId(),d7=hace(7);
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
@@ -1309,7 +1316,8 @@ async function verCliente(id){
   // RACE CONDITION: si mientras cargaban las ~26 consultas el entrenador hizo clic
   // en OTRO cliente, SEL ya cambió. No pintamos la ficha vieja encima de la nueva.
   if(id!==SEL)return;
-  $("detalle").innerHTML=h;
+  const nomCli=(CLIENTES.find(c=>c.user_id===id)||{}).nombre||'';
+  $("detalle").innerHTML=`<div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;margin-bottom:6px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)"><button class="sm" onclick="volverLista()" style="margin:0">← Volver a la lista</button><b style="font-size:15px">${esc(nomCli)}</b></div>`+h;
   recetaRender();rcInit();hacerColapsables();
   // Restaura el scroll en recargas del mismo cliente (tras editar/guardar) para no
   // saltar al inicio. rAF: tras el primer paint, cuando ya hay altura de contenido.
