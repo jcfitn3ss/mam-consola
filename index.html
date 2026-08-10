@@ -678,6 +678,23 @@ async function reuGuardar(id){
   verCliente(id);
 }
 async function reuBorrar(rid,id){if(!confirm("¿Borrar esta reunión?"))return;const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){alert(e);return;}verCliente(id);}
+// Conectar Google (abre el consentimiento de Google en otra pestaña).
+async function conectarGoogle(){
+  const m=$("meetMsg");if(m)m.textContent="Abriendo Google…";
+  const {data,error}=await invokeFn("google-conectar",{body:{}});
+  if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  if(data&&data.url){window.open(data.url,"_blank");if(m)m.textContent="Autoriza en la ventana de Google y vuelve; luego pulsa 'Sincronizar reuniones'.";}
+}
+// Sincroniza las reuniones de Meet (con transcripción) → resumen IA → ficha del cliente.
+async function sincronizarMeet(id){
+  const m=$("meetMsg");if(m)m.textContent="Sincronizando reuniones de Meet… (puede tardar)";
+  const {data,error}=await invokeFn("meet-sync",{body:{}});
+  if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  let txt=`✓ ${data.synced||0} reunión(es) sincronizada(s) de ${data.total||0}.`;
+  if(data.unmatched&&data.unmatched.length)txt+=` ${data.unmatched.length} sin asignar (${data.unmatched.slice(0,3).map(u=>esc((u.participantes||'')+' — '+(u.motivo||''))).join(' · ')}${data.unmatched.length>3?'…':''}).`;
+  if(m)m.innerHTML=txt;
+  setTimeout(()=>verCliente(id),1200);
+}
 function renderClientes(){
   const q=($("buscar").value||"").toLowerCase().trim();
   // FOCO un-cliente-a-la-vez: si hay cliente abierto, la lista se esconde; si no, se ve.
@@ -985,7 +1002,8 @@ async function verCliente(id){
   {
     const RNS=rns.data||[];
     h+=`<div class="card"><h2 style="margin-top:0">📞 Reuniones${RNS.length?` (${RNS.length})`:''}</h2>`;
-    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Reuniones con el cliente: fecha, resumen y pendientes. Pega la transcripción de Google Meet (u otras notas) y la IA la resume. <i>La conexión automática con Google Meet se habilita cuando conectes tu cuenta de Google.</i></div>`;
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Reuniones con el cliente: fecha, resumen y pendientes. Con Google Meet conectado se sincronizan solas (con transcripción activada); o pega la transcripción y la IA la resume.</div>`;
+    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><button class="sm" onclick="conectarGoogle()">🔗 Conectar Google Meet</button><button class="sm" onclick="sincronizarMeet('${id}')">🔄 Sincronizar reuniones</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
     if(RNS.length){h+=RNS.map(r=>`<div style="border-left:3px solid var(--rojo);padding:6px 10px;margin-bottom:8px;background:#14141b;border-radius:6px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${esc(r.fecha||'')}${r.titulo?' · '+esc(r.titulo):''}</b><button class="sm ghost" onclick="reuBorrar('${r.id}','${id}')" style="margin:0;padding:2px 8px">🗑</button></div>${r.resumen?`<div style="font-size:13px;margin-top:4px">${esc(r.resumen)}</div>`:''}${r.puntos?`<ul style="margin:4px 0 0;padding-left:18px;font-size:12px;color:var(--muted)">${String(r.puntos).split('\n').filter(Boolean).map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}${r.meet_url?`<div style="margin-top:3px"><a href="${esc(r.meet_url)}" target="_blank" style="font-size:11px">enlace Meet</a></div>`:''}</div>`).join('');}
     else h+=`<div class="muted" style="font-size:12px">Sin reuniones registradas.</div>`;
     h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">+ Registrar reunión</summary>
