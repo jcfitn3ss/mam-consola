@@ -658,6 +658,26 @@ async function verLlamadas(){
   $("v-llamadas").innerHTML=h;
 }
 async function setLlamada(uid,fecha){const e=errFilas(await sb.from("perfiles").update({proxima_llamada:fecha||null}).eq("user_id",uid).select("user_id"));if(e){alert(e);return;}verLlamadas();}
+// ---- REUNIONES (resumen IA de la transcripción + guardar/borrar) ----
+async function reuResumir(){
+  const txt=($("reu_txt").value||'').trim();
+  if(txt.length<20){$("reuMsg").textContent="Pega la transcripción o notas (al menos unas frases).";return;}
+  $("reuMsg").textContent="Resumiendo con IA…";
+  const nombre=(CLIENTES.find(c=>c.user_id===SEL)||{}).nombre||'';
+  const {data,error}=await invokeFn("resumir-reunion",{body:{transcripcion:txt,nombre,fecha:($("reu_fecha").value||'')}});
+  if(error||(data&&data.error)){$("reuMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  if($("reu_res"))$("reu_res").value=data.resumen||'';
+  if($("reu_pts"))$("reu_pts").value=(data.puntos||[]).join('\n');
+  $("reuMsg").textContent="✓ Resumen listo — revísalo y Guarda.";
+}
+async function reuGuardar(id){
+  const fecha=$("reu_fecha").value;if(!fecha){$("reuMsg").textContent="Elige la fecha.";return;}
+  const patch={user_id:id,fecha,titulo:($("reu_tit").value||'').trim()||null,resumen:($("reu_res").value||'').trim()||null,puntos:($("reu_pts").value||'').trim()||null,transcripcion:($("reu_txt").value||'').trim()||null,meet_url:($("reu_url").value||'').trim()||null,origen:'manual',creado_por:MIID};
+  const e=errFilas(await sb.from("reuniones").insert(patch).select("id"));
+  if(e){$("reuMsg").innerHTML=`<span class="alert">${esc(e)}</span>`;return;}
+  verCliente(id);
+}
+async function reuBorrar(rid,id){if(!confirm("¿Borrar esta reunión?"))return;const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){alert(e);return;}verCliente(id);}
 function renderClientes(){
   const q=($("buscar").value||"").toLowerCase().trim();
   // FOCO un-cliente-a-la-vez: si hay cliente abierto, la lista se esconde; si no, se ve.
@@ -729,7 +749,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz,recCli,regLog,plg]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz,recCli,regLog,plg,rns]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -759,6 +779,7 @@ async function verCliente(id){
     sb.from("recetas").select("*").eq("owner",id).order("nombre"),
     sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at,foto_url,saciedad,disfrute,ruido,fibra").eq("user_id",id).gte("fecha",hace(21)).order("fecha",{ascending:false}).order("created_at",{ascending:true}).limit(500),
     sb.from("pliegues").select("*").eq("user_id",id).order("fecha",{ascending:true}),
+    sb.from("reuniones").select("*").eq("user_id",id).order("fecha",{ascending:false}),
   ]);
   const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
   // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
@@ -958,6 +979,24 @@ async function verCliente(id){
         <button class="sm ghost" onclick="setInicioPlan('${id}')">Guardar inicio</button>
         <span id="semMesoMsg" class="muted" style="font-size:12px"></span>
       </div>`;
+  }
+
+  // ===== REUNIONES (Google Meet u otras): fecha, resumen IA y pendientes =====
+  {
+    const RNS=rns.data||[];
+    h+=`<div class="card"><h2 style="margin-top:0">📞 Reuniones${RNS.length?` (${RNS.length})`:''}</h2>`;
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Reuniones con el cliente: fecha, resumen y pendientes. Pega la transcripción de Google Meet (u otras notas) y la IA la resume. <i>La conexión automática con Google Meet se habilita cuando conectes tu cuenta de Google.</i></div>`;
+    if(RNS.length){h+=RNS.map(r=>`<div style="border-left:3px solid var(--rojo);padding:6px 10px;margin-bottom:8px;background:#14141b;border-radius:6px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${esc(r.fecha||'')}${r.titulo?' · '+esc(r.titulo):''}</b><button class="sm ghost" onclick="reuBorrar('${r.id}','${id}')" style="margin:0;padding:2px 8px">🗑</button></div>${r.resumen?`<div style="font-size:13px;margin-top:4px">${esc(r.resumen)}</div>`:''}${r.puntos?`<ul style="margin:4px 0 0;padding-left:18px;font-size:12px;color:var(--muted)">${String(r.puntos).split('\n').filter(Boolean).map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}${r.meet_url?`<div style="margin-top:3px"><a href="${esc(r.meet_url)}" target="_blank" style="font-size:11px">enlace Meet</a></div>`:''}</div>`).join('');}
+    else h+=`<div class="muted" style="font-size:12px">Sin reuniones registradas.</div>`;
+    h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">+ Registrar reunión</summary>
+      <div class="row" style="margin-top:6px"><div><label class="lbl">Fecha</label><input id="reu_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div style="flex:2"><label class="lbl">Título (opcional)</label><input id="reu_tit" placeholder="ej. Revisión mensual"></div></div>
+      <label class="lbl">Enlace de Meet (opcional)</label><input id="reu_url" placeholder="https://meet.google.com/...">
+      <label class="lbl">Transcripción / notas de la reunión</label><textarea id="reu_txt" rows="4" placeholder="Pega aquí la transcripción de Google Meet o tus notas…" style="width:100%;box-sizing:border-box"></textarea>
+      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="reuResumir()">✨ Resumir con IA</button><button class="sm" onclick="reuGuardar('${id}')">Guardar reunión</button> <span id="reuMsg" class="muted" style="font-size:12px"></span></div>
+      <label class="lbl">Resumen (editable)</label><textarea id="reu_res" rows="3" placeholder="Se llena al resumir con IA" style="width:100%;box-sizing:border-box"></textarea>
+      <label class="lbl">Puntos / pendientes (uno por línea)</label><textarea id="reu_pts" rows="3" style="width:100%;box-sizing:border-box"></textarea>
+    </details>`;
+    h+=`</div>`;
   }
 
   // ===== SECCIÓN ÚNICA DE ENTRENAMIENTO (una sola, ordenada y fácil de editar) =====
@@ -1434,7 +1473,7 @@ function hacerColapsables(){
     if(/entrenamiento|rutina|nivel|progresi[oó]n|mesociclo|programaci|an[aá]lisis de entreno|especializaci/.test(t))return 'entreno';
     if(/objetivo|nutrici|macros|refeed|informe mensual|plan de alimentaci|registro.*comida|plan de comidas/.test(t))return 'nutricion';
     if(/progreso f[ií]sico|comparativa|comparaciones|gr[aá]ficas|calendario|pliegues|peso|medidas|fotos/.test(t))return 'progreso';
-    if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos|acceso|suscripci/.test(t))return 'gestion';
+    if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos|acceso|suscripci|reuni/.test(t))return 'gestion';
     return 'resumen';};
   const abiertos=window.ACORD_ABIERTOS, conts=[];
   cards.forEach((card)=>{
