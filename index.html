@@ -645,7 +645,8 @@ async function verLlamadas(){
   const hoyD=new Date();hoyD.setHours(0,0,0,0);
   const rows=(data||[]).filter(p=>p.rol!=='entrenador'&&!p.archivado);
   const conFecha=rows.filter(p=>p.proxima_llamada);
-  const sinFecha=rows.filter(p=>!p.proxima_llamada&&p.frecuencia_llamada&&p.frecuencia_llamada!=='ninguna');
+  // TODOS los demás clientes (aunque no tengan frecuencia) para poder agendarlos.
+  const sinFecha=rows.filter(p=>!p.proxima_llamada).sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
   const diasDe=(f)=>{const d=new Date(f+"T00:00:00");d.setHours(0,0,0,0);return Math.round((d-hoyD)/864e5);};
   const filaLlam=p=>{const dd=diasDe(p.proxima_llamada);let col,txt;if(dd<0){col='var(--rojo)';txt='atrasada '+(-dd)+'d';}else if(dd===0){col='var(--warn)';txt='HOY';}else if(dd<=3){col='#e0b84a';txt='en '+dd+'d';}else{col='var(--ok)';txt='en '+dd+'d';}
     return `<tr><td><b>${esc(p.nombre||p.user_id.slice(0,8))}</b></td><td><input type="date" value="${p.proxima_llamada}" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td style="color:${col};font-weight:700;white-space:nowrap">${txt}</td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`;};
@@ -653,7 +654,7 @@ async function verLlamadas(){
   let h=`<div class="card"><h2 style="margin-top:0">📞 Llamadas por cliente</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Próxima llamada de cada cliente, ordenadas por fecha. <b style="color:var(--rojo)">Rojo</b>=atrasada, <b style="color:var(--warn)">naranja</b>=hoy, verde=próxima. Cambia la fecha aquí mismo.${nAtr?` <b style="color:var(--rojo)">${nAtr} atrasada(s).</b>`:''}</div>`;
   if(conFecha.length){h+=`<table><tr><th>Cliente</th><th>Próxima llamada</th><th>Estado</th><th>Frecuencia</th><th></th></tr>${conFecha.map(filaLlam).join('')}</table>`;}
   else h+=`<div class="muted">Ningún cliente tiene próxima llamada agendada. Agenda desde la ficha (Gestión) o aquí abajo.</div>`;
-  if(sinFecha.length){h+=`<h3>Sin fecha (pero con frecuencia definida)</h3><table><tr><th>Cliente</th><th>Agendar</th><th>Frecuencia</th><th></th></tr>${sinFecha.map(p=>`<tr><td><b>${esc(p.nombre||'')}</b></td><td><input type="date" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`).join('')}</table>`;}
+  if(sinFecha.length){h+=`<h3>Sin llamada agendada (${sinFecha.length}) — ponles fecha</h3><table><tr><th>Cliente</th><th>Agendar</th><th>Frecuencia</th><th></th></tr>${sinFecha.map(p=>`<tr><td><b>${esc(p.nombre||'')}</b></td><td><input type="date" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`).join('')}</table>`;}
   h+=`</div>`;
   $("v-llamadas").innerHTML=h;
 }
