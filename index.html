@@ -259,8 +259,16 @@ let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null;
 const $=id=>document.getElementById(id);
 const show=(id,on)=>$(id).classList.toggle("hide",!on);
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const hace=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10)};
-const weekId=()=>{const d=new Date();const o=new Date(d);o.setDate(d.getDate()-((d.getDay()+6)%7));return o.toISOString().slice(0,10)};
+// Copia al portapapeles con fallback: en Safari móvil / contexto no seguro el
+// clipboard puede fallar; ahí mostramos un prompt para copiar a mano (antes fingía "✓").
+function copiarMsg(btn,txt){const ok=()=>{if(btn)btn.textContent='✓';};const fb=()=>{try{prompt('Copia el mensaje:',txt);}catch(e){}};try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(ok).catch(fb);}else{fb();}}catch(e){fb();}}
+// Fecha LOCAL YYYY-MM-DD (no UTC): de noche en Colombia (UTC-5), toISOString() se
+// corría al día siguiente → "hoy"/"esta semana"/"atendido hoy" saltaban a las 7pm.
+// Mismo criterio (y MISMO resultado) que today()/weekId() de la app → así series.semana
+// coincide entre app y consola.
+const fechaLocalD=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dd}`};
+const hace=n=>{const d=new Date();d.setDate(d.getDate()-n);return fechaLocalD(d)};
+const weekId=()=>{const o=new Date();o.setDate(o.getDate()-((o.getDay()+6)%7));return fechaLocalD(o)};
 function mesos(n){n=n||12;const nb=Math.max(1,Math.ceil(n/6));const base=Math.floor(n/nb);const extra=n-base*nb;const out=[];let w=1;for(let i=0;i<nb;i++){const len=base+(i<extra?1:0);const fin=w+len-1;out.push({n:i+1,ini:w,fin,len,deload:len>=4?fin:0});w=fin+1;}return out;}
 function semanaActual(ini,sem){if(!ini)return 1;const diff=Math.floor((Date.now()-new Date(ini).getTime())/(7*864e5));return Math.min(sem||12,Math.max(1,diff+1));}
 // Fase del ciclo menstrual (espejo de src/domain/ciclo.ts).
@@ -296,7 +304,8 @@ async function trasLogin(){
   TODOS=(data||[]).filter(c=>!c.archivado);
   poblarDropCli();
   const {data:tr}=await sb.from("perfiles").select("user_id,nombre").eq("rol","entrenador").order("nombre");TRAINERS=tr||[];
-  const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
+  const {data:ej,error:eEj}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
+  if(eEj){const _c=$("clientes");if(_c)_c.insertAdjacentHTML('afterbegin','<div class="alert" style="padding:10px;margin:8px">No se pudo cargar la biblioteca de ejercicios: '+esc(eEj.message)+'. El editor de rutina puede salir vacío; reintenta más tarde.</div>');}
   // Estado de suscripción de TODOS (para ver quién PAGÓ y quién no en la lista).
   try{
     const {data:subs}=await sb.from("suscripciones").select("user_id,estado,tier");
@@ -420,7 +429,7 @@ function waLink(tel,msg){
   return `https://wa.me/${t}?text=${encodeURIComponent(msg)}`;}
 // "Ya lo contacté hoy": se guarda por día en el navegador (localStorage) para que
 // el cliente atendido baje al final y no reaparezca idéntico. Se reinicia cada día.
-function _atKey(){return 'mam_atend_'+new Date().toISOString().slice(0,10);}
+function _atKey(){return 'mam_atend_'+hace(0);}
 function atSet(){try{return new Set(JSON.parse(localStorage.getItem(_atKey())||'[]'));}catch(e){return new Set();}}
 function atToggle(uid){const s=atSet();s.has(uid)?s.delete(uid):s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));verRecordatorios();}
 async function verRecordatorios(){
@@ -428,7 +437,7 @@ async function verRecordatorios(){
   cont.innerHTML='<div class="card">Cargando recordatorios del día…</div>';
   const d7=hace(7);
   // Lunes de esta semana (para adherencia de entreno).
-  const lun=(()=>{const d=new Date();const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return d.toISOString().slice(0,10);})();
+  const lun=(()=>{const d=new Date();const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return fechaLocalD(d);})();
   const d40=hace(40);
   const dow=(new Date().getDay()+6)%7; // 0=lunes … 6=domingo
   const [pf,su,ck,jr,ci,se,pl,ob,pe,fo,me]=await Promise.all([
@@ -534,7 +543,7 @@ async function verRecordatorios(){
       <td style="white-space:nowrap"><a href="#" onclick="tab('clientes');verCliente('${r.c.user_id}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:700;text-decoration:none">${esc(r.c.nombre||'—')}</a>${r.pr.sexo==='F'?' <span class="muted" style="font-size:10px">♀</span>':''}${badge}</td>
       <td style="font-size:12px">${r.sen.map(s=>esc(s)).join(' · ')||'—'}</td>
       <td style="font-size:12px">${r.nota.length?`<span style="color:var(--warn)">${r.nota.map(esc).join('; ')}</span>`:'<span class="muted">Sin novedades. Check-in general.</span>'}</td>
-      <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" style="color:#25d366;font-weight:700;text-decoration:none">WhatsApp →</a>`:'<span class="muted" style="font-size:11px">Sin teléfono</span>'} <button class="sm ghost" onclick="navigator.clipboard.writeText(${JSON.stringify(r.wa).replace(/"/g,'&quot;')});this.textContent='✓'" title="Copiar mensaje" style="margin:0;padding:3px 7px">Copiar</button></td>
+      <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" style="color:#25d366;font-weight:700;text-decoration:none">WhatsApp →</a>`:'<span class="muted" style="font-size:11px">Sin teléfono</span>'} <button class="sm ghost" onclick="copiarMsg(this,${JSON.stringify(r.wa).replace(/"/g,'&quot;')})" title="Copiar mensaje" style="margin:0;padding:3px 7px">Copiar</button></td>
       <td style="white-space:nowrap;text-align:center"><button class="sm ${at?'':'ghost'}" onclick="atToggle('${r.c.user_id}')" style="margin:0;padding:3px 8px" title="${at?'Marcar como pendiente':'Marcar como atendido hoy'}">${at?'✓ Atendido':'Atendido'}</button></td>
     </tr>`;
   });
@@ -779,7 +788,7 @@ async function verCliente(id){
   const susTxt=susFund?'fundador (gratis de por vida)':(sm.estado?`${sm.estado}${sm.tier?' · '+sm.tier:''}`:'sin suscripción');
   const _em=((TODOS.find(c=>c.user_id===id)||CLIENTES.find(c=>c.user_id===id)||{})._email)||'';
   h+=`</div><div class="card"><h2 style="margin-top:0">Acceso y suscripción</h2>
-    ${_em?`<div class="fila" style="border:0;padding:0 0 8px"><span class="muted">Correo</span><b style="user-select:text">${esc(_em)} <button class="sm ghost" style="padding:2px 7px;margin-left:6px" onclick="navigator.clipboard.writeText('${esc(_em)}');this.textContent='✓'">Copiar</button></b></div>`:''}
+    ${_em?`<div class="fila" style="border:0;padding:0 0 8px"><span class="muted">Correo</span><b style="user-select:text">${esc(_em)} <button class="sm ghost" style="padding:2px 7px;margin-left:6px" onclick="copiarMsg(this,'${esc(_em)}')">Copiar</button></b></div>`:''}
     ${MI_PRINCIPAL?`<div class="muted" style="font-size:11px;margin-bottom:6px">Si el cliente no puede entrar (olvidó su clave, o el correo de recuperación no le llega), cámbiasela aquí y pásasela por WhatsApp. No depende de correos.</div>
     <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>`:''}
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
@@ -939,7 +948,7 @@ async function verCliente(id){
   h+=`<div class="row"><div><label class="lbl">Frecuencia de llamada</label><select id="g_frec">${['','semanal','quincenal','mensual','ninguna'].map(f=>`<option value="${f}" ${(ctr.frecuencia_llamada||'')===f?'selected':''}>${f||'(sin definir)'}</option>`).join("")}</select></div><div><label class="lbl">Próxima llamada</label><input id="g_prox" type="date" value="${ctr.proxima_llamada||''}"></div></div>`;
   h+=`<label class="lbl">¿Puede agendar videollamada? (plan HT / alto ticket)</label><select id="g_agenda"><option value="no" ${!ctr.agenda_llamada?'selected':''}>No</option><option value="si" ${ctr.agenda_llamada?'selected':''}>Sí</option></select>`;
   const cliRol=(CLIENTES.find(c=>c.user_id===id)||{}).rol||'cliente';
-  h+=`<label class="lbl">Rol en la plataforma (agregar al equipo de entrenadores)</label><select id="g_rol"><option value="cliente" ${cliRol!=='entrenador'?'selected':''}>Cliente</option><option value="entrenador" ${cliRol==='entrenador'?'selected':''}>Entrenador (ve/gestiona a todos)</option></select>`;
+  h+=`<label class="lbl">Rol en la plataforma (agregar al equipo de entrenadores)</label><select id="g_rol" data-orig="${cliRol==='entrenador'?'entrenador':'cliente'}"><option value="cliente" ${cliRol!=='entrenador'?'selected':''}>Cliente</option><option value="entrenador" ${cliRol==='entrenador'?'selected':''}>Entrenador (ve/gestiona a todos)</option></select>`;
   h+=`<label class="lbl">Entrenador asignado</label><select id="g_entren">${TRAINERS.map(t=>`<option value="${t.user_id}" ${t.user_id===MIID?'selected':''}>${esc(t.nombre||t.user_id.slice(0,8))}${t.user_id===MIID?' (tú)':''}</option>`).join("")}</select>`;
   h+=`<label class="lbl">Notas de seguimiento</label><textarea id="g_notas" rows="2">${esc(ctr.notas_seguimiento||'')}</textarea>`;
   h+=`<button style="margin-top:8px" onclick="guardarGestion('${id}')">Guardar gestión</button> <span id="gMsg" class="muted"></span></div>`;
@@ -1626,7 +1635,8 @@ async function delRest(id){if(!confirm("¿Borrar este restaurante y sus platos?"
 async function verPlatos(id){
   const el=$("platos-"+id);if(el.dataset.open){el.dataset.open="";el.innerHTML="";return;}
   el.dataset.open="1";
-  const {data}=await sb.from("restaurante_platos").select("*").eq("restaurante_id",id).order("nombre");
+  const {data,error}=await sb.from("restaurante_platos").select("*").eq("restaurante_id",id).order("nombre");
+  if(error){el.innerHTML='<div class="alert" style="margin-top:8px">No se pudieron cargar los platos: '+esc(error.message)+'</div>';return;}
   const platos=data||[];
   el.innerHTML=`<div style="margin-top:8px;padding:8px;background:#14141b;border-radius:8px">
     ${platos.map(p=>`<div class="fila"><span style="font-size:13px">${esc(p.nombre)} <span class="muted">· ${p.kcal||0} kcal · P${p.prot||0}/C${p.carb||0}/G${p.fat||0}</span></span><button class="sm ghost" onclick="delPlato('${p.id}','${id}')">🗑</button></div>`).join('')||'<div class="muted" style="font-size:12px">Sin platos aún.</div>'}
@@ -2440,9 +2450,15 @@ async function guardarGestion(id){
   $("gMsg").textContent="Guardando…";
   const nuevoEntren=$("g_entren")?$("g_entren").value:MIID;
   const upd={ticket:$("g_ticket").value||null,pago_confirmado:$("g_pago").value==="si",presupuesto_adicional:$("g_presu").value==="si",frecuencia_llamada:$("g_frec").value||null,proxima_llamada:$("g_prox").value||null,notas_seguimiento:$("g_notas").value.trim()||null,agenda_llamada:$("g_agenda").value==="si",entrenador_id:nuevoEntren};
-  if($("g_rol"))upd.rol=$("g_rol").value;
+  const g_rolEl=$("g_rol");
+  if(g_rolEl){upd.rol=g_rolEl.value;
+    // Promover a ENTRENADOR = acceso a TODOS los clientes: confirmación explícita.
+    if(upd.rol==='entrenador'&&g_rolEl.dataset.orig!=='entrenador'&&!confirm("¿Convertir a esta persona en ENTRENADOR? Podrá VER y GESTIONAR a TODOS los clientes. Hazlo solo con alguien de tu equipo."))return;
+  }
   const e=errFilas(await sb.from("perfiles").update(upd).eq("user_id",id).select("user_id"));
   if(e){$("gMsg").innerHTML=`<span class="alert">${esc(e)}</span>`;return;}
+  // Si cambió el rol, recarga la lista de entrenadores (desplegables de asignación).
+  if(g_rolEl&&upd.rol!==g_rolEl.dataset.orig){const {data:tr}=await sb.from("perfiles").select("user_id,nombre").eq("rol","entrenador").order("nombre");if(tr)TRAINERS=tr;}
   if(nuevoEntren!==MIID){$("gMsg").textContent="✓ Cliente reasignado a otro entrenador.";SEL=null;$("detalle").innerHTML="";await cargarPrioridad();return;}
   $("gMsg").textContent="✓ Guardado.";const c=CLIENTES.find(x=>x.user_id===id);if(c)c._ticket=upd.ticket;renderClientes();
 }
@@ -2471,6 +2487,7 @@ async function guardarCustomMacros(id){
 }
 async function quitarMacrosDia(id){
   const fecha=$("md_fecha")?$("md_fecha").value:hace(0);
+  if(!confirm("¿Quitar los macros especiales (refeed/custom) de "+fecha+"? El día vuelve a su objetivo normal."))return;
   $("mdMsg").textContent="Quitando…";
   const {error}=await sb.from("macros_dia").delete().eq("user_id",id).eq("fecha",fecha);
   if(error){$("mdMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
@@ -2661,6 +2678,7 @@ async function verComunidad(){
     sb.from("puntos").select("user_id,total,mes"),
     sb.from("intentos").select("user_id,puntos"),
   ]);
+  if(rec.error||pts.error||intt.error){$("v-comunidad").innerHTML='<div class="alert" style="margin:14px">No se pudo cargar la comunidad. Revisa tu conexión o vuelve a entrar.</div>';return;}
   const perfiles={};(await sb.from("perfiles").select("user_id,nombre")).data?.forEach(p=>perfiles[p.user_id]=p.nombre);
   const rc={};(rec.data||[]).forEach(r=>rc[r.owner]=(rc[r.owner]||0)+1);
   const topRec=Object.entries(rc).sort((a,b)=>b[1]-a[1]).slice(0,10);
@@ -2677,6 +2695,7 @@ async function verSugerencias(){
     sb.from("feedback").select("*").order("created_at",{ascending:false}),
     sb.from("digests").select("*").eq("ambito","app").order("created_at",{ascending:false}).limit(1),
   ]);
+  if(fbr.error||dgr.error){$("v-sugerencias").innerHTML='<div class="alert" style="margin:14px">No se pudieron cargar las sugerencias. Revisa tu conexión o vuelve a entrar.</div>';return;}
   const perfiles={};(await sb.from("perfiles").select("user_id,nombre")).data?.forEach(p=>perfiles[p.user_id]=p.nombre);
   const fb=fbr.data||[];
   const dg=(dgr.data||[])[0];
@@ -2716,6 +2735,7 @@ async function verInterno(){
     sb.from("feedback_interno").select("*").order("created_at",{ascending:false}),
     sb.from("digests").select("*").eq("ambito","consola").order("created_at",{ascending:false}).limit(1),
   ]);
+  if(fbr.error||dgr.error){$("v-interno").innerHTML='<div class="alert" style="margin:14px">No se pudieron cargar las notas internas. Revisa tu conexión o vuelve a entrar.</div>';return;}
   const fb=fbr.data||[];const dg=(dgr.data||[])[0];const col={alta:"var(--bad)",media:"var(--warn)",baja:"var(--ok)"};
   let h=`<div class="card"><h2 style="margin-top:0">Mejorar la consola</h2>
     <div class="muted" style="margin-bottom:6px">Tu espacio para anotar qué te falta o qué mejorar de esta consola. Cada semana la IA agrupa tus notas en mejoras priorizadas y las implementamos por OTA.</div>
