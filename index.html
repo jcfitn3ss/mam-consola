@@ -2761,15 +2761,37 @@ async function verAlimentos(){
      <div id="ablist"></div></div>`;
   $("v-alimentos").innerHTML=h;renderABRec();renderAB();
 }
+let AB_REC_EDIT=null; // id del sugerido que se está editando antes de aprobar
 function renderABRec(){
   const el=$("abreclist");if(!el)return;
   if(!AB_REC.length){el.innerHTML='<div class="muted" style="font-size:12px">No hay alimentos pendientes por aprobar.</div>';return;}
+  // Form de edición: el cliente tomó los macros de la etiqueta y suelen venir mal
+  // (por porción, no por 100 g). El entrenador los CORRIGE antes de aprobarlos al menú.
+  const editForm=a=>`<tr><td colspan="5" style="background:#14141b">
+     <div class="muted" style="font-size:11px;margin-bottom:6px">Corrige los datos ANTES de aprobar. Valores <b>por 100 g</b> (si el cliente los puso por porción, ajústalos).</div>
+     <div class="row"><div style="flex:2"><label class="lbl">Nombre</label><input id="ar_nom" value="${esc(a.nombre||'')}"></div><div style="flex:1"><label class="lbl">Marca (opcional)</label><input id="ar_marca" value="${esc(a.marca||'')}"></div></div>
+     <div class="row"><div><label class="lbl">Categoría</label><select id="ar_cat">${CATS.map(c=>`<option value="${c[0]}" ${c[0]===a.categoria?'selected':''}>${c[1]}</option>`).join('')}</select></div><div><label class="lbl">Porción (g, opcional)</label><input id="ar_pg" type="number" step="1" value="${a.porcion_g!=null?a.porcion_g:''}"></div></div>
+     <div class="row"><div><label class="lbl">Proteína (g)</label><input id="ar_p" type="number" step="0.1" value="${a.p??0}"></div><div><label class="lbl">Carbohidrato (g)</label><input id="ar_c" type="number" step="0.1" value="${a.c??0}"></div><div><label class="lbl">Grasa (g)</label><input id="ar_f" type="number" step="0.1" value="${a.f??0}"></div><div><label class="lbl">Kcal (auto si vacío)</label><input id="ar_k" type="number" step="0.1" placeholder="auto" value="${a.k!=null?a.k:''}"></div></div>
+     <div style="margin-top:8px"><button onclick="aprobarAlimentoEdit('${a.id}')">✓ Aprobar con estos datos</button> <button class="ghost" onclick="AB_REC_EDIT=null;renderABRec()">Cancelar</button> <span id="arMsg" class="muted"></span></div>
+   </td></tr>`;
   el.innerHTML=`<table><tr><th>Alimento</th><th>Por 100 g</th><th>Porción</th><th>Sugirió</th><th></th></tr>${AB_REC.map(a=>`<tr>
     <td><b>${esc(a.nombre)}</b>${a.marca?`<br><span class="muted" style="font-size:11px">${esc(a.marca)}</span>`:""}</td>
     <td class="muted" style="font-size:12px">${Math.round(a.k||0)} kcal · P${a.p??0}/C${a.c??0}/G${a.f??0}</td>
     <td class="muted" style="font-size:12px">${a.porcion_g?a.porcion_g+" g":"—"}</td>
     <td class="muted" style="font-size:12px">${esc(a._quien||"—")}</td>
-    <td style="white-space:nowrap"><button class="sm" onclick="aprobarAlimento('${a.id}')">Aprobar</button> <button class="sm ghost" onclick="rechazarAlimento('${a.id}')">Rechazar</button></td></tr>`).join("")}</table>`;
+    <td style="white-space:nowrap"><button class="sm" onclick="AB_REC_EDIT=(AB_REC_EDIT==='${a.id}'?null:'${a.id}');renderABRec()" title="Editar macros y aprobar">✏️ Editar</button> <button class="sm ghost" onclick="aprobarAlimento('${a.id}')" title="Aprobar tal cual">Aprobar</button> <button class="sm ghost" onclick="rechazarAlimento('${a.id}')">Rechazar</button></td></tr>${AB_REC_EDIT===String(a.id)?editForm(a):''}`).join("")}</table>`;
+}
+// Guarda las correcciones del entrenador y aprueba el alimento al menú oficial MAM.
+async function aprobarAlimentoEdit(id){
+  const nombre=($("ar_nom").value||'').trim();
+  if(!nombre){$("arMsg").textContent="El nombre no puede ir vacío.";return;}
+  const p=+$("ar_p").value||0,c=+$("ar_c").value||0,f=+$("ar_f").value||0;
+  const k=$("ar_k").value!==''?(+$("ar_k").value||0):Math.round(p*4+c*4+f*9);
+  const pg=$("ar_pg").value!==''?(+$("ar_pg").value||null):null;
+  const patch={nombre,marca:($("ar_marca").value||'').trim()||null,categoria:$("ar_cat").value,p,c,f,k,porcion_g:pg,aprobado:true,activo:true};
+  const e=errFilas(await sb.from("alimentos_base").update(patch).eq("id",id).select("id"));
+  if(e){$("arMsg").innerHTML=`<span class="alert">${esc(e)}</span>`;return;}
+  AB_REC_EDIT=null;verAlimentos();
 }
 async function aprobarAlimento(id){
   const {data,error}=await sb.from("alimentos_base").update({aprobado:true,activo:true}).eq("id",id).select();
