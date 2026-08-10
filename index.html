@@ -878,8 +878,11 @@ async function verCliente(id){
       </div>`;
   }
 
+  // ===== SECCIÓN ÚNICA DE ENTRENAMIENTO (una sola, ordenada y fácil de editar) =====
+  h+=`<div style="margin:20px 0 8px;border-top:2px solid var(--rojo);padding-top:12px"><h2 style="margin:0;color:var(--rojo)">🏋️ ENTRENAMIENTO</h2><div class="muted" style="font-size:12px">Todo el entreno del cliente en un solo lugar. Para <b>editar la rutina y subir/bajar volumen por grupo</b> ve a la tarjeta <b>“✏️ Editar rutina y volumen”</b> más abajo. Lo avanzado (fuerza / especialización) queda plegado.</div></div>`;
+
   // MESOCICLO DE FUERZA (powerlifting: RPT + progresión inversa). Solo compuestos marcados.
-  h+=`<h3>Mesociclo de fuerza (powerlifting)</h3>`;
+  h+=`<details style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px"${FZ&&FZ.activa?' open':''}><summary style="cursor:pointer;font-weight:700">Mesociclo de fuerza (powerlifting)${FZ&&FZ.activa?' · <span style="color:var(--ok)">activo</span>':''}</summary>`;
   const rutEjIds=[...new Set((RUT&&RUT.dias?RUT.dias:[]).flatMap(d=>(d.orden||[]).map(o=>String(o.id))))];
   const ejNombre=(eid)=>{const e=EJ.find(x=>String(x.id)===String(eid));return e?cap(e.nombre):eid;};
   const fzSel=new Set(((FZ&&FZ.ejercicios)||[]).map(String));
@@ -902,7 +905,7 @@ async function verCliente(id){
        </div>
        ${FZ&&FZ.activa?`<div class="muted" style="font-size:11px">Bloque desde ${FZ.inicio||'—'}. La ola del top set baja ${(FZ.top_reps)||5}→2 y la carga sube; en semana de descarga (calendario) baja la carga.</div>`:'<div class="muted" style="font-size:11px">Solo se aplica a los compuestos marcados. Al activar arranca un bloque nuevo desde hoy.</div>'}
        <button class="sm" style="margin-top:6px" onclick="guardarFuerza('${id}')">Guardar mesociclo de fuerza</button> <span id="fzMsg" class="muted"></span>
-     </div>`;
+     </div></details>`;
 
   // EDITOR objetivo/plan
   h+=`</div><div class="card"><h2 style="margin-top:0">Objetivo, calorías y enfoque</h2>
@@ -1001,15 +1004,15 @@ async function verCliente(id){
 
   // PARTE 3: Editor de rutina
   // Importar rutina desde Excel (IA interpreta -> vista previa -> guardar)
-  h+=`<div class="card"><h2 style="margin-top:0">Importar rutina</h2>
-    <div class="muted" style="margin-bottom:8px">Sube un archivo (<b>Excel, Word, PDF o CSV</b>), pega el texto, o pega un <b>enlace público</b> (Google Drive/Docs). La IA la interpreta (días, ejercicios, series, reps, RIR, técnicas) y verás una <b>vista previa</b> antes de guardar.</div>
+  h+=`<div class="card"><details><summary style="cursor:pointer;font-weight:700;font-size:15px">📥 Importar rutina (Excel · Word · PDF · enlace)</summary>
+    <div class="muted" style="margin:8px 0">Sube un archivo (<b>Excel, Word, PDF o CSV</b>), pega el texto, o pega un <b>enlace público</b> (Google Drive/Docs). La IA la interpreta (días, ejercicios, series, reps, RIR, técnicas) y verás una <b>vista previa</b> antes de guardar.</div>
     <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.docx,.pdf,.txt" onchange="importarRutina('${id}')">
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><input id="impLink" placeholder="Enlace público (Google Drive/Docs o URL del archivo)" style="flex:1;min-width:200px"><button class="sm ghost" onclick="importarLink('${id}')">Importar del enlace</button></div>
     <div style="margin-top:8px"><textarea id="impTexto" rows="3" placeholder="…o pega aquí el texto de la rutina" style="width:100%;box-sizing:border-box"></textarea><button class="sm ghost" onclick="importarTexto('${id}')" style="margin-top:4px">Importar del texto pegado</button></div>
     <div id="impMsg" class="muted" style="margin-top:6px"></div>
-    <div id="impPrev" style="margin-top:8px"></div></div>`;
+    <div id="impPrev" style="margin-top:8px"></div></details></div>`;
 
-  h+=`<div class="card"><h2 style="margin-top:0">Editar rutina (solo entrenador)</h2>${RUT&&RUT.updated_at?`<div class="muted" style="font-size:12px;margin-bottom:6px;border-left:3px solid var(--rojo);padding:4px 10px">📅 Plan actualizado: <b>${new Date(RUT.updated_at).toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'})}</b> — se actualiza sola cada vez que guardas (así queda la fecha del bloque actual).</div>`:''}<div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>
+  h+=`<div class="card"><h2 style="margin-top:0">✏️ Editar rutina y volumen</h2>${RUT&&RUT.updated_at?`<div class="muted" style="font-size:12px;margin-bottom:6px;border-left:3px solid var(--rojo);padding:4px 10px">📅 Plan actualizado: <b>${new Date(RUT.updated_at).toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'})}</b> — se actualiza sola cada vez que guardas (así queda la fecha del bloque actual).</div>`:''}<div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px">
       <div style="flex:0"><label class="lbl">Días</label><input id="genDias" type="number" min="1" max="6" value="${plan.dias||4}" oninput="document.getElementById('genDistWrap').style.display=(+this.value===3?'':'none')" style="width:80px"></div>
       <div id="genDistWrap" style="${(plan.dias||4)===3?'':'display:none'}"><label class="lbl">Distribución (3 días)</label><select id="genDist"><option value="espaciados"${plan.distribucion==='espaciados'?' selected':''}>Espaciados → fullbody</option><option value="seguidos"${plan.distribucion==='seguidos'?' selected':''}>3 seguidos → rotativa</option><option value="mixto"${plan.distribucion==='mixto'?' selected':''}>2 seguidos + 1 → mixta</option></select></div>
@@ -2165,25 +2168,41 @@ function syncEditorAMemoria(){
   document.querySelectorAll(".rutTec").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii];if(it){const key=di+"|"+it.id;if(s.value&&s.value!=="normal")RUT.tecnicas[key]=s.value;else delete RUT.tecnicas[key];}});
 }
 function rutRefrescar(){const el=$("editorRut");if(el)el.innerHTML=editorRutinaHTML();}
-// Panel: series semanales por grupo muscular -> reparte automáticamente en la rutina.
+// Panel: VOLUMEN semanal por grupo muscular. Muestra las series actuales por grupo
+// y deja SUBIR/BAJAR con botones (+2/-2) o escribiendo la meta; al Distribuir, reparte
+// esas series entre los ejercicios de ese grupo. Es el control central de volumen.
+function rutSeriesPorGrupo(){
+  // Series semanales ACTUALES por grupo = suma de it.s (vacío = 3 por defecto, como la app).
+  const cur={},nEx={};
+  (RUT.dias||[]).forEach(d=>(d.orden||[]).forEach(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};const g=e.grupo||it.g||'Otros';const s=(it.s!=null&&it.s!=='')?(+it.s||0):3;cur[g]=(cur[g]||0)+s;nEx[g]=(nEx[g]||0)+1;}));
+  return {cur,nEx};
+}
 function rutGruposHTML(){
   if(!RUT||!RUT.dias)return '';
-  const cnt={};RUT.dias.forEach(d=>(d.orden||[]).forEach(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};const g=e.grupo||it.g||'Otros';cnt[g]=(cnt[g]||0)+1;}));
-  const groups=Object.keys(cnt).sort();if(!groups.length)return '';
-  return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:12px">
-    <b style="font-size:13px">Series por grupo muscular (semanal)</b>
-    <div class="muted" style="font-size:11px;margin:4px 0 8px">Pon las series semanales que quieres por grupo y dale <b>Distribuir</b>: la app las reparte sola entre los ejercicios de ese grupo. Luego afinas y Guardas.</div>
-    <div style="display:flex;flex-wrap:wrap;gap:12px">${groups.map(g=>`<div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;min-width:96px">${esc(g)} <span class="muted">(${cnt[g]})</span></span><input type="number" class="rutGrp" data-g="${esc(g)}" placeholder="—" style="width:62px;text-align:center;margin:0"></div>`).join('')}</div>
-    <button class="sm" style="margin-top:10px" onclick="rutDistribuirGrupos()">Distribuir en la rutina</button> <span id="rutGrpMsg" class="muted" style="font-size:12px"></span>
+  const {cur,nEx}=rutSeriesPorGrupo();
+  const groups=Object.keys(nEx).sort();if(!groups.length)return '';
+  const row=g=>`<div style="display:flex;align-items:center;gap:6px;background:#14141b;border-radius:8px;padding:6px 8px">
+      <span style="font-size:12px;min-width:104px">${esc(g)} <span class="muted" style="font-size:10px">${nEx[g]} ej · <b style="color:var(--txt)">${cur[g]}</b> series</span></span>
+      <button class="sm ghost" onclick="rutBump('${esc(g)}',-2)" title="Bajar 2 series" style="padding:2px 8px;margin:0">−</button>
+      <input type="number" class="rutGrp" data-g="${esc(g)}" value="${cur[g]}" style="width:56px;text-align:center;margin:0">
+      <button class="sm ghost" onclick="rutBump('${esc(g)}',2)" title="Subir 2 series" style="padding:2px 8px;margin:0">+</button>
+    </div>`;
+  return `<div style="border:1px solid var(--rojo);border-radius:8px;padding:12px;margin-bottom:14px;background:rgba(181,23,24,0.05)">
+    <b style="font-size:14px">🏋️ Volumen por grupo muscular (series semanales)</b>
+    <div class="muted" style="font-size:11px;margin:4px 0 10px">Sube o baja las series de un grupo con <b>−/+</b> (o escribe la meta) y dale <b>Aplicar</b>: se reparten solas entre los ejercicios de ese grupo. Ideal para <b>subir volumen a un grupo específico</b> (espalda, hombro, etc.). Luego afinas abajo y Guardas.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">${groups.map(row).join('')}</div>
+    <button class="sm" style="margin-top:12px" onclick="rutDistribuirGrupos()">Aplicar volumen a la rutina</button> <span id="rutGrpMsg" class="muted" style="font-size:12px"></span>
   </div>`;
 }
+// +/- rápido: ajusta el input de meta de un grupo (mínimo 0).
+function rutBump(g,delta){const inp=document.querySelector('.rutGrp[data-g="'+g.replace(/"/g,'\\"')+'"]');if(!inp)return;inp.value=Math.max(0,(parseInt(inp.value)||0)+delta);}
 function rutDistribuirGrupos(){
   syncEditorAMemoria();rutSnapshot();
-  const targets={};document.querySelectorAll('.rutGrp').forEach(inp=>{const v=parseInt(inp.value);if(v>0)targets[inp.dataset.g]=v;});
-  if(!Object.keys(targets).length){$("rutGrpMsg").textContent="Pon al menos una meta de series.";return;}
+  const targets={};document.querySelectorAll('.rutGrp').forEach(inp=>{const v=parseInt(inp.value);if(v>=0&&inp.value!=='')targets[inp.dataset.g]=v;});
+  if(!Object.keys(targets).length){$("rutGrpMsg").textContent="Ajusta al menos un grupo.";return;}
   const porGrupo={};RUT.dias.forEach(d=>(d.orden||[]).forEach(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};const g=e.grupo||it.g||'Otros';(porGrupo[g]=porGrupo[g]||[]).push(it);}));
-  let n=0;Object.keys(targets).forEach(g=>{const items=porGrupo[g]||[];if(!items.length)return;const base=Math.max(1,Math.floor(targets[g]/items.length));let resto=Math.max(0,targets[g]-base*items.length);items.forEach(it=>{it.s=base+(resto>0?1:0);if(resto>0)resto--;n++;});});
-  rutRefrescar();$("rutGrpMsg").textContent=`Distribuido en ${n} ejercicio(s). Revisa y Guarda rutina.`;
+  let n=0;Object.keys(targets).forEach(g=>{const items=porGrupo[g]||[];if(!items.length)return;const meta=targets[g];const base=Math.floor(meta/items.length);let resto=Math.max(0,meta-base*items.length);items.forEach(it=>{it.s=Math.max(0,base+(resto>0?1:0));if(resto>0)resto--;n++;});});
+  rutRefrescar();$("rutGrpMsg").textContent=`✓ Volumen aplicado en ${n} ejercicio(s). Revisa y Guarda rutina.`;
 }
 // Pila de deshacer: guarda el estado ANTES de cada cambio (con lo que haya en las celdas).
 let RUT_UNDO=[];
