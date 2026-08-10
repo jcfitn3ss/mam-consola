@@ -550,8 +550,8 @@ function poblarDropCli(){
 }
 async function archivarCliente(id){
   if(!confirm("¿Archivar este cliente? Se oculta de la lista (no se borra). Podrás reactivarlo si lo necesitas."))return;
-  const {error}=await sb.from("perfiles").update({archivado:true}).eq("user_id",id);
-  if(error){alert(error.message);return;}
+  const e=errFilas(await sb.from("perfiles").update({archivado:true}).eq("user_id",id).select("user_id"));
+  if(e){alert(e);return;}
   CLIENTES=CLIENTES.filter(c=>c.user_id!==id);TODOS=TODOS.filter(c=>c.user_id!==id);poblarDropCli();
   SEL=null;$("detalle").innerHTML='<div class="muted">Cliente archivado. Elige otro de la lista.</div>';
   renderClientes();
@@ -1594,7 +1594,8 @@ function descargarProspectoPDF(){if(!PROS_HTML){alert("Genera el informe primero
 
 // ---------- Restaurantes (equipo cura la lista + platos con macros) ----------
 async function verRestaurantes(){
-  const {data}=await sb.from("restaurantes").select("*").order("recomendado",{ascending:false}).order("nombre");
+  const {data,error}=await sb.from("restaurantes").select("*").order("recomendado",{ascending:false}).order("nombre");
+  if(error){$("v-restaurantes").innerHTML='<div class="alert" style="margin:14px">No se pudieron cargar los restaurantes: '+esc(error.message)+'</div>';return;}
   RESTS=data||[];
   $("v-restaurantes").innerHTML=`<div class="card"><h2 style="margin-top:0">Nuevo restaurante</h2>
     <div class="muted" style="margin-bottom:6px">Lo que agregues aquí les aparece a los usuarios en "Comer fuera", ordenado por cercanía (si pones lat/long) o por ciudad. Marca "Recomendado por el equipo" para destacarlo.</div>
