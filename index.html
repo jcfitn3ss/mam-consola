@@ -145,6 +145,7 @@
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
+      <button id="t-llamadas" onclick="tab('llamadas')">📞 Llamadas</button>
       <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
       <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
       <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
@@ -166,6 +167,7 @@
       <div id="detalle"></div>
     </div>
     <div id="v-recordatorios" class="hide"></div>
+    <div id="v-llamadas" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
     <div id="v-ejercicios" class="hide"></div>
@@ -285,7 +287,7 @@ async function init(){const {data:{session}}=await sb.auth.getSession();if(sessi
 async function login(){$("loginErr").textContent="Entrando…";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}$("loginErr").textContent="";await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
-function tab(t){["clientes","recordatorios","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+function tab(t){["clientes","recordatorios","llamadas","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
@@ -635,6 +637,27 @@ async function guardarInicioPlan(id){
   if($("iniMsg"))$("iniMsg").innerHTML=e?`<span class="alert">${esc(e)}</span>`:"✓ Fecha de inicio guardada.";
   if(!e)setTimeout(()=>verCliente(id),400);
 }
+// ---- Vista general de LLAMADAS: próxima llamada por cliente, ordenada, resalta atrasadas ----
+async function verLlamadas(){
+  $("v-llamadas").innerHTML='<div class="card">Cargando…</div>';
+  const {data,error}=await sb.from("perfiles").select("user_id,nombre,proxima_llamada,frecuencia_llamada,rol,archivado").order("proxima_llamada",{ascending:true,nullsFirst:false});
+  if(error){$("v-llamadas").innerHTML=`<div class="card alert">${esc(error.message)}</div>`;return;}
+  const hoyD=new Date();hoyD.setHours(0,0,0,0);
+  const rows=(data||[]).filter(p=>p.rol!=='entrenador'&&!p.archivado);
+  const conFecha=rows.filter(p=>p.proxima_llamada);
+  const sinFecha=rows.filter(p=>!p.proxima_llamada&&p.frecuencia_llamada&&p.frecuencia_llamada!=='ninguna');
+  const diasDe=(f)=>{const d=new Date(f+"T00:00:00");d.setHours(0,0,0,0);return Math.round((d-hoyD)/864e5);};
+  const filaLlam=p=>{const dd=diasDe(p.proxima_llamada);let col,txt;if(dd<0){col='var(--rojo)';txt='atrasada '+(-dd)+'d';}else if(dd===0){col='var(--warn)';txt='HOY';}else if(dd<=3){col='#e0b84a';txt='en '+dd+'d';}else{col='var(--ok)';txt='en '+dd+'d';}
+    return `<tr><td><b>${esc(p.nombre||p.user_id.slice(0,8))}</b></td><td><input type="date" value="${p.proxima_llamada}" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td style="color:${col};font-weight:700;white-space:nowrap">${txt}</td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`;};
+  const nAtr=conFecha.filter(p=>diasDe(p.proxima_llamada)<0).length;
+  let h=`<div class="card"><h2 style="margin-top:0">📞 Llamadas por cliente</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Próxima llamada de cada cliente, ordenadas por fecha. <b style="color:var(--rojo)">Rojo</b>=atrasada, <b style="color:var(--warn)">naranja</b>=hoy, verde=próxima. Cambia la fecha aquí mismo.${nAtr?` <b style="color:var(--rojo)">${nAtr} atrasada(s).</b>`:''}</div>`;
+  if(conFecha.length){h+=`<table><tr><th>Cliente</th><th>Próxima llamada</th><th>Estado</th><th>Frecuencia</th><th></th></tr>${conFecha.map(filaLlam).join('')}</table>`;}
+  else h+=`<div class="muted">Ningún cliente tiene próxima llamada agendada. Agenda desde la ficha (Gestión) o aquí abajo.</div>`;
+  if(sinFecha.length){h+=`<h3>Sin fecha (pero con frecuencia definida)</h3><table><tr><th>Cliente</th><th>Agendar</th><th>Frecuencia</th><th></th></tr>${sinFecha.map(p=>`<tr><td><b>${esc(p.nombre||'')}</b></td><td><input type="date" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`).join('')}</table>`;}
+  h+=`</div>`;
+  $("v-llamadas").innerHTML=h;
+}
+async function setLlamada(uid,fecha){const e=errFilas(await sb.from("perfiles").update({proxima_llamada:fecha||null}).eq("user_id",uid).select("user_id"));if(e){alert(e);return;}verLlamadas();}
 function renderClientes(){
   const q=($("buscar").value||"").toLowerCase().trim();
   // FOCO un-cliente-a-la-vez: si hay cliente abierto, la lista se esconde; si no, se ve.
