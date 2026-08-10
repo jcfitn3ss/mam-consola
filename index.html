@@ -252,7 +252,7 @@ const TECNICAS=[["normal","Normal"],["biserie","Biserie"],["triserie","Triserie"
 const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bíceps","Tríceps","Core","Pantorrilla","Cuello","Dorsal","Aductores","Abductores"];
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
-let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
+let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],EJU=[],CANON={},RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[],LAZY={};
 let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null;
 
@@ -304,7 +304,7 @@ async function trasLogin(){
   TODOS=(data||[]).filter(c=>!c.archivado);
   poblarDropCli();
   const {data:tr}=await sb.from("perfiles").select("user_id,nombre").eq("rol","entrenador").order("nombre");TRAINERS=tr||[];
-  const {data:ej,error:eEj}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
+  const {data:ej,error:eEj}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];buildEjUnicos();
   if(eEj){const _c=$("clientes");if(_c)_c.insertAdjacentHTML('afterbegin','<div class="alert" style="padding:10px;margin:8px">No se pudo cargar la biblioteca de ejercicios: '+esc(eEj.message)+'. El editor de rutina puede salir vacío; reintenta más tarde.</div>');}
   // Estado de suscripción de TODOS (para ver quién PAGÓ y quién no en la lista).
   try{
@@ -1992,15 +1992,35 @@ function recetaQuitar(i){RECETA.splice(i,1);recetaRender();}
 function recetaRender(){const el=$("recBuild");if(!el)return;if(!RECETA.length){el.innerHTML='<div class="muted" style="font-size:12px">Nada agregado aún.</div>';return;}const t=RECETA.reduce((a,x)=>({k:a.k+x.k,p:a.p+x.p,c:a.c+x.c,f:a.f+x.f}),{k:0,p:0,c:0,f:0});el.innerHTML=RECETA.map((x,i)=>`<div class="fila"><span>${esc(x.desc)}</span><span class="muted">${Math.round(x.k)}k P${Math.round(x.p)}/C${Math.round(x.c)}/G${Math.round(x.f)} <button class="sm ghost" onclick="recetaQuitar(${i})">×</button></span></div>`).join("")+`<div class="fila"><b>Total</b><b>${Math.round(t.k)} kcal · P${Math.round(t.p)}/C${Math.round(t.c)}/G${Math.round(t.f)}</b></div>`;}
 async function guardarRecetaInteractiva(){const nom=$("r_nom").value.trim();if(!nom){$("recMsg").textContent="Falta el nombre.";return;}if(!RECETA.length){$("recMsg").textContent="Agrega alimentos.";return;}const t=RECETA.reduce((a,x)=>({k:a.k+x.k,p:a.p+x.p,c:a.c+x.c,f:a.f+x.f}),{k:0,p:0,c:0,f:0});const ing=RECETA.map(x=>x.desc).join(", ");$("recMsg").textContent="Guardando…";const {error}=await sb.from("recetas").insert({owner:MIID,nombre:nom,ingredientes:ing,tipo:"Almuerzo",kcal:Math.round(t.k),prot:Math.round(t.p),carb:Math.round(t.c),fat:Math.round(t.f),comunidad:false});if(error){$("recMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}$("recMsg").textContent="✓ Receta guardada.";RECETA=[];$("r_nom").value="";recetaRender();}
 
-// Opciones de ejercicio: TODOS los ejercicios, agrupados por grupo muscular
-// (el grupo del slot aparece primero). Libertad total de elección.
+// Catálogo CANÓNICO ÚNICO: la biblioteca trae copias por entrenador y duplicados,
+// así que la consola mostraba cada ejercicio 2-4 veces. Aquí construimos EJU (un
+// ejercicio por nombre normalizado) y CANON (cualquier id → id canónico), para que
+// los desplegables y la lista muestren cada ejercicio UNA sola vez. Las rutinas
+// existentes siguen resolviendo su id (EJ tiene todos); el selector mapea al canónico
+// para no cambiar nada solo. La fusión real (borrar duplicados) va aparte.
+function buildEjUnicos(){
+  const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const byName={};
+  EJ.forEach(e=>{const k=norm(e.nombre);if(!k)return;(byName[k]=byName[k]||[]).push(e);});
+  EJU=[];CANON={};
+  Object.values(byName).forEach(arr=>{
+    // Canónico: prefiere el GLOBAL (sin entrenador), luego el que tenga video, luego el 1º.
+    const canon=arr.find(e=>!e.entrenador_id)||arr.find(e=>e.video_url)||arr[0];
+    EJU.push(canon);
+    arr.forEach(e=>{CANON[String(e.id)]=String(canon.id);});
+  });
+  EJU.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
+}
+// Opciones de ejercicio: catálogo ÚNICO (EJU), agrupado por grupo muscular
+// (el grupo del slot aparece primero). El id seleccionado se mapea a su canónico.
 function opcionesEj(selId, slotGrupo){
+  const cid=CANON[String(selId)]||String(selId);
   const byG={};
-  EJ.forEach(e=>{const g=e.grupo||'Otros';(byG[g]=byG[g]||[]).push(e);});
+  EJU.forEach(e=>{const g=e.grupo||'Otros';(byG[g]=byG[g]||[]).push(e);});
   const groups=Object.keys(byG).sort((a,b)=>a===slotGrupo?-1:(b===slotGrupo?1:a.localeCompare(b)));
   return groups.map(g=>`<optgroup label="${esc(g)}${g===slotGrupo?' — objetivo':''}">`+
     byG[g].slice().sort((x,y)=>(x.nombre||'').localeCompare(y.nombre||''))
-      .map(e=>`<option value="${e.id}" ${String(e.id)===String(selId)?'selected':''}>${esc(cap(e.nombre))}</option>`).join('')
+      .map(e=>`<option value="${e.id}" ${String(e.id)===cid?'selected':''}>${esc(cap(e.nombre))}</option>`).join('')
     +`</optgroup>`).join('');
 }
 // Al cambiar el ejercicio, rellena reps/RIR de la fila con los de ese ejercicio.
@@ -2171,7 +2191,7 @@ function rutSnapshot(){syncEditorAMemoria();RUT_UNDO.push(JSON.stringify({dias:R
 function rutDeshacer(){if(!RUT_UNDO.length){$("rutMsg").textContent="No hay más cambios que deshacer.";return;}const prev=JSON.parse(RUT_UNDO.pop());RUT.dias=prev.dias;RUT.tecnicas=prev.tecnicas;rutRefrescar();$("rutMsg").textContent="↩ Cambio deshecho. Recuerda Guardar si quieres conservarlo.";}
 async function rutDescartar(id){if(!confirm("¿Descartar TODOS los cambios sin guardar y volver a la rutina guardada? (recupera lo que hayas borrado sin guardar)"))return;RUT_UNDO=[];await verCliente(id);}
 function rutQuitar(di,ii){rutSnapshot();if(RUT.dias[di]&&RUT.dias[di].orden)RUT.dias[di].orden.splice(ii,1);rutRefrescar();$("rutMsg").textContent="Quitaste un ejercicio. Puedes Deshacer. Recuerda Guardar rutina.";}
-function rutAgregar(di){rutSnapshot();if(!RUT.dias[di].orden)RUT.dias[di].orden=[];const g=(RUT.dias[di].grupos&&RUT.dias[di].grupos[0])||'';const first=EJ[0];RUT.dias[di].orden.push({id:first?first.id:'',g});rutRefrescar();$("rutMsg").textContent="Agregaste un ejercicio. Elígelo y Guarda rutina.";}
+function rutAgregar(di){rutSnapshot();if(!RUT.dias[di].orden)RUT.dias[di].orden=[];const g=(RUT.dias[di].grupos&&RUT.dias[di].grupos[0])||'';const first=(EJU&&EJU[0])||EJ[0];RUT.dias[di].orden.push({id:first?first.id:'',g});rutRefrescar();$("rutMsg").textContent="Agregaste un ejercicio. Elígelo y Guarda rutina.";}
 // Mover un ejercicio arriba/abajo dentro del día (reordenar).
 function rutMover(di,ii,dir){const or=RUT.dias[di]&&RUT.dias[di].orden;if(!or)return;const j=ii+dir;if(j<0||j>=or.length)return;rutSnapshot();const t=or[ii];or[ii]=or[j];or[j]=t;rutRefrescar();$("rutMsg").textContent="Reordenaste un ejercicio. Recuerda Guardar rutina.";}
 function rutMoverDia(di,dir){
@@ -2510,9 +2530,11 @@ async function addReceta(id){
 // PARTE 4: Ejercicios
 function verEjercicios(){
   const opsEj=()=>['<option value="">— elegir —</option>'].concat(EJ.map(e=>`<option value="${e.id}">${esc(cap(e.nombre))} · ${esc(e.grupo||'')}</option>`)).join("");
-  const nmap={};EJ.forEach(e=>{const k=(e.nombre||'').trim().toLowerCase();(nmap[k]=nmap[k]||[]).push(e);});
+  const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const nmap={};EJ.forEach(e=>{const k=norm(e.nombre);(nmap[k]=nmap[k]||[]).push(e);});
   const dups=Object.values(nmap).filter(a=>a.length>1);
-  const dupHint=dups.length?`<div style="font-size:12px;color:#e0b84a;margin-bottom:6px">⚠ Nombres duplicados: ${dups.map(a=>esc(cap(a[0].nombre))).join(", ")}. Fusiónalos aquí abajo.</div>`:`<div class="muted" style="font-size:12px;margin-bottom:6px">No hay nombres duplicados ahora mismo. ✓</div>`;
+  const nExtra=dups.reduce((a,g)=>a+g.length-1,0);
+  const dupHint=dups.length?`<div style="font-size:12px;color:#e0b84a;margin-bottom:6px">⚠ Hay <b>${dups.length}</b> ejercicios con duplicados (<b>${nExtra}</b> copias de más): ${dups.slice(0,12).map(a=>esc(cap(a[0].nombre))).join(", ")}${dups.length>12?'…':''}.<br><button style="margin-top:6px" onclick="fusionarTodos()">🔧 Fusionar todos los duplicados</button> <span id="fusAllMsg" class="muted"></span></div>`:`<div class="muted" style="font-size:12px;margin-bottom:6px">No hay nombres duplicados ahora mismo. ✓</div>`;
   let h=`<div class="card"><h2 style="margin-top:0">Nuevo ejercicio</h2>
    <div class="muted" style="margin-bottom:6px">Usa nombres estandarizados (ej: "Press inclinado con mancuernas"). El enlace de YouTube se reproduce dentro de la app.</div>
    <input id="x_nom" placeholder="Nombre del ejercicio">
@@ -2538,15 +2560,26 @@ async function fusionarEj(){
   $("fusMsg").textContent="Fusionando…";
   const {data,error}=await invokeFn("fusionar-ejercicios",{body:{keep,drop}});
   if(error||(data&&data.error)){$("fusMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
-  const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];
+  const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];buildEjUnicos();
   verEjercicios();$("fusMsg").textContent=`✓ Fusionados (${(data&&data.reasignadas)||0} series reasignadas).`;
+}
+// Fusiona TODOS los duplicados por nombre de una vez (reasigna series + rutinas +
+// fuerza y borra los repetidos). Conserva el GLOBAL o el que tenga video.
+async function fusionarTodos(){
+  if(!confirm("¿Fusionar TODOS los ejercicios duplicados?\n\nPor cada nombre repetido se conserva uno (el global o el que tenga video) y los demás se reasignan (series, rutinas y fuerza) y se borran. No se puede deshacer.\n\nRecomendado: hazlo una vez para limpiar el catálogo."))return;
+  const msg=$("fusAllMsg");if(msg){msg.textContent="Fusionando todos… puede tardar unos segundos.";}
+  const {data,error}=await invokeFn("fusionar-ejercicios",{body:{auto:true}});
+  if(error||(data&&data.error)){if(msg)msg.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  const {data:ej}=await sb.from("ejercicios").select("*").order("nombre");EJ=ej||[];buildEjUnicos();
+  verEjercicios();
+  const m2=$("fusAllMsg");if(m2)m2.innerHTML=`✓ Listo: <b>${data.grupos||0}</b> grupos fusionados, <b>${data.borrados||0}</b> duplicados borrados. (${data.reasignadas||0} series, ${data.rutinas||0} rutinas, ${data.fuerza||0} fuerza reasignadas).`;
 }
 const FATCOL={alta:"#e23b3b",media:"#e0b84a",baja:"#5fd07f"};
 function fatPill(e){const f=e.fatiga||'media';return `<span class="pill" style="background:${FATCOL[f]||'#444'};color:#000;font-weight:700">${esc(f)}</span>${e.estiramiento?' <span class="pill" style="background:#3a2a5a;color:#cdbff0">estira</span>':''}`;}
 let EJ_EDIT=null;
 function renderEj(){
   const q=($("x_buscar")?$("x_buscar").value:"").toLowerCase();
-  const list=EJ.filter(e=>(!q||(e.nombre||"").toLowerCase().includes(q)));
+  const list=EJU.filter(e=>(!q||(e.nombre||"").toLowerCase().includes(q)));
   // Formulario de edición inline (TODOS los campos) para un ejercicio.
   const editForm=e=>`<tr><td colspan="4" style="background:#14141b">
      <div class="row"><div style="flex:2"><label class="lbl">Nombre</label><input id="ee_nom" value="${esc(e.nombre||'')}"></div></div>
