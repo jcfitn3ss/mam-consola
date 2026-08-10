@@ -593,6 +593,14 @@ function volverLista(){SEL=null;$("detalle").innerHTML='';renderClientes();windo
 // (mismo almacén per-día que "Atendido"); mañana reaparece si sigue con alerta.
 function resolverHoy(uid){const s=atSet();s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));renderClientes();}
 function reabrirResueltos(){localStorage.setItem(_atKey(),JSON.stringify([]));renderClientes();}
+// Fecha de inicio específica del mesociclo (planes.inicio). Recalcula semana/progresión.
+async function guardarInicioPlan(id){
+  const v=$("g_inicio")?$("g_inicio").value:"";
+  if(!v){$("iniMsg").textContent="Elige una fecha.";return;}
+  const e=errFilas(await sb.from("planes").update({inicio:v,updated_at:new Date().toISOString()}).eq("user_id",id).select("user_id"));
+  if($("iniMsg"))$("iniMsg").innerHTML=e?`<span class="alert">${esc(e)}</span>`:"✓ Fecha de inicio guardada.";
+  if(!e)setTimeout(()=>verCliente(id),400);
+}
 function renderClientes(){
   const q=($("buscar").value||"").toLowerCase().trim();
   // FOCO un-cliente-a-la-vez: si hay cliente abierto, la lista se esconde; si no, se ve.
@@ -896,6 +904,10 @@ async function verCliente(id){
 
   // ===== SECCIÓN ÚNICA DE ENTRENAMIENTO (una sola, ordenada y fácil de editar) =====
   h+=`<div style="margin:20px 0 8px;border-top:2px solid var(--rojo);padding-top:12px"><h2 style="margin:0;color:var(--rojo)">🏋️ ENTRENAMIENTO</h2><div class="muted" style="font-size:12px">Todo el entreno del cliente en un solo lugar. Para <b>editar la rutina y subir/bajar volumen por grupo</b> ve a la tarjeta <b>“✏️ Editar rutina y volumen”</b> más abajo. Lo avanzado (fuerza / especialización) queda plegado.</div></div>`;
+  // FECHA DE INICIO ESPECÍFICA del mesociclo (define desde cuándo cuenta la semana 1).
+  h+=`<div class="card" style="padding:10px 14px"><label class="lbl" style="margin-top:0">📅 Fecha de inicio del mesociclo (semana 1)</label>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="date" id="g_inicio" value="${(plan.inicio||'').slice(0,10)}" style="margin:0;max-width:170px"><button class="sm" onclick="guardarInicioPlan('${id}')">Guardar fecha</button> <span id="iniMsg" class="muted" style="font-size:12px"></span></div>
+    <div class="muted" style="font-size:11px;margin-top:4px">Semana actual del cliente: <b>${sa}/${sem}</b>. Cambia esta fecha solo si el bloque arranca otro día (recalcula la semana y la progresión).</div></div>`;
 
   // MESOCICLO DE FUERZA (powerlifting: RPT + progresión inversa). Solo compuestos marcados.
   h+=`<details style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px"${FZ&&FZ.activa?' open':''}><summary style="cursor:pointer;font-weight:700">Mesociclo de fuerza (powerlifting)${FZ&&FZ.activa?' · <span style="color:var(--ok)">activo</span>':''}</summary>`;
