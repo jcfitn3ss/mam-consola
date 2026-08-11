@@ -674,16 +674,26 @@ async function verLlamadas(){
   let est={};try{const r=await invokeFn("google-estado",{body:{}});est=(r&&r.data)||{};}catch(e){/* si falla, mostramos botones igual */}
   const conectado=!!est.conectado;
   const permisosOK=conectado&&est.permisos_meet&&est.permisos_calendar;
-  let badge='';
-  if(conectado&&permisosOK)badge=`<span style="color:var(--ok);font-size:13px">· ✅ conectado${est.email?' ('+esc(est.email)+')':''}</span>`;
-  else if(conectado)badge=`<span style="color:var(--warn);font-size:13px">· ⚠️ conectado pero faltan permisos (reconecta y acepta Meet + Calendar)</span>`;
-  let h=`<div class="card" style="border:1px solid var(--rojo)"><h2 style="margin-top:0">🎥 Google Meet ${badge}</h2>`;
-  h+=`<div class="muted" style="font-size:12px;margin-bottom:8px"><b>Se conecta UNA sola vez</b> (con tu cuenta soporte@jcfitn3ss.com) y sirve para TODAS tus reuniones — no hay que conectar cliente por cliente. ${conectado?'Ya está conectado: no tienes que volver a hacerlo. Sincronizar es opcional, cuando quieras traer los resúmenes.':'Autoriza y acepta los permisos de Meet + Calendar.'}</div>`;
-  h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="conectarGoogle()">🔗 ${conectado?'Reconectar Google':'Conectar Google (una vez)'}</button><button class="sm ghost" onclick="verLlamadas()">↻ Verificar estado</button><button class="sm" onclick="sincronizarMeet()">🔄 Sincronizar TODAS mis reuniones</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
-  h+=`</div>`;
+  const todoOK=conectado&&permisosOK;
+  let h='';
+  if(todoOK){
+    // Todo bien: NO mostrar botón de conectar (JC no lo quiere visible siempre).
+    // Solo el estado + un enlace discreto de reconectar por si algún día falla.
+    h+=`<div class="card"><h2 style="margin-top:0">🎥 Google Meet <span style="color:var(--ok);font-size:13px">· ✅ conectado${est.email?' ('+esc(est.email)+')':''}</span></h2>`;
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Listo. Las reuniones se <b>agendan desde la ficha de cada cliente</b> (pestaña <b>📞 Reuniones</b>). No tienes que volver a conectar.</div>`;
+    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm ghost" onclick="sincronizarMeet()">🔄 Sincronizar resúmenes (opcional)</button> <span id="meetMsg" class="muted" style="font-size:12px"></span> <span style="flex:1"></span><a href="#" onclick="conectarGoogle();return false" class="muted" style="font-size:11px;text-decoration:underline" title="Solo si algo falla al agendar/sincronizar">¿Problemas? Reconectar</a></div>`;
+    h+=`</div>`;
+  }else{
+    // Solo cuando HACE FALTA (no conectado o faltan permisos): botón visible.
+    const badge=conectado?`<span style="color:var(--warn);font-size:13px">· ⚠️ faltan permisos</span>`:'';
+    h+=`<div class="card" style="border:1px solid var(--rojo)"><h2 style="margin-top:0">🎥 Google Meet ${badge}</h2>`;
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">${conectado?'Reconecta y <b>acepta los permisos de Meet + Calendar</b> para poder agendar reuniones y sincronizar.':'<b>Conéctate UNA vez</b> (con soporte@jcfitn3ss.com) y acepta los permisos de Meet + Calendar. Sirve para TODOS tus clientes.'}</div>`;
+    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="conectarGoogle()">🔗 ${conectado?'Reconectar Google':'Conectar Google (una vez)'}</button><button class="sm ghost" onclick="verLlamadas()">↻ Verificar</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
+    h+=`</div>`;
+  }
   h+=`<div class="card"><h2 style="margin-top:0">📞 Llamadas por cliente</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Próxima llamada de cada cliente, ordenadas por fecha. <b style="color:var(--rojo)">Rojo</b>=atrasada, <b style="color:var(--warn)">naranja</b>=hoy, verde=próxima. Cambia la fecha aquí mismo.${nAtr?` <b style="color:var(--rojo)">${nAtr} atrasada(s).</b>`:''}</div>`;
   if(conFecha.length){h+=`<table><tr><th>Cliente</th><th>Próxima llamada</th><th>Estado</th><th>Frecuencia</th><th></th></tr>${conFecha.map(filaLlam).join('')}</table>`;}
-  else h+=`<div class="muted">Ningún cliente tiene próxima llamada agendada. Agenda desde la ficha (Gestión) o aquí abajo.</div>`;
+  else h+=`<div class="muted">Ningún cliente tiene próxima llamada agendada. Agenda desde la ficha del cliente (pestaña 📞 Reuniones) o aquí abajo.</div>`;
   if(sinFecha.length){h+=`<h3>Sin llamada agendada (${sinFecha.length}) — ponles fecha</h3><table><tr><th>Cliente</th><th>Agendar</th><th>Frecuencia</th><th></th></tr>${sinFecha.map(p=>`<tr><td><b>${esc(p.nombre||'')}</b></td><td><input type="date" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`).join('')}</table>`;}
   h+=`</div>`;
   $("v-llamadas").innerHTML=h;
@@ -1115,8 +1125,8 @@ async function verCliente(id){
   {
     const RNS=rns.data||[];
     h+=`<div class="card"><h2 style="margin-top:0">📞 Reuniones${RNS.length?` (${RNS.length})`:''}</h2>`;
-    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Reuniones con el cliente: fecha, resumen y pendientes. <b>Conectar Google se hace UNA sola vez en la pestaña “📞 Llamadas”</b> (arriba, no por cliente): sirve para TODAS tus reuniones. Aquí puedes sincronizar o pegar la transcripción para que la IA la resuma.</div>`;
-    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><button class="sm ghost" onclick="tab('llamadas')">🎥 Ir a conectar Google (Llamadas)</button><button class="sm" onclick="sincronizarMeet('${id}')">🔄 Sincronizar TODAS mis reuniones</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Agenda la reunión aquí abajo (se crea en tu Google Calendar con enlace de Meet e invita al cliente). También ves las reuniones pasadas con su resumen, o pegas una transcripción para resumirla con IA.</div>`;
+    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><button class="sm ghost" onclick="sincronizarMeet('${id}')">🔄 Sincronizar resúmenes</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
     // ── Agendar reunión: crea el evento en Google Calendar (+ Meet) e invita al cliente ──
     h+=`<div style="border:1px solid var(--ok);border-radius:8px;padding:10px;margin-bottom:12px">
       <b style="font-size:13px">📅 Agendar reunión</b>
@@ -1615,7 +1625,8 @@ function hacerColapsables(){
     if(/entrenamiento|estado del entreno|rutina|nivel|progresi[oó]n|mesociclo|programaci|an[aá]lisis de entreno|especializaci/.test(t))return 'entreno';
     if(/objetivo|nutrici|macros|refeed|informe mensual|plan de alimentaci|registro.*comida|plan de comidas/.test(t))return 'nutricion';
     if(/progreso f[ií]sico|comparativa|comparaciones|gr[aá]ficas|calendario|pliegues|peso|medidas|fotos/.test(t))return 'progreso';
-    if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos|acceso|suscripci|reuni/.test(t))return 'gestion';
+    if(/reuni/.test(t))return 'reuniones';
+    if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos|acceso|suscripci/.test(t))return 'gestion';
     return 'resumen';};
   const abiertos=window.ACORD_ABIERTOS, conts=[];
   cards.forEach((card)=>{
@@ -1625,7 +1636,8 @@ function hacerColapsables(){
     const cont=document.createElement("div");
     const kids=[];let n=h.nextSibling;while(n){kids.push(n);n=n.nextSibling;}
     kids.forEach(k=>cont.appendChild(k));card.appendChild(cont);
-    const abierta=abiertos.has(titulo); cont.style.display=abierta?"block":"none";
+    // Reuniones abre expandida (es donde se agenda; JC quiere verla directo).
+    const abierta=abiertos.has(titulo)||card.dataset.tab==='reuniones'; cont.style.display=abierta?"block":"none";
     h.style.cursor="pointer";h.style.userSelect="none";
     const flecha=document.createElement("span");flecha.style.cssText="float:right;color:var(--muted);font-size:13px";flecha.textContent=abierta?"▾":"▸";h.appendChild(flecha);
     const lazyKey=card.dataset.lazy;
@@ -1646,7 +1658,7 @@ function hacerColapsables(){
   // Barra de PESTAÑAS internas (encima de todo): agrupa las cards por área y
   // muestra solo las de la pestaña activa. Recuerda la pestaña entre re-renders.
   if(det&&!det.querySelector(".fichaTabs")){
-    const TABS=[['resumen','Resumen'],['entreno','Entreno'],['nutricion','Nutrición'],['progreso','Progreso'],['gestion','Gestión']];
+    const TABS=[['resumen','Resumen'],['entreno','Entreno'],['nutricion','Nutrición'],['progreso','Progreso'],['reuniones','📞 Reuniones'],['gestion','Gestión']];
     const tabsEl=document.createElement("div");tabsEl.className="fichaTabs";
     const mostrar=(id)=>{window.FICHA_TAB=id;cards.forEach(c=>{c.style.display=((c.dataset.tab||'resumen')===id)?"":"none";});[...tabsEl.children].forEach(b=>b.classList.toggle("on",b.dataset.tab===id));};
     TABS.forEach(([id,label])=>{const b=document.createElement("button");b.className="tabBtn";b.dataset.tab=id;b.textContent=label;b.onclick=()=>mostrar(id);tabsEl.appendChild(b);});
