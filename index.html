@@ -861,6 +861,17 @@ async function verCliente(id){
   const fatAvg=avgCk('fatiga'),enAvg=avgCk('energia');
   const alsCli=(typeof ALERTAS!=='undefined'?ALERTAS:[]).filter(a=>String(a.cliente_id)===String(id));
   let rep=`<div class="card"><h2 style="margin-top:0">Reporte automático · ${esc(nom)}</h2>`;
+  // 🚨 ALERTAS al entrenador (JC 2026-08-11): prioridad a DOLORES, luego fatiga, y
+  // cumplimiento de calorías y de entrenamiento. Todo con datos ya calculados.
+  const alertasR=[];
+  if(C&&(C.dart||0)>=6)alertasR.push(`🔴 Dolor articular alto (${C.dart}/10)${C.dartZona?' · '+esc(C.dartZona):''} — revisar carga`);
+  if(C&&(C.dmusc||0)>=8)alertasR.push(`🟠 Dolor muscular alto (${C.dmusc}/10)`);
+  if(fatAvg!=null&&+fatAvg>=7)alertasR.push(`🟠 Fatiga alta (prom ${fatAvg}/10)`);
+  if(ses7===0)alertasR.push('🔴 No ha entrenado en 7 días');
+  else if(ses7<2)alertasR.push(`🟡 Poco entrenamiento (${ses7} sesión en 7 días)`);
+  if(prom&&o.kcal&&Math.abs(prom.k-o.kcal)>=Math.max(250,Math.round(o.kcal*0.15)))alertasR.push(`🟡 Calorías ${prom.k>o.kcal?'por ENCIMA':'por DEBAJO'} del objetivo (${prom.k} vs ${o.kcal})`);
+  if(alertasR.length)rep+=`<div style="background:rgba(226,59,59,.10);border:1px solid var(--rojo);border-radius:8px;padding:8px 10px;margin-bottom:10px"><b style="color:var(--rojo)">🚨 Requiere atención</b><ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5">${alertasR.map(a=>`<li>${a}</li>`).join('')}</ul></div>`;
+  else rep+=`<div style="color:var(--ok);font-size:12.5px;margin-bottom:10px">✓ Sin alertas: dolores, fatiga, calorías y entrenamiento en orden.</div>`;
   rep+=`<h3 style="margin:8px 0 2px">Cumplimiento de entrenamiento</h3>`;
   rep+=`<div class="kv">`;
   rep+=fila("Sesiones últimos 7 días",ses7+" sesión(es)",ses7===0);
@@ -876,6 +887,15 @@ async function verCliente(id){
     rep+=fila(`Sueño (prom. ${sNoches} noche${sNoches===1?"":"s"})`,sprom!=null?sprom.toFixed(1)+" h":"—",sprom!=null&&sprom<6);
     rep+=`</div>`;
   } else rep+=`<div class="muted">Sin check-ins aún.</div>`;
+  // Promedios clave del cliente (sirve tenga o no llamadas): sueño, calorías ingeridas, peso.
+  rep+=`<h3 style="margin:8px 0 2px">Promedios recientes</h3><div class="kv">`;
+  rep+=fila("Sueño (prom.)",sprom!=null?sprom.toFixed(1)+" h":"—",sprom!=null&&sprom<6);
+  rep+=fila("Calorías ingeridas (prom.)",prom?(prom.k+" kcal"+(o.kcal?` · obj ${o.kcal}`:'')):"—",!!(prom&&o.kcal&&Math.abs(prom.k-o.kcal)>300));
+  rep+=fila("Peso actual",peso!=null?(pU(peso)+" "+U_PESO+(dp!=null?` (${dp>0?'+':''}${dU(dp)} total)`:'')):"—");
+  rep+=`</div>`;
+  // Anotaciones del entrenador (notas de seguimiento) — visibles siempre en el Resumen.
+  rep+=`<h3 style="margin:8px 0 2px">📌 Anotaciones</h3>`;
+  rep+=`<div class="muted" style="font-size:13px;white-space:pre-wrap;line-height:1.4">${(per.data&&per.data.notas_seguimiento)?esc(per.data.notas_seguimiento):'Sin anotaciones. Agrégalas en Gestión interna → “Notas de seguimiento”.'}</div>`;
   rep+=`<h3 style="margin:8px 0 2px">Novedades</h3>`;
   let hayNov=false;
   if(alsCli.length){rep+=fila("Alertas abiertas",alsCli.length+": "+alsCli.slice(0,3).map(a=>a.tipo).join(", "),true);hayNov=true;}
