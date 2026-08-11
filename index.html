@@ -1380,12 +1380,13 @@ async function verCliente(id){
     else h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Sin señales de refeed${enDeficit?'':' (cliente no está en déficit)'}.</div>`;
     if(!base.kcal)h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">No hay objetivo base de calorías configurado; define kcal/macros arriba para promediar y calcular refeeds.</div>`;
     // Tabla de los 7 días
-    h+=`<table><tr><th>Día</th><th>Tipo</th><th>Kcal · P/C/G</th></tr>`;
+    h+=`<table><tr><th>Día</th><th>Tipo</th><th>Kcal · P/C/G</th><th></th></tr>`;
     const sum={kcal:0,prot:0,carb:0,fat:0};
     fechasSem.forEach((f,i)=>{
       const d=macroDia(f);sum.kcal+=d.kcal;sum.prot+=d.prot;sum.carb+=d.carb;sum.fat+=d.fat;
       const et=d.over?(d.tipo==='refeed'?'<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700">REFEED</span>':d.tipo==='bajo'?'<span class="pill" style="background:#5f7dd0;color:#000;font-weight:700">Bajo</span>':'<span class="pill" style="background:var(--warn);color:#000;font-weight:700">Custom</span>'):'<span class="muted" style="font-size:11px">base</span>';
-      h+=`<tr${f===hoy?' style="background:#1d1d20"':''}><td>${DIAS[i]} <span class="muted" style="font-size:11px">${esc(f.slice(5))}</span></td><td>${et}</td><td>${d.kcal} kcal · P${d.prot}/C${d.carb}/G${d.fat}</td></tr>`;
+      // ✏️ lápiz: edita los macros de ESE día (carga sus valores en el editor de abajo).
+      h+=`<tr${f===hoy?' style="background:#1d1d20"':''}><td>${DIAS[i]} <span class="muted" style="font-size:11px">${esc(f.slice(5))}</span></td><td>${et}</td><td>${d.kcal} kcal · P${d.prot}/C${d.carb}/G${d.fat}</td><td style="text-align:center;white-space:nowrap"><button class="sm ghost" onclick="editarMacroDia('${f}',${d.kcal},${d.prot},${d.carb},${d.fat})" title="Editar los macros de este día" style="padding:2px 7px;margin:0">✏️</button></td></tr>`;
     });
     h+=`</table>`;
     // Promedio semanal
@@ -2724,6 +2725,17 @@ async function aplicarRefeed(id){
   const e=errFilas(await sb.from("macros_dia").upsert({user_id:id,fecha,tipo:'refeed',kcal,prot,carb,fat,nota:'Carbohidratos idealmente antes de entrenar',origen:'entrenador'},{onConflict:"user_id,fecha"}).select("user_id"));
   if(e){$("mdMsg").innerHTML=`<span class="alert">${esc(e)}</span>`;return;}
   await verCliente(id);
+}
+// ✏️ Editar los macros de un día concreto: fija la fecha y precarga sus valores en
+// el editor "Custom" de abajo (reusa guardarCustomMacros). Baja y enfoca el campo.
+function editarMacroDia(f,k,p,c,g){
+  const sf=$("md_fecha");if(sf)sf.value=f;
+  if($("md_kcal"))$("md_kcal").value=k||'';
+  if($("md_prot"))$("md_prot").value=p||'';
+  if($("md_carb"))$("md_carb").value=c||'';
+  if($("md_fat"))$("md_fat").value=g||'';
+  if($("mdMsg"))$("mdMsg").textContent='Editando '+f+' — ajusta y toca “Guardar custom”.';
+  const el=$("md_kcal");if(el){try{el.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}el.focus();}
 }
 async function guardarCustomMacros(id){
   const fecha=$("md_fecha")?$("md_fecha").value:hace(0);
