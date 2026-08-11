@@ -41,7 +41,7 @@
   label.lbl{display:block;color:var(--muted);font-size:12px;margin-top:6px;font-weight:600}
   .appbar{display:flex;justify-content:space-between;align-items:center;padding:4px 0 12px}
   .brand{display:flex;align-items:center;gap:11px}
-  .brandMark{width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#e23b3b,#9c1616);color:#fff;font-weight:900;font-size:19px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px -4px rgba(226,59,59,.6);flex-shrink:0}
+  .brandMark{width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#e23b3b,#9c1616);color:#fff;font-weight:900;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px -4px rgba(226,59,59,.6);flex-shrink:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center}
   .brandSub{color:var(--muted);font-weight:600}
   .nav{display:flex;gap:4px;margin:6px 0 14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
   .nav button{background:transparent;border:1px solid transparent;color:var(--muted);font-weight:600;padding:8px 13px;border-radius:20px;transition:all .15s}
@@ -534,7 +534,25 @@ async function verRecordatorios(){
   }).sort((a,b)=> (ATEND.has(a.c.user_id)?1:0)-(ATEND.has(b.c.user_id)?1:0) || b.prio-a.prio); // atendidos al final
 
   const nAt=rows.filter(r=>ATEND.has(r.c.user_id)).length;
-  let h=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia, ciclo en mujeres, cierre de ciclo de 4 semanas → fotos y medidas, y pesos semanales para quien no está sanando TCA). Ordenado por prioridad. Marca "Atendido" cuando lo contactes: baja al final y no reaparece hoy.${nAt?` <b>${nAt} atendido(s) hoy.</b>`:''}</div></div>`;
+  let h='';
+  // ── APARTADO: FOTOS NUEVAS PARA REVISAR ──────────────────────────────────
+  // Clientes que SUBIERON fotos (y/o medidas) en los últimos ~12 días: hay que
+  // mirarlas. Es el lado inverso del recordatorio de "pedirle fotos".
+  {
+    const d12=hace(12);
+    const revisar=CLIENTES
+      .map(c=>({c,foto:ULTFOTO[c.user_id]||null,med:ULTMED[c.user_id]||null}))
+      .filter(x=>x.foto&&x.foto>=d12)
+      .sort((a,b)=>String(b.foto).localeCompare(String(a.foto)));
+    const diasA=f=>{const d=Math.floor((Date.now()-new Date(f+"T00:00:00").getTime())/864e5);return d<=0?'hoy':d===1?'ayer':`hace ${d}d`;};
+    h+=`<div class="card" style="border:1px solid var(--ok)"><h2 style="margin-top:0">📸 Fotos nuevas para revisar ${revisar.length?`<span class="pill" style="background:rgba(95,208,127,.16);color:var(--ok);font-weight:700">${revisar.length}</span>`:''}</h2>`;
+    if(revisar.length){
+      h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Clientes que subieron fotos (o medidas) en los últimos 12 días. Ábrelos para verlas en <b>Comparaciones</b> y ajustar.</div>`;
+      h+=`<div style="display:flex;flex-direction:column;gap:6px">`+revisar.map(x=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 4px;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.c.nombre||x.c.user_id.slice(0,8))}</b><span class="pill" style="background:var(--card2)">📸 ${diasA(x.foto)}</span>${x.med&&x.med>=d12?`<span class="pill" style="background:var(--card2)">📐 medidas ${diasA(x.med)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="tab('clientes');verCliente('${x.c.user_id}')">Ver fotos →</button></div>`).join('')+`</div>`;
+    } else h+=`<div class="muted" style="font-size:12px">Nadie ha subido fotos nuevas en los últimos 12 días.</div>`;
+    h+=`</div>`;
+  }
+  h+=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia, ciclo en mujeres, cierre de ciclo de 4 semanas → fotos y medidas, y pesos semanales para quien no está sanando TCA). Ordenado por prioridad. Marca "Atendido" cuando lo contactes: baja al final y no reaparece hoy.${nAt?` <b>${nAt} atendido(s) hoy.</b>`:''}</div></div>`;
   if(recFallos.length)h+=`<div class="card"><div class="alert">⚠️ No cargó: <b>${esc(recFallos.join(", "))}</b>. Algunos recordatorios pueden faltar. <button class="sm" onclick="verRecordatorios()">Reintentar</button></div></div>`;
   h+=`<div class="card" style="overflow-x:auto"><table class="data" style="min-width:880px"><thead><tr><th>Cliente</th><th>Señales de hoy</th><th>Qué tener en cuenta</th><th>WhatsApp</th><th>Hecho</th></tr></thead><tbody>`;
   rows.forEach(r=>{
@@ -652,11 +670,16 @@ async function verLlamadas(){
     return `<tr><td><b>${esc(p.nombre||p.user_id.slice(0,8))}</b></td><td><input type="date" value="${p.proxima_llamada}" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td style="color:${col};font-weight:700;white-space:nowrap">${txt}</td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`;};
   const nAtr=conFecha.filter(p=>diasDe(p.proxima_llamada)<0).length;
   // ── Sección GLOBAL de Google Meet (una sola vez, no por cliente). Siempre visible aquí. ──
-  let conectado=false;
-  try{const g=await sb.from("oauth_google").select("entrenador_id").eq("entrenador_id",MIID).maybeSingle();conectado=!!(g&&g.data);}catch(e){/* si RLS lo bloquea, mostramos ambos botones igual */}
-  let h=`<div class="card" style="border:1px solid var(--rojo)"><h2 style="margin-top:0">🎥 Google Meet ${conectado?'<span style="color:var(--ok);font-size:13px">· ✅ conectado</span>':''}</h2>`;
-  h+=`<div class="muted" style="font-size:12px;margin-bottom:8px"><b>Se conecta UNA sola vez</b> (con tu cuenta soporte@jcfitn3ss.com) y sirve para TODAS tus reuniones — no hay que conectar cliente por cliente. Al sincronizar, se traen las reuniones con transcripción activada y se reparten a cada cliente por su nombre.</div>`;
-  h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="conectarGoogle()">🔗 ${conectado?'Reconectar Google':'Conectar Google (una vez)'}</button><button class="sm" onclick="sincronizarMeet()">🔄 Sincronizar TODAS mis reuniones</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
+  // Estado real vía función con service role (no depende de RLS).
+  let est={};try{const r=await invokeFn("google-estado",{body:{}});est=(r&&r.data)||{};}catch(e){/* si falla, mostramos botones igual */}
+  const conectado=!!est.conectado;
+  const permisosOK=conectado&&est.permisos_meet&&est.permisos_calendar;
+  let badge='';
+  if(conectado&&permisosOK)badge=`<span style="color:var(--ok);font-size:13px">· ✅ conectado${est.email?' ('+esc(est.email)+')':''}</span>`;
+  else if(conectado)badge=`<span style="color:var(--warn);font-size:13px">· ⚠️ conectado pero faltan permisos (reconecta y acepta Meet + Calendar)</span>`;
+  let h=`<div class="card" style="border:1px solid var(--rojo)"><h2 style="margin-top:0">🎥 Google Meet ${badge}</h2>`;
+  h+=`<div class="muted" style="font-size:12px;margin-bottom:8px"><b>Se conecta UNA sola vez</b> (con tu cuenta soporte@jcfitn3ss.com) y sirve para TODAS tus reuniones — no hay que conectar cliente por cliente. ${conectado?'Ya está conectado: no tienes que volver a hacerlo. Sincronizar es opcional, cuando quieras traer los resúmenes.':'Autoriza y acepta los permisos de Meet + Calendar.'}</div>`;
+  h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="conectarGoogle()">🔗 ${conectado?'Reconectar Google':'Conectar Google (una vez)'}</button><button class="sm ghost" onclick="verLlamadas()">↻ Verificar estado</button><button class="sm" onclick="sincronizarMeet()">🔄 Sincronizar TODAS mis reuniones</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
   h+=`</div>`;
   h+=`<div class="card"><h2 style="margin-top:0">📞 Llamadas por cliente</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Próxima llamada de cada cliente, ordenadas por fecha. <b style="color:var(--rojo)">Rojo</b>=atrasada, <b style="color:var(--warn)">naranja</b>=hoy, verde=próxima. Cambia la fecha aquí mismo.${nAtr?` <b style="color:var(--rojo)">${nAtr} atrasada(s).</b>`:''}</div>`;
   if(conFecha.length){h+=`<table><tr><th>Cliente</th><th>Próxima llamada</th><th>Estado</th><th>Frecuencia</th><th></th></tr>${conFecha.map(filaLlam).join('')}</table>`;}
@@ -1250,6 +1273,14 @@ async function verCliente(id){
     const tipos=[...new Set(F.map(f=>String(f.tipo||'').trim()).filter(Boolean))];
     const optF=F.map((f,i)=>`<option value="${i}">${esc(f.fecha||'')}${f.tipo?' · '+esc(f.tipo):''}</option>`).join('');
     h+=`<div class="card"><h2 style="margin-top:0">📸 Comparaciones</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Elige por fecha qué comparar. Ideal para atletas con muchas fotos y medidas.</div>`;
+    // ---- ALTURA (dato físico fijo, va junto a medidas/fotos) ----
+    {
+      const alt=Number(per.data&&per.data.altura)||0;
+      const pesoAct=(pes&&pes.data&&pes.data[0]&&pes.data[0].peso)?Number(pes.data[0].peso):0;
+      const imc=(alt>0&&pesoAct>0)?Math.round((pesoAct/((alt/100)**2))*10)/10:0;
+      if(alt>0)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span class="pill" style="background:var(--card2);font-weight:700">📏 Altura: ${alt} cm</span>${pesoAct?`<span class="pill" style="background:var(--card2);font-weight:700">⚖️ Peso: ${pesoAct} kg</span>`:''}${imc?`<span class="pill" style="background:var(--card2)">IMC ${imc}</span>`:''}</div>`;
+      else h+=`<div style="margin-bottom:10px;color:var(--warn);font-weight:600;font-size:12px">📏 Falta la altura de este cliente — regístrala en “Gestión interna” (necesaria para el plan y el IMC).</div>`;
+    }
     // ---- FOTOS (a tamaño completo, seleccionables por fecha/pose) ----
     h+=`<h3 style="margin-top:0">Fotos comparativas</h3>`;
     if(F.length){
