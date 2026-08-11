@@ -1372,11 +1372,14 @@ async function verCliente(id){
     else{
       const porDia={};RL.forEach(c=>{(porDia[c.fecha]=porDia[c.fecha]||[]).push(c);});
       const fechas=Object.keys(porDia).sort((a,b)=>b.localeCompare(a));
+      // Orden canónico del día (desayuno→post-cena→snack) para que no salgan revueltas.
+      const ORDMOM=m=>{const s=(m||'').toLowerCase();const o=['desayuno','media','almuerzo','merienda','cena','post','snack'];const i=o.findIndex(k=>s.includes(k));return i<0?8:i;};
       rh+=fechas.map(f=>{
-        const items=porDia[f];
+        const items=porDia[f].slice().sort((a,b)=>ORDMOM(a.momento)-ORDMOM(b.momento)||String(a.created_at||'').localeCompare(String(b.created_at||'')));
         const t=items.reduce((a,c)=>({k:a.k+(+c.kcal||0),p:a.p+(+c.prot||0),c:a.c+(+c.carb||0),f:a.f+(+c.fat||0)}),{k:0,p:0,c:0,f:0});
         const diff=objK?Math.round(t.k)-objK:0;const col=objK&&Math.abs(diff)>objK*0.12?'var(--rojo)':'var(--ok)';
-        const filas=items.map(c=>{
+        const filas=items.map((c,i)=>{
+          const etiqMom=c.momento||('Comida '+(i+1)); // si no vino momento, numeramos
           const foto=c.foto_url?`<a href="${esc(c.foto_url)}" target="_blank" title="Ver foto grande"><img src="${esc(c.foto_url)}" loading="lazy" style="width:58px;height:58px;object-fit:cover;border-radius:8px;border:1px solid var(--line);margin:0 8px 2px 0;float:left"></a>`:'';
           const ex=[];
           if(c.saciedad!=null)ex.push('saciedad '+c.saciedad+'/5');
@@ -1384,7 +1387,7 @@ async function verCliente(id){
           if(c.ruido!=null&&c.ruido>0)ex.push('ruido '+c.ruido+'/5');
           if(c.fibra)ex.push('fibra '+Math.round(c.fibra)+'g');
           const exl=ex.length?`<div class="muted" style="font-size:10.5px;margin-top:2px">${ex.join(' · ')}</div>`:'';
-          return `<tr><td class="muted" style="white-space:nowrap;font-size:11px;vertical-align:top;padding-top:4px">${esc(c.momento||'')}</td><td style="vertical-align:top;padding:4px 0"><div style="overflow:hidden">${foto}<div style="font-size:12.5px">${esc(c.descripcion||'')}</div>${exl}</div></td><td style="white-space:nowrap;text-align:right;font-size:12px;vertical-align:top;padding-top:4px">${Math.round(c.kcal||0)} kcal <span class="muted">P${Math.round(c.prot||0)}/C${Math.round(c.carb||0)}/G${Math.round(c.fat||0)}</span></td></tr>`;
+          return `<tr><td class="muted" style="white-space:nowrap;font-size:11px;vertical-align:top;padding-top:4px">${esc(etiqMom)}</td><td style="vertical-align:top;padding:4px 0"><div style="overflow:hidden">${foto}<div style="font-size:12.5px">${esc(c.descripcion||'')}</div>${exl}</div></td><td style="white-space:nowrap;text-align:right;font-size:12px;vertical-align:top;padding-top:4px">${Math.round(c.kcal||0)} kcal <span class="muted">P${Math.round(c.prot||0)}/C${Math.round(c.carb||0)}/G${Math.round(c.fat||0)}</span></td></tr>`;
         }).join('');
         return `<details style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:0 10px">
           <summary style="cursor:pointer;padding:9px 0;font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
@@ -3013,11 +3016,46 @@ async function rechazarAlimento(id){
   if(error){alert(error.message);return;}
   verAlimentos();
 }
+let AB_EDIT=null; // id del alimento del catálogo que se está editando inline
+function abEdit(id){AB_EDIT=String(id);renderAB();}
+function abCancelEdit(){AB_EDIT=null;renderAB();}
+async function abGuardarEdit(id){
+  const g=k=>{const el=document.getElementById(k);return el?el.value:'';};
+  const nombre=(g('abe_nom')||'').trim();if(!nombre){alert('Falta el nombre.');return;}
+  const p=+g('abe_p')||0,c=+g('abe_c')||0,f=+g('abe_f')||0;const kIn=(g('abe_k')||'').trim();const k=kIn!==''?(+kIn||0):Math.round(p*4+c*4+f*9);
+  const pgIn=(g('abe_pg')||'').trim();
+  const patch={nombre,categoria:g('abe_cat'),p,c,f,k};
+  if(pgIn!=='')patch.porcion_g=+pgIn||null;
+  const e=errFilas(await sb.from("alimentos_base").update(patch).eq("id",id).select("id"));
+  if(e){alert(e);return;}
+  const it=AB.find(x=>String(x.id)===String(id));if(it)Object.assign(it,patch);
+  AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));AB_EDIT=null;renderAB();
+}
 function renderAB(){
   const q=($("a_buscar")?$("a_buscar").value:"").toLowerCase();
   const fc=($("a_fcat")?$("a_fcat").value:"");
   const list=AB.filter(a=>(!q||(a.nombre||"").toLowerCase().includes(q))&&(!fc||a.categoria===fc));
-  $("ablist").innerHTML=`<table><tr><th>Alimento</th><th>Categoría</th><th>Kcal</th><th>P</th><th>C</th><th>G</th><th></th></tr>${list.map(a=>`<tr><td><b>${esc(a.nombre)}</b></td><td class="muted">${esc(catLabel(a.categoria))}</td><td>${Math.round(a.k||0)}</td><td>${a.p??0}</td><td>${a.c??0}</td><td>${a.f??0}</td><td><button class="sm ghost" onclick="borrarAlimento('${a.id}')" title="Quitar del catálogo">🗑</button></td></tr>`).join("")}</table>`;
+  const fila=a=>{
+    if(String(a.id)===AB_EDIT){
+      const opt=CATS.map(cc=>`<option value="${cc[0]}"${a.categoria===cc[0]?' selected':''}>${cc[1]}</option>`).join("");
+      return `<tr style="background:var(--card2)"><td colspan="7" style="padding:8px">
+        <div class="row" style="align-items:flex-end">
+          <div style="flex:2"><label class="lbl">Nombre</label><input id="abe_nom" data-nocaps value="${esc(a.nombre||'')}" style="margin:0"></div>
+          <div><label class="lbl">Categoría</label><select id="abe_cat" style="margin:0">${opt}</select></div>
+        </div>
+        <div class="row" style="align-items:flex-end;margin-top:6px">
+          <div><label class="lbl">Prot (g)</label><input id="abe_p" type="number" step="0.1" value="${a.p??0}" style="margin:0"></div>
+          <div><label class="lbl">Carb (g)</label><input id="abe_c" type="number" step="0.1" value="${a.c??0}" style="margin:0"></div>
+          <div><label class="lbl">Grasa (g)</label><input id="abe_f" type="number" step="0.1" value="${a.f??0}" style="margin:0"></div>
+          <div><label class="lbl">Kcal</label><input id="abe_k" type="number" step="0.1" value="${a.k??''}" placeholder="auto" style="margin:0"></div>
+          <div><label class="lbl">Porción g</label><input id="abe_pg" type="number" step="1" value="${a.porcion_g??''}" placeholder="—" style="margin:0"></div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:6px"><button class="sm" onclick="abGuardarEdit('${a.id}')">Guardar</button><button class="sm ghost" onclick="abCancelEdit()">Cancelar</button><span class="muted" style="font-size:11px;align-self:center">Valores por 100 g.</span></div>
+      </td></tr>`;
+    }
+    return `<tr><td><b>${esc(a.nombre)}</b></td><td class="muted">${esc(catLabel(a.categoria))}</td><td>${Math.round(a.k||0)}</td><td>${a.p??0}</td><td>${a.c??0}</td><td>${a.f??0}</td><td style="white-space:nowrap"><button class="sm ghost" onclick="abEdit('${a.id}')" title="Editar">✏️</button><button class="sm ghost" onclick="borrarAlimento('${a.id}')" title="Quitar del catálogo">🗑</button></td></tr>`;
+  };
+  $("ablist").innerHTML=`<table><tr><th>Alimento</th><th>Categoría</th><th>Kcal</th><th>P</th><th>C</th><th>G</th><th></th></tr>${list.map(fila).join("")}</table>`;
 }
 async function addAlimento(){
   const nom=$("a_nom").value.trim();if(!nom){$("aMsg").textContent="Falta el nombre.";return;}
