@@ -145,7 +145,7 @@
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
-      <button id="t-llamadas" onclick="tab('llamadas')">📞 Llamadas</button>
+      <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
       <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
       <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
@@ -680,7 +680,7 @@ async function verLlamadas(){
     // Todo bien: NO mostrar botón de conectar (JC no lo quiere visible siempre).
     // Solo el estado + un enlace discreto de reconectar por si algún día falla.
     h+=`<div class="card"><h2 style="margin-top:0">🎥 Google Meet <span style="color:var(--ok);font-size:13px">· ✅ conectado${est.email?' ('+esc(est.email)+')':''}</span></h2>`;
-    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Listo. Las reuniones se <b>agendan desde la ficha de cada cliente</b> (pestaña <b>📞 Reuniones</b>). No tienes que volver a conectar.</div>`;
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Listo. Las reuniones se <b>agendan desde la ficha de cada cliente</b> (pestaña <b>Reuniones</b>). No tienes que volver a conectar.</div>`;
     h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm ghost" onclick="sincronizarMeet()">🔄 Sincronizar resúmenes (opcional)</button> <span id="meetMsg" class="muted" style="font-size:12px"></span> <span style="flex:1"></span><a href="#" onclick="conectarGoogle();return false" class="muted" style="font-size:11px;text-decoration:underline" title="Solo si algo falla al agendar/sincronizar">¿Problemas? Reconectar</a></div>`;
     h+=`</div>`;
   }else{
@@ -691,7 +691,7 @@ async function verLlamadas(){
     h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="conectarGoogle()">🔗 ${conectado?'Reconectar Google':'Conectar Google (una vez)'}</button><button class="sm ghost" onclick="verLlamadas()">↻ Verificar</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
     h+=`</div>`;
   }
-  h+=`<div class="card"><h2 style="margin-top:0">📞 Llamadas por cliente</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Próxima llamada de cada cliente, ordenadas por fecha. <b style="color:var(--rojo)">Rojo</b>=atrasada, <b style="color:var(--warn)">naranja</b>=hoy, verde=próxima. Cambia la fecha aquí mismo.${nAtr?` <b style="color:var(--rojo)">${nAtr} atrasada(s).</b>`:''}</div>`;
+  h+=`<div class="card"><h2 style="margin-top:0">Llamadas por cliente</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Próxima llamada de cada cliente, ordenadas por fecha. <b style="color:var(--rojo)">Rojo</b>=atrasada, <b style="color:var(--warn)">naranja</b>=hoy, verde=próxima. Cambia la fecha aquí mismo.${nAtr?` <b style="color:var(--rojo)">${nAtr} atrasada(s).</b>`:''}</div>`;
   if(conFecha.length){h+=`<table><tr><th>Cliente</th><th>Próxima llamada</th><th>Estado</th><th>Frecuencia</th><th></th></tr>${conFecha.map(filaLlam).join('')}</table>`;}
   else h+=`<div class="muted">Ningún cliente tiene próxima llamada agendada. Agenda desde la ficha del cliente (pestaña 📞 Reuniones) o aquí abajo.</div>`;
   if(sinFecha.length){h+=`<h3>Sin llamada agendada (${sinFecha.length}) — ponles fecha</h3><table><tr><th>Cliente</th><th>Agendar</th><th>Frecuencia</th><th></th></tr>${sinFecha.map(p=>`<tr><td><b>${esc(p.nombre||'')}</b></td><td><input type="date" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`).join('')}</table>`;}
@@ -699,6 +699,13 @@ async function verLlamadas(){
   $("v-llamadas").innerHTML=h;
 }
 async function setLlamada(uid,fecha){const e=errFilas(await sb.from("perfiles").update({proxima_llamada:fecha||null}).eq("user_id",uid).select("user_id"));if(e){alert(e);return;}verLlamadas();}
+// Guarda la frecuencia (cantidad) de llamadas y la próxima, desde la ficha del cliente.
+async function guardarFrecLlamada(id){
+  const frec=$("reuFrec")?$("reuFrec").value:null;const prox=$("reuProx")?$("reuProx").value:null;const m=$("reuFrecMsg");
+  if(m){m.style.color='';m.textContent="Guardando…";}
+  const e=errFilas(await sb.from("perfiles").update({frecuencia_llamada:frec||null,proxima_llamada:prox||null}).eq("user_id",id).select("user_id"));
+  if(m){if(e){m.style.color='var(--rojo)';m.textContent=e;}else{m.style.color='var(--ok)';m.textContent="✓ Guardado.";}}
+}
 // ---- REUNIONES (resumen IA de la transcripción + guardar/borrar) ----
 async function reuResumir(){
   const txt=($("reu_txt").value||'').trim();
@@ -984,7 +991,66 @@ async function verCliente(id){
   if(!hayNov)rep+=`<div class="muted">Sin novedades.</div>`;
   rep+=`</div>`;
 
-  let h=avisoCarga+rep+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
+  // ===== TARJETA REUNIONES (card de nivel superior → su propia pestaña) =====
+  // Agenda (Google Calendar + Meet), frecuencia de llamadas editable e historial
+  // de reuniones en formato interno. Se inserta después de `rep` para que sea un
+  // hijo directo de #detalle (así la pestaña "Reuniones" la reconoce).
+  let reuCard;
+  {
+    const RNS=(rns&&rns.data)||[];
+    const _frec=(per.data&&per.data.frecuencia_llamada)||'';
+    const _prox=(per.data&&per.data.proxima_llamada)||'';
+    const _nom1=(nom||'el cliente').split(' ')[0];
+    const _fmtFecha=f=>{if(!f)return '';const d=new Date(f+(f.length<=10?'T00:00:00':''));return isNaN(d)?esc(f):d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});};
+    reuCard=`<div class="card"><h2 style="margin-top:0">Reuniones y llamadas${RNS.length?` <span class="muted" style="font-size:13px;font-weight:400">· ${RNS.length}</span>`:''}</h2>`;
+    // 1) Frecuencia / cantidad de llamadas (editable aquí mismo).
+    reuCard+=`<div style="background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-weight:600;margin-bottom:6px">Frecuencia de llamadas con ${esc(_nom1)}</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div><label class="lbl">Cada cuánto</label><select id="reuFrec" style="margin:0">${['','semanal','quincenal','mensual','bimensual','ninguna'].map(f=>`<option value="${f}" ${_frec===f?'selected':''}>${f?cap(f):'(sin definir)'}</option>`).join('')}</select></div>
+        <div><label class="lbl">Próxima llamada</label><input id="reuProx" type="date" value="${_prox?esc(_prox):''}" style="margin:0"></div>
+        <div><button class="sm" onclick="guardarFrecLlamada('${id}')">Guardar</button></div>
+        <span id="reuFrecMsg" class="muted" style="font-size:12px"></span>
+      </div>
+    </div>`;
+    // 2) Agendar reunión (Google Calendar + Meet + invita al cliente).
+    reuCard+=`<div style="border:1px solid var(--ok);border-radius:8px;padding:10px;margin-bottom:12px">
+      <b style="font-size:13px">📅 Agendar reunión</b>
+      <div class="row" style="margin-top:6px;align-items:flex-end">
+        <div><label class="lbl">Fecha y hora</label><input id="ag_dt" type="datetime-local" style="margin:0"></div>
+        <div><label class="lbl">Duración</label><select id="ag_dur" style="margin:0"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></div>
+        <div><button class="sm" onclick="agendarReunion('${id}')">✅ Confirmar y agendar</button></div>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:5px">Se crea en tu <b>Google Calendar</b> con enlace de <b>Meet</b> y se le envía invitación al cliente por correo. Requiere Google conectado (pestaña Llamadas).</div>
+      <div style="margin-top:6px"><button class="sm ghost" onclick="sincronizarMeet('${id}')">🔄 Sincronizar resúmenes de Meet</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>
+      <div id="agMsg" style="font-size:12px;margin-top:5px"></div>
+    </div>`;
+    // 3) Historial de reuniones (formato interno: oscuro, con acento rojo).
+    reuCard+=`<h3 style="margin:6px 0 6px">Historial de reuniones</h3>`;
+    if(RNS.length){
+      reuCard+=`<div style="display:flex;flex-direction:column;gap:8px">`+RNS.map(r=>`<div style="background:#14141b;border:1px solid var(--line);border-left:3px solid var(--rojo);border-radius:8px;padding:10px 12px">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b style="font-size:13px">${_fmtFecha(r.fecha)}${r.titulo?` · ${esc(r.titulo)}`:''}</b>
+          <div style="display:flex;gap:6px;align-items:center">${r.origen?`<span class="pill" style="background:var(--card2);font-size:10px">${esc(r.origen)}</span>`:''}<button class="sm ghost" onclick="reuBorrar('${r.id}','${id}')" style="margin:0;padding:2px 8px">🗑</button></div>
+        </div>
+        ${r.resumen?`<div style="font-size:12.5px;margin-top:5px;line-height:1.5">${esc(r.resumen)}</div>`:'<div class="muted" style="font-size:12px;margin-top:4px">Sin resumen (reunión agendada o sin transcripción).</div>'}
+        ${r.puntos?`<div style="margin-top:6px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px">Pendientes</div><ul style="margin:3px 0 0;padding-left:18px;font-size:12px;line-height:1.5">${String(r.puntos).split('\n').filter(Boolean).map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>`:''}
+        ${r.meet_url?`<div style="margin-top:5px"><a href="${esc(r.meet_url)}" target="_blank" style="font-size:11px">Abrir enlace de Meet</a></div>`:''}
+      </div>`).join('')+`</div>`;
+    } else reuCard+=`<div class="muted" style="font-size:12px">Aún no hay reuniones registradas. Agenda una arriba, o registra una manual abajo.</div>`;
+    // 4) Registrar reunión manual (pegar transcripción → IA).
+    reuCard+=`<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700">+ Registrar reunión manual</summary>
+      <div class="row" style="margin-top:6px"><div><label class="lbl">Fecha</label><input id="reu_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div style="flex:2"><label class="lbl">Título (opcional)</label><input id="reu_tit" placeholder="ej. Revisión mensual"></div></div>
+      <label class="lbl">Enlace de Meet (opcional)</label><input id="reu_url" placeholder="https://meet.google.com/...">
+      <label class="lbl">Transcripción / notas</label><textarea id="reu_txt" rows="4" placeholder="Pega aquí la transcripción o tus notas…" style="width:100%;box-sizing:border-box"></textarea>
+      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="reuResumir()">✨ Resumir con IA</button><button class="sm" onclick="reuGuardar('${id}')">Guardar reunión</button> <span id="reuMsg" class="muted" style="font-size:12px"></span></div>
+      <label class="lbl">Resumen (editable)</label><textarea id="reu_res" rows="3" placeholder="Se llena al resumir con IA" style="width:100%;box-sizing:border-box"></textarea>
+      <label class="lbl">Puntos / pendientes (uno por línea)</label><textarea id="reu_pts" rows="3" style="width:100%;box-sizing:border-box"></textarea>
+    </details>`;
+    reuCard+=`</div>`;
+  }
+
+  let h=avisoCarga+rep+reuCard+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
   h+=`<div class="kv">`+fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—")+`</div>`;
 
   // ---- Atleta (culturismo): SOLO el entrenador decide ----
@@ -1121,35 +1187,8 @@ async function verCliente(id){
       </div>`;
   }
 
-  // ===== REUNIONES (Google Meet u otras): fecha, resumen IA y pendientes =====
-  {
-    const RNS=rns.data||[];
-    h+=`<div class="card"><h2 style="margin-top:0">📞 Reuniones${RNS.length?` (${RNS.length})`:''}</h2>`;
-    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Agenda la reunión aquí abajo (se crea en tu Google Calendar con enlace de Meet e invita al cliente). También ves las reuniones pasadas con su resumen, o pegas una transcripción para resumirla con IA.</div>`;
-    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><button class="sm ghost" onclick="sincronizarMeet('${id}')">🔄 Sincronizar resúmenes</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
-    // ── Agendar reunión: crea el evento en Google Calendar (+ Meet) e invita al cliente ──
-    h+=`<div style="border:1px solid var(--ok);border-radius:8px;padding:10px;margin-bottom:12px">
-      <b style="font-size:13px">📅 Agendar reunión</b>
-      <div class="row" style="margin-top:6px;align-items:flex-end">
-        <div><label class="lbl">Fecha y hora</label><input id="ag_dt" type="datetime-local" style="margin:0"></div>
-        <div><label class="lbl">Duración</label><select id="ag_dur" style="margin:0"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></div>
-        <div><button class="sm" onclick="agendarReunion('${id}')">✅ Confirmar y agendar</button></div>
-      </div>
-      <div class="muted" style="font-size:11px;margin-top:5px">Se crea en tu <b>Google Calendar</b> con enlace de <b>Meet</b> y se le envía invitación al cliente por correo (le queda en su calendario). Necesita Google conectado (pestaña Llamadas).</div>
-      <div id="agMsg" style="font-size:12px;margin-top:5px"></div>
-    </div>`;
-    if(RNS.length){h+=RNS.map(r=>`<div style="border-left:3px solid var(--rojo);padding:6px 10px;margin-bottom:8px;background:#14141b;border-radius:6px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${esc(r.fecha||'')}${r.titulo?' · '+esc(r.titulo):''}</b><button class="sm ghost" onclick="reuBorrar('${r.id}','${id}')" style="margin:0;padding:2px 8px">🗑</button></div>${r.resumen?`<div style="font-size:13px;margin-top:4px">${esc(r.resumen)}</div>`:''}${r.puntos?`<ul style="margin:4px 0 0;padding-left:18px;font-size:12px;color:var(--muted)">${String(r.puntos).split('\n').filter(Boolean).map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}${r.meet_url?`<div style="margin-top:3px"><a href="${esc(r.meet_url)}" target="_blank" style="font-size:11px">enlace Meet</a></div>`:''}</div>`).join('');}
-    else h+=`<div class="muted" style="font-size:12px">Sin reuniones registradas.</div>`;
-    h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700">+ Registrar reunión</summary>
-      <div class="row" style="margin-top:6px"><div><label class="lbl">Fecha</label><input id="reu_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div style="flex:2"><label class="lbl">Título (opcional)</label><input id="reu_tit" placeholder="ej. Revisión mensual"></div></div>
-      <label class="lbl">Enlace de Meet (opcional)</label><input id="reu_url" placeholder="https://meet.google.com/...">
-      <label class="lbl">Transcripción / notas de la reunión</label><textarea id="reu_txt" rows="4" placeholder="Pega aquí la transcripción de Google Meet o tus notas…" style="width:100%;box-sizing:border-box"></textarea>
-      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="reuResumir()">✨ Resumir con IA</button><button class="sm" onclick="reuGuardar('${id}')">Guardar reunión</button> <span id="reuMsg" class="muted" style="font-size:12px"></span></div>
-      <label class="lbl">Resumen (editable)</label><textarea id="reu_res" rows="3" placeholder="Se llena al resumir con IA" style="width:100%;box-sizing:border-box"></textarea>
-      <label class="lbl">Puntos / pendientes (uno por línea)</label><textarea id="reu_pts" rows="3" style="width:100%;box-sizing:border-box"></textarea>
-    </details>`;
-    h+=`</div>`;
-  }
+  // (La tarjeta de Reuniones se construye ARRIBA como `reuCard` y se inserta tras
+  //  `rep`, para que sea un hijo directo de #detalle y tenga su propia pestaña.)
 
   // ===== SECCIÓN ÚNICA DE ENTRENAMIENTO (una sola, ordenada y fácil de editar) =====
   h+=`<div style="margin:20px 0 8px;border-top:2px solid var(--rojo);padding-top:12px"><h2 style="margin:0;color:var(--rojo)">🏋️ ENTRENAMIENTO</h2><div class="muted" style="font-size:12px">Todo el entreno del cliente en un solo lugar. Para <b>editar la rutina y subir/bajar volumen por grupo</b> ve a la tarjeta <b>“✏️ Editar rutina y volumen”</b> más abajo. Lo avanzado (fuerza / especialización) queda plegado.</div></div>`;
@@ -1658,7 +1697,7 @@ function hacerColapsables(){
   // Barra de PESTAÑAS internas (encima de todo): agrupa las cards por área y
   // muestra solo las de la pestaña activa. Recuerda la pestaña entre re-renders.
   if(det&&!det.querySelector(".fichaTabs")){
-    const TABS=[['resumen','Resumen'],['entreno','Entreno'],['nutricion','Nutrición'],['progreso','Progreso'],['reuniones','📞 Reuniones'],['gestion','Gestión']];
+    const TABS=[['resumen','Resumen'],['entreno','Entreno'],['nutricion','Nutrición'],['progreso','Progreso'],['reuniones','Reuniones'],['gestion','Gestión']];
     const tabsEl=document.createElement("div");tabsEl.className="fichaTabs";
     const mostrar=(id)=>{window.FICHA_TAB=id;cards.forEach(c=>{c.style.display=((c.dataset.tab||'resumen')===id)?"":"none";});[...tabsEl.children].forEach(b=>b.classList.toggle("on",b.dataset.tab===id));};
     TABS.forEach(([id,label])=>{const b=document.createElement("button");b.className="tabBtn";b.dataset.tab=id;b.textContent=label;b.onclick=()=>mostrar(id);tabsEl.appendChild(b);});
