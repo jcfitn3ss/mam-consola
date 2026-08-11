@@ -314,6 +314,13 @@ async function verPagos(){
       <tr><th>Activas de tienda sin fecha de cobro</th><td>${r.store_sin_fecha_cobro||0}</td></tr>
       <tr><th>Activas NO de tienda (fundador/gratis/mentoría, por diseño)</th><td>${r.activas_no_tienda||0}</td></tr>
     </tbody></table></div>`;
+  const at=data.atencion||[];
+  h+=`<div class="card" style="border:1px solid ${at.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Requieren atención (pagos no al día) ${at.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${at.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ✅ ninguno</span>'}</h2>`;
+  if(at.length){
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Clientes de tienda con suscripción vencida o cobro pendiente. Contáctalos para regularizar. (Fundador/gratis/mentoría no salen: no pagan por Apple.)</div>`;
+    h+=`<table><tr><th>Cliente</th><th>Motivo</th><th>Tier</th><th>Próx. cobro</th><th></th></tr>`+at.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td style="color:var(--warn)">${esc(x.motivo)}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted">${esc(x.prox_cobro||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`).join('')+`</table>`;
+  } else h+=`<div class="muted" style="font-size:12px">Todos los pagos de tienda están al día. ✓</div>`;
+  h+=`</div>`;
   h+=`<div class="card"><h2 style="margin-top:0">Verificación con RevenueCat (muestra)</h2>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pill('Verificadas '+(m.verificados||0))}${pill('Se renuevan '+(m.se_renuevan||0),'rgba(95,208,127,.16)')}${pill('Problema de cobro '+(m.con_problema_de_cobro||0),(m.con_problema_de_cobro||0)?'rgba(226,59,59,.12)':'var(--card2)')}${pill('Contradicen '+(m.contradicen||0),(m.contradicen||0)?'rgba(226,59,59,.12)':'var(--card2)')}</div>
     <div style="border-top:1px solid var(--line);padding-top:8px"><b style="font-size:13px">Diagnóstico</b><ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.6">${(data.diagnostico||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
