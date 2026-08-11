@@ -328,7 +328,7 @@ async function trasLogin(){
   show("login",false);show("app",true);show("logout",true);
   const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
-  const {data,error:eCli}=await sb.from("perfiles").select("user_id,nombre,rol,archivado,altura").order("nombre");
+  const {data,error:eCli}=await sb.from("perfiles").select("user_id,nombre,nombre_completo,rol,archivado,altura").order("nombre");
   if(eCli){const _c=$("clientes");if(_c)_c.innerHTML='<div class="alert" style="padding:14px">No se pudieron cargar los clientes: '+esc(eCli.message)+'. Revisa tu conexión o cierra sesión y entra de nuevo.</div>';}
   // Lista de PRIORIDAD (arriba): solo clientes reales, sin entrenadores ni archivados.
   CLIENTES=(data||[]).filter(c=>c.rol!=='entrenador' && !c.archivado);
@@ -473,7 +473,7 @@ async function verRecordatorios(){
   const lun=(()=>{const d=new Date();const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);return fechaLocalD(d);})();
   const d40=hace(40);
   const dow=(new Date().getDay()+6)%7; // 0=lunes … 6=domingo
-  const [pf,su,ck,jr,ci,se,pl,ob,pe,fo,me]=await Promise.all([
+  const [pf,su,ck,jr,ci,se,pl,ob,pe,fo,me,re]=await Promise.all([
     sb.from("perfiles").select("user_id,sexo,telefono"),
     sb.from("sueno").select("user_id,horas,fecha").gte("fecha",d7).order("fecha",{ascending:false}),
     sb.from("checkins").select("user_id,fatiga,energia,animo,dart,fecha").gte("fecha",d7).order("fecha",{ascending:false}),
@@ -485,6 +485,7 @@ async function verRecordatorios(){
     sb.from("pesos").select("user_id,fecha").gte("fecha",lun),
     sb.from("fotos").select("user_id,fecha").gte("fecha",d40),
     sb.from("medidas").select("user_id,fecha").gte("fecha",d40),
+    sb.from("reuniones").select("user_id,fecha,titulo,resumen,transcripcion,origen,meet_url").gte("fecha",d40).order("fecha",{ascending:false}),
   ]);
   const _rf={'perfiles':pf,'sueño':su,'check-ins':ck,'journal':jr,'ciclo':ci,'sesiones':se,'planes':pl,'objetivos':ob,'pesos':pe,'fotos':fo,'medidas':me};
   const recFallos=Object.entries(_rf).filter(([,r])=>r&&r.error).map(([k])=>k);
@@ -581,6 +582,21 @@ async function verRecordatorios(){
       h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Clientes que subieron fotos (o medidas) en los últimos 12 días. Ábrelos para verlas en <b>Comparaciones</b> y ajustar.</div>`;
       h+=`<div style="display:flex;flex-direction:column;gap:6px">`+revisar.map(x=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 4px;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.c.nombre||x.c.user_id.slice(0,8))}</b><span class="pill" style="background:var(--card2)">📸 ${diasA(x.foto)}</span>${x.med&&x.med>=d12?`<span class="pill" style="background:var(--card2)">📐 medidas ${diasA(x.med)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="tab('clientes');verCliente('${x.c.user_id}')">Ver fotos →</button></div>`).join('')+`</div>`;
     } else h+=`<div class="muted" style="font-size:12px">Nadie ha subido fotos nuevas en los últimos 12 días.</div>`;
+    h+=`</div>`;
+  }
+  // ── APARTADO: REUNIONES SIN RESUMEN (agendadas/pasadas sin transcripción) ──
+  {
+    const hoyS=fechaLocalD(new Date());
+    const RE=(re&&re.data)||[];
+    const nomDe=u=>{const c=CLIENTES.find(x=>x.user_id===u);return c?(c.nombre||u.slice(0,8)):u.slice(0,8);};
+    // Reunión cuya fecha ya pasó (o es hoy) y NO tiene resumen ni transcripción → hay que subirla/sincronizar.
+    const pend=RE.filter(r=>String(r.fecha)<=hoyS && !((r.resumen||'').trim()) && !((r.transcripcion||'').trim()))
+      .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+    h+=`<div class="card" style="border:1px solid var(--warn)"><h2 style="margin-top:0">🎥 Reuniones sin resumen ${pend.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${pend.length}</span>`:''}</h2>`;
+    if(pend.length){
+      h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Reuniones ya realizadas sin resumen. Sincroniza Meet (si tenía transcripción) o pega la transcripción en la ficha del cliente → Reuniones.</div>`;
+      h+=`<div style="display:flex;flex-direction:column;gap:6px">`+pend.slice(0,15).map(r=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 4px;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(nomDe(r.user_id))}</b><span class="pill" style="background:var(--card2)">${esc(r.fecha)}${r.titulo?' · '+esc(r.titulo):''}</span>${r.origen?`<span class="muted" style="font-size:11px">${esc(r.origen)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="tab('clientes');verCliente('${r.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>`;
+    } else h+=`<div class="muted" style="font-size:12px">Todas las reuniones realizadas tienen su resumen. ✓</div>`;
     h+=`</div>`;
   }
   h+=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia, ciclo en mujeres, cierre de ciclo de 4 semanas → fotos y medidas, y pesos semanales para quien no está sanando TCA). Ordenado por prioridad. Marca "Atendido" cuando lo contactes: baja al final y no reaparece hoy.${nAt?` <b>${nAt} atendido(s) hoy.</b>`:''}</div></div>`;
@@ -722,6 +738,18 @@ async function verLlamadas(){
     h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="conectarGoogle()">🔗 ${conectado?'Reconectar Google':'Conectar Google (una vez)'}</button><button class="sm ghost" onclick="verLlamadas()">↻ Verificar</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
     h+=`</div>`;
   }
+  // ── Mejora 5: reuniones recientes de TODOS los clientes (vista global) ──
+  try{
+    const {data:reAll}=await sb.from("reuniones").select("user_id,fecha,titulo,resumen,origen").order("fecha",{ascending:false}).limit(40);
+    const nameMap={};(data||[]).forEach(p=>{nameMap[p.user_id]=p.nombre;});
+    const RA=reAll||[];
+    h+=`<div class="card"><h2 style="margin-top:0">Reuniones recientes (todos)${RA.length?` <span class="muted" style="font-size:13px;font-weight:400">· ${RA.length}</span>`:''}</h2>`;
+    if(RA.length){
+      h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Últimas reuniones de todos los clientes, con su resumen. Toca para abrir la ficha.</div>`;
+      h+=`<div style="display:flex;flex-direction:column;gap:6px">`+RA.slice(0,25).map(r=>`<div style="border-left:3px solid var(--rojo);background:#14141b;border-radius:6px;padding:7px 10px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:12.5px">${esc(nameMap[r.user_id]||r.user_id.slice(0,8))}</b><span class="muted" style="font-size:11px">${esc(r.fecha)}${r.titulo?' · '+esc(r.titulo):''}${r.origen?' · '+esc(r.origen):''}</span></div>${r.resumen?`<div style="font-size:12px;margin-top:3px;line-height:1.45">${esc(String(r.resumen).slice(0,240))}${String(r.resumen).length>240?'…':''}</div>`:'<div class="muted" style="font-size:11px;margin-top:2px">Sin resumen</div>'}<div style="margin-top:3px"><button class="sm ghost" style="padding:2px 8px" onclick="tab('clientes');verCliente('${r.user_id}')">Abrir ficha →</button></div></div>`).join('')+`</div>`;
+    } else h+=`<div class="muted" style="font-size:12px">Sin reuniones registradas todavía.</div>`;
+    h+=`</div>`;
+  }catch(e){/* la vista global es opcional; no romper Llamadas si falla */}
   h+=`<div class="card"><h2 style="margin-top:0">Llamadas por cliente</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Próxima llamada de cada cliente, ordenadas por fecha. <b style="color:var(--rojo)">Rojo</b>=atrasada, <b style="color:var(--warn)">naranja</b>=hoy, verde=próxima. Cambia la fecha aquí mismo.${nAtr?` <b style="color:var(--rojo)">${nAtr} atrasada(s).</b>`:''}</div>`;
   if(conFecha.length){h+=`<table><tr><th>Cliente</th><th>Próxima llamada</th><th>Estado</th><th>Frecuencia</th><th></th></tr>${conFecha.map(filaLlam).join('')}</table>`;}
   else h+=`<div class="muted">Ningún cliente tiene próxima llamada agendada. Agenda desde la ficha del cliente (pestaña 📞 Reuniones) o aquí abajo.</div>`;
@@ -754,7 +782,20 @@ async function reuGuardar(id){
   const patch={user_id:id,fecha,titulo:($("reu_tit").value||'').trim()||null,resumen:($("reu_res").value||'').trim()||null,puntos:($("reu_pts").value||'').trim()||null,transcripcion:($("reu_txt").value||'').trim()||null,meet_url:($("reu_url").value||'').trim()||null,origen:'manual',creado_por:MIID};
   const e=errFilas(await sb.from("reuniones").insert(patch).select("id"));
   if(e){$("reuMsg").innerHTML=`<span class="alert">${esc(e)}</span>`;return;}
+  await agendarSiguientePorFrecuencia(id,fecha); // mejora 2: programar la próxima llamada
   verCliente(id);
+}
+// Días de intervalo según la frecuencia de llamadas del cliente.
+function intervaloLlamadaDias(f){return {semanal:7,quincenal:14,mensual:30,bimensual:60}[f]||0;}
+// Al concluir/guardar una reunión, deja agendada la SIGUIENTE llamada (proxima_llamada
+// = fecha + intervalo de su frecuencia). Si la frecuencia es "ninguna"/sin definir, no toca.
+async function agendarSiguientePorFrecuencia(id,fechaBase){
+  try{
+    const {data}=await sb.from("perfiles").select("frecuencia_llamada").eq("user_id",id).maybeSingle();
+    const dias=intervaloLlamadaDias(data&&data.frecuencia_llamada);if(!dias)return;
+    const d=new Date(fechaBase+"T00:00:00");d.setDate(d.getDate()+dias);
+    await sb.from("perfiles").update({proxima_llamada:d.toISOString().slice(0,10)}).eq("user_id",id);
+  }catch(e){/* no bloquear el guardado por esto */}
 }
 async function reuBorrar(rid,id){if(!confirm("¿Borrar esta reunión?"))return;const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){alert(e);return;}verCliente(id);}
 // Conectar Google (abre el consentimiento de Google en otra pestaña).
@@ -859,7 +900,10 @@ function cardClienteHTML(c,enAtencion){
   const pagoBadge=`<span class="pill" style="background:${pg.bg};color:${pg.fg};font-weight:700;font-size:11px">${pg.txt}</span>`;
   const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${pagoBadge}${tk}${pa}${esc(c._obj||"")}</span>`;
   const emL=c._email?`<div class="muted" style="font-size:11px;margin-top:2px;user-select:text">✉ ${esc(c._email)}</div>`:"";
-  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${emL}${inact}${sinAlt}${rs}${ms}</button>`;
+  // Nombre completo (dos apellidos) si existe y aporta info sobre el nombre corto.
+  const _nc=(c.nombre_completo||'').trim();
+  const fullL=(_nc && _nc.toLowerCase()!==(c.nombre||'').trim().toLowerCase())?`<div class="muted" style="font-size:11px;margin-top:1px;user-select:text">👤 ${esc(_nc)}</div>`:"";
+  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${inact}${sinAlt}${rs}${ms}</button>`;
   return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${cardBtn}<button class="sm ghost" onclick="resolverHoy('${c.user_id}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:cardBtn;
 }
 
@@ -1013,6 +1057,16 @@ async function verCliente(id){
   // Anotaciones del entrenador (notas de seguimiento) — visibles siempre en el Resumen.
   rep+=`<h3 style="margin:8px 0 2px">📌 Anotaciones</h3>`;
   rep+=`<div class="muted" style="font-size:13px;white-space:pre-wrap;line-height:1.4">${(per.data&&per.data.notas_seguimiento)?esc(per.data.notas_seguimiento):'Sin anotaciones. Agrégalas en Gestión interna → “Notas de seguimiento”.'}</div>`;
+  // Mejora 4: pendientes de la última reunión con pendientes (seguimiento entre reuniones).
+  {
+    const _RNS=(rns&&rns.data)||[];
+    const conP=_RNS.filter(r=>(r.puntos||'').trim()).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)))[0];
+    if(conP){
+      const pts=String(conP.puntos).split('\n').filter(Boolean).slice(0,6);
+      rep+=`<h3 style="margin:8px 0 2px">✅ Pendientes de la última reunión <span class="muted" style="font-weight:400;font-size:11px">(${esc(conP.fecha)})</span></h3>`;
+      rep+=`<ul style="margin:2px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5">${pts.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`;
+    }
+  }
   rep+=`<h3 style="margin:8px 0 2px">Novedades</h3>`;
   let hayNov=false;
   if(alsCli.length){rep+=fila("Alertas abiertas",alsCli.length+": "+alsCli.slice(0,3).map(a=>a.tipo).join(", "),true);hayNov=true;}
