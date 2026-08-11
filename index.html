@@ -779,6 +779,8 @@ async function verCliente(id){
   // para no perder el sitio ni el contexto en cada micro-edición. Las tarjetas
   // abiertas y la pestaña activa ya se conservan (ACORD_ABIERTOS / FICHA_TAB).
   const _mismo=(SEL===id);const _scrollY=_mismo?(window.scrollY||0):0;
+  // Al abrir OTRO cliente: reinicia el acordeón → todo colapsado (JC 2026-08-11).
+  if(!_mismo)window.ACORD_ABIERTOS=new Set();
   SEL=id;renderClientes();
   // FOCO: al abrir un cliente se esconde la lista y se ve SOLO su ficha (un cliente
   // a la vez). "← Volver a la lista" (volverLista) la muestra de nuevo.
@@ -1047,7 +1049,7 @@ async function verCliente(id){
     <div class="muted" style="font-size:11px;margin-top:4px">Semana actual del cliente: <b>${sa}/${sem}</b>. Cambia esta fecha solo si el bloque arranca otro día (recalcula la semana y la progresión).</div></div>`;
 
   // MESOCICLO DE FUERZA (powerlifting: RPT + progresión inversa). Solo compuestos marcados.
-  h+=`<details style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px"${FZ&&FZ.activa?' open':''}><summary style="cursor:pointer;font-weight:700">Mesociclo de fuerza (powerlifting)${FZ&&FZ.activa?' · <span style="color:var(--ok)">activo</span>':''}</summary>`;
+  h+=`<details style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:700">Mesociclo de fuerza (powerlifting)${FZ&&FZ.activa?' · <span style="color:var(--ok)">activo</span>':''}</summary>`;
   const rutEjIds=[...new Set((RUT&&RUT.dias?RUT.dias:[]).flatMap(d=>(d.orden||[]).map(o=>String(o.id))))];
   const ejNombre=(eid)=>{const e=EJ.find(x=>String(x.id)===String(eid));return e?cap(e.nombre):eid;};
   const fzSel=new Set(((FZ&&FZ.ejercicios)||[]).map(String));
@@ -1311,7 +1313,7 @@ async function verCliente(id){
           const exl=ex.length?`<div class="muted" style="font-size:10.5px;margin-top:2px">${ex.join(' · ')}</div>`:'';
           return `<tr><td class="muted" style="white-space:nowrap;font-size:11px;vertical-align:top;padding-top:4px">${esc(c.momento||'')}</td><td style="vertical-align:top;padding:4px 0"><div style="overflow:hidden">${foto}<div style="font-size:12.5px">${esc(c.descripcion||'')}</div>${exl}</div></td><td style="white-space:nowrap;text-align:right;font-size:12px;vertical-align:top;padding-top:4px">${Math.round(c.kcal||0)} kcal <span class="muted">P${Math.round(c.prot||0)}/C${Math.round(c.carb||0)}/G${Math.round(c.fat||0)}</span></td></tr>`;
         }).join('');
-        return `<details style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:0 10px"${f===fechas[0]?' open':''}>
+        return `<details style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:0 10px">
           <summary style="cursor:pointer;padding:9px 0;font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
             <span>${esc(f)} <span class="muted" style="font-weight:400;font-size:12px">· ${items.length} registro(s)</span></span>
             <b style="color:${col};font-size:12.5px;white-space:nowrap">${Math.round(t.k)} kcal · P${Math.round(t.p)}/C${Math.round(t.c)}/G${Math.round(t.f)}${objK?` (obj ${objK}${diff>0?' +'+diff:diff<0?' '+diff:' ✓'})`:''}</b>
@@ -1502,12 +1504,11 @@ function hacerColapsables(){
   if(!cards.length)return;
   // Recuerda qué secciones (por título) están abiertas ENTRE re-renders (guardar
   // repinta la ficha): antes se reiniciaba a "solo la primera" y perdías el sitio.
-  if(!window.ACORD_ABIERTOS){
-    // Con las PESTAÑAS ya se agrupa; dentro de cada pestaña las cards abren por
-    // defecto para editar de una (antes se colapsaban y el plan quedaba escondido).
-    window.ACORD_ABIERTOS=new Set();
-    cards.forEach(c=>{const hh=c.querySelector("h2");if(hh&&!c.dataset.lazy)window.ACORD_ABIERTOS.add((hh.textContent||'').trim());});
-  }
+  // JC (2026-08-11): al abrir un cliente TODO colapsado, sin excepción. El set
+  // arranca VACÍO (nada abierto); el entrenador despliega la tarjeta que quiera.
+  // `verCliente` lo reinicia al cambiar de cliente (para que cada cliente abra
+  // colapsado); entre re-renders del MISMO cliente se conserva lo que abriste.
+  if(!window.ACORD_ABIERTOS){ window.ACORD_ABIERTOS=new Set(); }
   // Pestañas internas: clasifica cada card por área según su título.
   const clasTab=(t)=>{t=(t||'').toLowerCase();
     if(/entrenamiento|rutina|nivel|progresi[oó]n|mesociclo|programaci|an[aá]lisis de entreno|especializaci/.test(t))return 'entreno';
