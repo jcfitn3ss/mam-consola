@@ -1148,8 +1148,9 @@ async function verCliente(id){
   h+=`<label class="lbl">Notas de seguimiento</label><textarea id="g_notas" rows="2">${esc(ctr.notas_seguimiento||'')}</textarea>`;
   h+=`<button style="margin-top:8px" onclick="guardarGestion('${id}')">Guardar gestión</button> <span id="gMsg" class="muted"></span></div>`;
 
-  // PARTE 2: Entrenamiento detallado
-  h+=`<div class="card"><h2 style="margin-top:0">Entrenamiento · esquema</h2>`;
+  // PARTE 2: Estado del entreno (programación + volumen por grupo + sensaciones).
+  // La rutina en sí se edita abajo en "✏️ Editar rutina y volumen" (fusionado).
+  h+=`<div class="card"><h2 style="margin-top:0">📊 Estado del entreno</h2>`;
   h+=`<div class="kv">`;
   h+=fila("Programación",`Semana ${sa}/${sem} · Bloque ${m?m.n:1}${esDeload?' · DESCARGA':''}`);
   h+=fila("Bloques",ms.map(x=>`B${x.n}:${x.ini}-${x.fin}${x.deload?'(d'+x.deload+')':''}`).join("  "));
@@ -1159,22 +1160,10 @@ async function verCliente(id){
   if(gv.length){h+=`<table>`;gv.forEach(g=>{const v=VOL[g];const n=vol[g];let col="var(--ok)",txt="en rango";if(v){if(n<v[0]){col="var(--warn)";txt="bajo MEV";}else if(n>v[2]){col="var(--bad)";txt="sobre MRV";}}const pct=v?Math.min(100,Math.round(n/v[2]*100)):50;h+=`<tr><td>${esc(g)}</td><td style="width:50%"><div class="bar"><i style="width:${pct}%;background:${col}"></i></div></td><td><b>${n}</b> <span class="muted">${v?`${txt} (${v[0]}-${v[2]})`:''}</span></td></tr>`;});h+=`</table>`;}
   else h+=`<div class="muted">Sin series esta semana.</div>`;
 
-  // Rutina en tabla: ejercicio · grupo · rango de reps · RIR · series de la semana
-  h+=`<h3>Rutina (ejercicios · series · reps · RIR)</h3>`;
-  if(RUT&&RUT.dias&&RUT.dias.length){
-    RUT.dias.forEach((d,di)=>{
-      let ids=[];
-      if(d.orden&&d.orden.length)ids=d.orden.map(it=>it.id);
-      else{const asg=RUT.asign||{};Object.keys(asg).forEach(k=>{if(k.indexOf(di+"|")===0)ids.push(...asg[k]);});}
-      h+=`<div style="margin:8px 0"><b>${esc(d.nombre||('Día '+(di+1)))}</b>`;
-      if(ids.length){
-        h+=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Reps</th><th>RIR</th><th>Series sem</th></tr>`;
-        ids.forEach(id=>{const e=EJ.find(x=>String(x.id)===String(id))||{};h+=`<tr><td>${esc(cap(e.nombre||'(ejercicio)'))}${e.video_url?' 🎬':''}</td><td class="muted">${esc(e.grupo||'')}</td><td>${e.rep_min!=null?e.rep_min+'-'+e.rep_max:'-'}</td><td>${e.rir!=null?e.rir:'-'}</td><td><b>${serEj[String(id)]||0}</b></td></tr>`;});
-        h+=`</table>`;
-      }else h+=`<div class="muted" style="font-size:12px">${(d.grupos||[]).join(", ")}</div>`;
-      h+=`</div>`;
-    });
-  }else h+=`<div class="muted">Sin rutina generada.</div>`;
+  // La rutina en detalle (ejercicios · reps · RIR) se ve y se EDITA en el editor de
+  // abajo ("✏️ Editar rutina y volumen") — se quitó la tabla de solo lectura que la
+  // duplicaba. Aquí queda solo el ESTADO (programación + volumen por grupo + sensaciones).
+  h+=`<div class="muted" style="font-size:12px;margin-top:4px">El detalle y la edición de la rutina (ejercicios, reps, RIR, técnicas, volumen) está abajo en <b>“✏️ Editar rutina y volumen”</b>.</div>`;
 
   // Fatiga / dolor / sueño (tendencia)
   h+=`<h3>Fatiga, dolor y sueño (recientes)</h3>`;
@@ -1532,7 +1521,7 @@ function hacerColapsables(){
   if(!window.ACORD_ABIERTOS){ window.ACORD_ABIERTOS=new Set(); }
   // Pestañas internas: clasifica cada card por área según su título.
   const clasTab=(t)=>{t=(t||'').toLowerCase();
-    if(/entrenamiento|rutina|nivel|progresi[oó]n|mesociclo|programaci|an[aá]lisis de entreno|especializaci/.test(t))return 'entreno';
+    if(/entrenamiento|estado del entreno|rutina|nivel|progresi[oó]n|mesociclo|programaci|an[aá]lisis de entreno|especializaci/.test(t))return 'entreno';
     if(/objetivo|nutrici|macros|refeed|informe mensual|plan de alimentaci|registro.*comida|plan de comidas/.test(t))return 'nutricion';
     if(/progreso f[ií]sico|comparativa|comparaciones|gr[aá]ficas|calendario|pliegues|peso|medidas|fotos/.test(t))return 'progreso';
     if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos|acceso|suscripci|reuni/.test(t))return 'gestion';
