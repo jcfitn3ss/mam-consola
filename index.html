@@ -2244,7 +2244,7 @@ function editorRutinaHTML(){
   let h="";
   RUT.dias.forEach((d,di)=>{
     const items=d.orden||[];
-    h+=`<div style="margin:14px 0;border-top:1px solid var(--line);padding-top:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="muted" style="font-size:11px">Día ${di+1}</span><input class="rutDiaNom" data-d="${di}" value="${esc(d.nombre||('Día '+(di+1)))}" placeholder="Nombre (ej: Superior)" style="font-weight:700;flex:1;max-width:280px;margin:0"><button class="sm ghost" onclick="rutMoverDia(${di},-1)" title="Subir día" style="padding:3px 8px;margin:0"${di===0?' disabled':''}>▲</button><button class="sm ghost" onclick="rutMoverDia(${di},1)" title="Bajar día" style="padding:3px 8px;margin:0"${di===RUT.dias.length-1?' disabled':''}>▼</button></div>`;
+    h+=`<div style="margin:14px 0;border-top:1px solid var(--line);padding-top:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="muted" style="font-size:11px">Día ${di+1}</span><input class="rutDiaNom" data-d="${di}" value="${esc(d.nombre||('Día '+(di+1)))}" placeholder="Nombre (ej: Superior)" style="font-weight:700;flex:1;max-width:280px;margin:0"><button class="sm ghost" onclick="rutMoverDia(${di},-1)" title="Subir día" style="padding:3px 8px;margin:0"${di===0?' disabled':''}>▲</button><button class="sm ghost" onclick="rutMoverDia(${di},1)" title="Bajar día" style="padding:3px 8px;margin:0"${di===RUT.dias.length-1?' disabled':''}>▼</button><button class="sm ghost" onclick="rutQuitarDia(${di})" title="Quitar este día" style="padding:3px 8px;margin:0;color:var(--rojo)">🗑</button></div>`;
     if(items.length){
       // Tabla HTML real: header y columnas alinean nativamente.
       let rows='';
@@ -2268,6 +2268,7 @@ function editorRutinaHTML(){
     h+=`<button class="sm ghost" onclick="rutAgregar(${di})" style="margin-top:2px">+ Agregar ejercicio</button>`;
     h+=`</div>`;
   });
+  h+=`<div style="margin-top:12px;border-top:1px dashed var(--line);padding-top:10px"><button class="sm" onclick="rutAgregarDia()">➕ Agregar día</button> <span class="muted" style="font-size:11px">Añade un día vacío a la rutina (ponle nombre y ejercicios).</span></div>`;
   return h;
 }
 // ---- Importar rutina desde Excel (SheetJS -> IA -> vista previa -> guardar) ----
@@ -2426,6 +2427,24 @@ function rutMoverDia(di,dir){
   RUT.tecnicas=nt;
   const t=RUT.dias[di];RUT.dias[di]=RUT.dias[j];RUT.dias[j]=t;
   rutRefrescar();$("rutMsg").textContent="Reordenaste los días. Recuerda Guardar rutina.";
+}
+// ➕ Agregar un día vacío a la rutina.
+function rutAgregarDia(){
+  if(!RUT){$("rutMsg").textContent="Genera o carga una rutina primero.";return;}
+  syncEditorAMemoria();rutSnapshot();
+  if(!RUT.dias)RUT.dias=[];
+  RUT.dias.push({nombre:'Día '+(RUT.dias.length+1),grupos:['Pecho','Espalda'],orden:[]});
+  rutRefrescar();$("rutMsg").textContent="Agregaste un día. Ponle nombre y ejercicios. Recuerda Guardar rutina.";
+}
+// 🗑 Quitar un día (con remapeo de técnicas/asign: quita d==di, baja d>di en 1).
+function rutQuitarDia(di){
+  if(!RUT||!RUT.dias||RUT.dias.length<=1){alert("La rutina debe tener al menos un día.");return;}
+  if(!confirm(`¿Quitar el día ${di+1} (${(RUT.dias[di]&&RUT.dias[di].nombre)||''})? Puedes Deshacer antes de guardar.`))return;
+  syncEditorAMemoria();rutSnapshot();
+  RUT.dias.splice(di,1);
+  const remap=(obj)=>{if(!obj)return obj;const n={};Object.keys(obj).forEach(k=>{const p=k.indexOf("|");if(p<0){n[k]=obj[k];return;}let d=+k.slice(0,p);const rest=k.slice(p);if(d===di)return;if(d>di)d-=1;n[d+rest]=obj[k];});return n;};
+  RUT.tecnicas=remap(RUT.tecnicas);RUT.asign=remap(RUT.asign);
+  rutRefrescar();$("rutMsg").textContent="Quitaste un día. Puedes Deshacer. Recuerda Guardar rutina.";
 }
 // Split por número de días (espejo de src/domain/entrenamiento.ts plantillaDias).
 function plantillaDiasJS(d){
