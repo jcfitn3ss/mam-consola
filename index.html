@@ -861,6 +861,30 @@ async function verCliente(id){
   const fatAvg=avgCk('fatiga'),enAvg=avgCk('energia');
   const alsCli=(typeof ALERTAS!=='undefined'?ALERTAS:[]).filter(a=>String(a.cliente_id)===String(id));
   let rep=`<div class="card"><h2 style="margin-top:0">Reporte automático · ${esc(nom)}</h2>`;
+  // 📋 SNAPSHOT: lo más relevante del cliente de un vistazo (JC 2026-08-11).
+  {
+    const OBJLBL={def:'Definición',vol:'Volumen',rec:'Recomposición',mant:'Mantenimiento',tca:'Bienestar (relación con la comida)'};
+    const objTxt=OBJLBL[o.tipo]||(o.tipo?cap(o.tipo):'—');
+    const nivelTxt=(per.data&&per.data.nivel)?cap(per.data.nivel):'—';
+    const esAtl=!!(atl.data);
+    const sD=susc.data||{};
+    const pagoTxt=sD.tier==='fundador'?'Fundador':sD.tier==='gratis'?'Cortesía':sD.estado==='activa'?('Pagando'+(sD.tier?' · '+sD.tier:'')):sD.estado==='prueba'?'En prueba':(sD.estado?cap(sD.estado):'Sin pago');
+    rep+=`<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;flex-wrap:wrap;gap:5px 14px;font-size:13px">
+        <span>🎯 <b>${esc(objTxt)}</b></span>
+        <span>📈 Nivel: <b>${esc(nivelTxt)}</b></span>
+        <span>🗓️ Semana <b>${sa}/${sem}</b> · Bloque <b>${m?m.n:1}</b>${esDeload?' · <span style="color:var(--warn)">descarga</span>':''}</span>
+        ${esAtl?'<span>🏆 <b>Atleta</b></span>':''}
+        <span>💳 ${esc(pagoTxt)}</span>
+      </div>
+      <div class="muted" style="display:flex;flex-wrap:wrap;gap:5px 14px;font-size:12.5px;margin-top:6px">
+        <span>⚖️ ${peso!=null?'<b style="color:var(--txt)">'+pU(peso)+' '+U_PESO+'</b>'+(dp!=null?' ('+(dp>0?'+':'')+dU(dp)+' total)':''):'sin peso'}</span>
+        <span>🏋️ ${ses7} ses/7d</span>
+        <span>🍽️ ${prom?prom.k+' kcal prom'+(o.kcal?' / obj '+o.kcal:''):'sin registro'}</span>
+        <span>😴 ${sprom!=null?sprom.toFixed(1)+'h':'—'}</span>
+      </div>
+    </div>`;
+  }
   // 🚨 ALERTAS al entrenador (JC 2026-08-11): prioridad a DOLORES, luego fatiga, y
   // cumplimiento de calorías y de entrenamiento. Todo con datos ya calculados.
   const alertasR=[];
