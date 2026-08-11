@@ -722,7 +722,7 @@ function renderClientes(){
       <span class="pill" style="background:rgba(95,208,127,.16);color:var(--ok);font-weight:700">${pagan} pagando</span>
       <span class="pill" style="background:rgba(226,59,59,.16);color:#ff8a8a;font-weight:700">${sinPagar} sin pagar</span>
       ${sinAltura?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${sinAltura} sin altura</span>`:''}
-      <span style="flex:1"></span><button class="sm ghost" style="padding:5px 10px" onclick="copiarCorreos()" title="Copiar los correos (para invitar testers de Android o contactar)">✉ Copiar correos</button>${chip('atencion','Atención')}${chip('sinpagar','Sin pagar')}${sinAltura?chip('sinaltura','Sin altura'):''}${chip('todos','Todos')}
+      <span style="flex:1"></span><button class="sm ghost" style="padding:5px 10px" onclick="copiarCorreos()" title="Copiar los correos (para invitar testers de Android o contactar)">✉ Copiar correos</button>${chip('atencion','Atención')}${chip('grupos','👥 Grupos')}${chip('sinpagar','Sin pagar')}${sinAltura?chip('sinaltura','Sin altura'):''}${chip('todos','Todos')}
     </div>`;
   if(PRIO_FALLO.length)head=`<div class="alert" style="margin-bottom:8px">⚠️ No cargó: <b>${esc(PRIO_FALLO.join(", "))}</b>. El orden de prioridad puede estar incompleto. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>`+head;
   if(!q && VER_PAGO==='atencion'){
@@ -731,22 +731,43 @@ function renderClientes(){
   }
   list.sort((a,b)=> (pagoInfo(a).pagando?1:0)-(pagoInfo(b).pagando?1:0) || (b._sc||0)-(a._sc||0)); // sin pagar arriba
   LISTA_VIS=list; // para "Copiar correos"
-  $("clientes").innerHTML=head+(list.map(c=>{
-    const ic=c._sc>=5?"🔴":c._sc>=2?"🟡":"🟢";
-    const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
-    const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">⚠ En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
-    const ms=c._mes?`<div style="font-size:12px;margin-top:3px;color:var(--rojo)">Informe mes ${c._mes} listo</div>`:"";
-    const sinAlt=!(Number(c.altura)>0)?`<div style="font-size:12px;margin-top:3px;color:var(--warn);font-weight:600">📏 Falta altura — el plan la necesita</div>`:"";
-    const tcol={alto:"var(--rojo)",medio:"var(--warn)",bajo:"#5f7dd0"};
-    const tk=c._ticket?`<span class="pill" style="background:${tcol[c._ticket]||'#444'};color:#000;font-weight:700">${esc(c._ticket.toUpperCase())}</span>`:"";
-    const pa=c._presu?`<span class="pill" style="background:#15391f;color:var(--ok)">presupuesto+</span>`:"";
-    const pg=pagoInfo(c);
-    const pagoBadge=`<span class="pill" style="background:${pg.bg};color:${pg.fg};font-weight:700;font-size:11px">${pg.txt}</span>`;
-    const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${pagoBadge}${tk}${pa}${esc(c._obj||"")}</span>`;
-    const emL=c._email?`<div class="muted" style="font-size:11px;margin-top:2px;user-select:text">✉ ${esc(c._email)}</div>`:"";
-    const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${emL}${inact}${sinAlt}${rs}${ms}</button>`;
-    return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${cardBtn}<button class="sm ghost" onclick="resolverHoy('${c.user_id}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:cardBtn;
-  }).join("")||(q?'<div class="muted">Sin coincidencias para tu búsqueda.</div>':'<div class="muted">Sin clientes en este filtro.</div>'));
+  // VISTA POR GRUPOS: Pagando / Equipo interno (cortesía, no pagan) / Sin pagar y demás.
+  if(VER_PAGO==='grupos' && !q){
+    const GR={pagando:[],interno:[],otros:[]};
+    CLIENTES.forEach(c=>{(GR[grupoDe(c)]||GR.otros).push(c);});
+    LISTA_VIS=[...GR.pagando,...GR.interno,...GR.otros];
+    const secc=(titulo,color,arr,nota)=>arr.length?`<div style="margin:16px 0 6px;border-top:1px solid var(--line);padding-top:10px"><span style="font-weight:800;color:${color};font-size:14px">${titulo}</span> <span class="muted">(${arr.length})</span>${nota?`<div class="muted" style="font-size:11px;margin-top:1px">${nota}</div>`:''}</div>`+arr.slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(c=>cardClienteHTML(c,false)).join(''):'';
+    $("clientes").innerHTML=head
+      +secc('💚 Pagando','var(--ok)',GR.pagando,'Suscripción activa (mensual/anual/preferencial).')
+      +secc('🛡️ Equipo interno / cortesía','#8fb3ff',GR.interno,'Fundadores y accesos gratis — NO pagan.')
+      +secc('🔴 Sin pagar / otros','#ff8a8a',GR.otros,'Sin suscripción, en prueba o vencidos.');
+    return;
+  }
+  $("clientes").innerHTML=head+(list.map(c=>cardClienteHTML(c,enAtencion)).join("")||(q?'<div class="muted">Sin coincidencias para tu búsqueda.</div>':'<div class="muted">Sin clientes en este filtro.</div>'));
+}
+// Grupo de gestión del cliente según su suscripción.
+function grupoDe(c){
+  const t=c._susT,e=c._susE;
+  if(t==='fundador'||t==='gratis') return 'interno';           // equipo interno / cortesía (no pagan)
+  if(e==='activa'&&t&&t!=='gratis') return 'pagando';          // suscripción activa de pago
+  return 'otros';                                              // sin pagar, prueba, vencido
+}
+// Tarjeta de un cliente (reutilizable en la lista plana y en la vista por grupos).
+function cardClienteHTML(c,enAtencion){
+  const ic=c._sc>=5?"🔴":c._sc>=2?"🟡":"🟢";
+  const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
+  const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">⚠ En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
+  const ms=c._mes?`<div style="font-size:12px;margin-top:3px;color:var(--rojo)">Informe mes ${c._mes} listo</div>`:"";
+  const sinAlt=!(Number(c.altura)>0)?`<div style="font-size:12px;margin-top:3px;color:var(--warn);font-weight:600">📏 Falta altura — el plan la necesita</div>`:"";
+  const tcol={alto:"var(--rojo)",medio:"var(--warn)",bajo:"#5f7dd0"};
+  const tk=c._ticket?`<span class="pill" style="background:${tcol[c._ticket]||'#444'};color:#000;font-weight:700">${esc(c._ticket.toUpperCase())}</span>`:"";
+  const pa=c._presu?`<span class="pill" style="background:#15391f;color:var(--ok)">presupuesto+</span>`:"";
+  const pg=pagoInfo(c);
+  const pagoBadge=`<span class="pill" style="background:${pg.bg};color:${pg.fg};font-weight:700;font-size:11px">${pg.txt}</span>`;
+  const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${pagoBadge}${tk}${pa}${esc(c._obj||"")}</span>`;
+  const emL=c._email?`<div class="muted" style="font-size:11px;margin-top:2px;user-select:text">✉ ${esc(c._email)}</div>`:"";
+  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${emL}${inact}${sinAlt}${rs}${ms}</button>`;
+  return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${cardBtn}<button class="sm ghost" onclick="resolverHoy('${c.user_id}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:cardBtn;
 }
 
 const nombreEj=id=>{const e=EJ.find(x=>String(x.id)===String(id));return e?e.nombre:"(ejercicio)";};
