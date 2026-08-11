@@ -146,6 +146,7 @@
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
+      <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
       <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
       <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
       <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
@@ -168,6 +169,7 @@
     </div>
     <div id="v-recordatorios" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
+    <div id="v-pagos" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
     <div id="v-ejercicios" class="hide"></div>
@@ -287,7 +289,36 @@ async function init(){const {data:{session}}=await sb.auth.getSession();if(sessi
 async function login(){$("loginErr").textContent="Entrando…";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}$("loginErr").textContent="";await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
-function tab(t){["clientes","recordatorios","llamadas","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+function tab(t){["clientes","recordatorios","llamadas","pagos","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+// ---- PAGOS Y SUSCRIPCIONES: cruza nuestra DB con RevenueCat (fuente de verdad) ----
+async function verPagos(){
+  $("v-pagos").innerHTML='<div class="card">Verificando pagos con RevenueCat… (puede tardar unos segundos)</div>';
+  const {data,error}=await invokeFn("auditoria-pagos",{body:{}});
+  if(error||(data&&data.error)){$("v-pagos").innerHTML=`<div class="card alert">No se pudo auditar: ${esc((data&&data.error)||error.message)}</div>`;return;}
+  const t=data.totales||{},r=data.recurrentes||{},m=data.revenuecat_muestra||{};
+  const pe=t.por_estado||{},pt=t.por_tier||{};
+  const pill=(txt,col)=>`<span class="pill" style="background:${col||'var(--card2)'};font-weight:700">${txt}</span>`;
+  const salud=(m.se_renuevan>0&&(m.contradicen||0)===0&&(r.store_cobro_vencido||0)===0);
+  let h=`<div class="card" style="border:1px solid ${salud?'var(--ok)':'var(--warn)'}">
+    <h2 style="margin-top:0">💳 Pagos y suscripciones ${salud?'<span style="color:var(--ok);font-size:13px">· ✅ funcionando</span>':'<span style="color:var(--warn);font-size:13px">· revisar</span>'}</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Cruce en vivo con RevenueCat (verificador de los pagos de Apple/Google). Generado ${esc((data.generado||'').replace('T',' ').slice(0,16))}. <button class="sm ghost" onclick="verPagos()">↻ Volver a verificar</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${pill('Total '+(t.total||0))}${pill('Activas '+(pe.activa||0),'rgba(95,208,127,.16)')}${pill('Vencidas '+(pe.vencido||0),'rgba(226,59,59,.12)')}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(pt).map(([k,v])=>pill(k+': '+v)).join('')}</div>
+  </div>`;
+  h+=`<div class="card"><h2 style="margin-top:0">Recurrentes (tiers de tienda)</h2>
+    <table class="kv"><tbody>
+      <tr><th>Activas de tienda (pagan por Apple/Google)</th><td><b>${r.activas_de_tienda||0}</b></td></tr>
+      <tr><th>Con próximo cobro agendado</th><td>${r.con_proximo_cobro||0}</td></tr>
+      <tr><th>Cobran en los próximos 7 días</th><td>${r.cobran_en_7_dias||0}</td></tr>
+      <tr><th>⚠️ Activas de tienda con cobro VENCIDO</th><td style="color:${(r.store_cobro_vencido||0)?'var(--rojo)':'var(--ok)'};font-weight:700">${r.store_cobro_vencido||0}</td></tr>
+      <tr><th>Activas de tienda sin fecha de cobro</th><td>${r.store_sin_fecha_cobro||0}</td></tr>
+      <tr><th>Activas NO de tienda (fundador/gratis/mentoría, por diseño)</th><td>${r.activas_no_tienda||0}</td></tr>
+    </tbody></table></div>`;
+  h+=`<div class="card"><h2 style="margin-top:0">Verificación con RevenueCat (muestra)</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pill('Verificadas '+(m.verificados||0))}${pill('Se renuevan '+(m.se_renuevan||0),'rgba(95,208,127,.16)')}${pill('Problema de cobro '+(m.con_problema_de_cobro||0),(m.con_problema_de_cobro||0)?'rgba(226,59,59,.12)':'var(--card2)')}${pill('Contradicen '+(m.contradicen||0),(m.contradicen||0)?'rgba(226,59,59,.12)':'var(--card2)')}</div>
+    <div style="border-top:1px solid var(--line);padding-top:8px"><b style="font-size:13px">Diagnóstico</b><ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.6">${(data.diagnostico||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
+  $("v-pagos").innerHTML=h;
+}
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
