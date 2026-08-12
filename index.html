@@ -783,6 +783,21 @@ async function verLlamadas(){
   h+=`</div>`;
   $("v-llamadas").innerHTML=h;
 }
+// Edita el nombre visible y el nombre completo (2 apellidos) del cliente.
+async function guardarNombre(id){
+  const n=$("e_nombre")?$("e_nombre").value.trim():"";
+  const nc=$("e_nombreComp")?$("e_nombreComp").value.trim():"";
+  const m=$("nombreMsg");
+  if(!n){if(m){m.style.color='var(--rojo)';m.textContent="El nombre no puede quedar vacío.";}return;}
+  if(nc && nc.split(/\s+/).filter(Boolean).length<3){if(m){m.style.color='var(--warn)';m.textContent="El nombre completo debe llevar nombre + 2 apellidos (mín. 3 palabras).";}return;}
+  const patch={nombre:n};if(nc)patch.nombre_completo=nc;
+  const e=errFilas(await sb.from("perfiles").update(patch).eq("user_id",id).select("user_id"));
+  if(m){if(e){m.style.color='var(--rojo)';m.textContent=e;return;}m.style.color='var(--ok)';m.textContent="✓ Guardado.";}
+  // Reflejar en las listas en memoria (para que el cambio se vea sin recargar).
+  [CLIENTES,TODOS].forEach(L=>{const c=(L||[]).find(x=>x.user_id===id);if(c){c.nombre=n;if(nc)c.nombre_completo=nc;}});
+  poblarDropCli();
+  setTimeout(()=>verCliente(id),600);
+}
 async function setLlamada(uid,fecha){const e=errFilas(await sb.from("perfiles").update({proxima_llamada:fecha||null}).eq("user_id",uid).select("user_id"));if(e){alert(e);return;}verLlamadas();}
 // Guarda la frecuencia (cantidad) de llamadas y la próxima, desde la ficha del cliente.
 async function guardarFrecLlamada(id){
@@ -1350,6 +1365,13 @@ async function verCliente(id){
   // Contrato e ingreso (intake)
   const ctr=per.data||{}, ik=intk.data||{};
   h+=`<div class="card"><h2 style="margin-top:0">Contrato e ingreso</h2>`;
+  // Editor de nombre (corregir a nombre + 2 apellidos donde falte).
+  h+=`<div style="background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+    <div style="font-weight:600;margin-bottom:4px">Nombre del cliente</div>
+    <label class="lbl">Nombre (como se muestra en la lista)</label><input id="e_nombre" data-nocaps value="${esc(nom||'')}" style="margin:0">
+    <label class="lbl">Nombre completo (nombre + 2 apellidos)</label><input id="e_nombreComp" data-nocaps value="${esc(ctr.nombre_completo||'')}" placeholder="Ej. Juan Camilo Pérez Gómez" style="margin:0">
+    <div style="margin-top:6px"><button class="sm" onclick="guardarNombre('${id}')">Guardar nombre</button> <span id="nombreMsg" class="muted" style="font-size:12px"></span></div>
+  </div>`;
   h+=`<div class="kv">`;
   h+=fila("Contrato", ctr.contrato_aceptado_en?("Aceptado "+String(ctr.contrato_aceptado_en).slice(0,10)+(ctr.contrato_version?" ("+ctr.contrato_version+")":"")):"PENDIENTE", !ctr.contrato_aceptado_en);
   h+=fila("Nombre legal", ctr.nombre_completo||"—")+fila("Documento", ctr.documento||"—")+fila("Expedición", ctr.lugar_expedicion||"—")+fila("Nacimiento", ctr.fecha_nacimiento||"—");
