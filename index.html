@@ -314,6 +314,17 @@ async function verPagos(){
       <tr><th>Activas de tienda sin fecha de cobro</th><td>${r.store_sin_fecha_cobro||0}</td></tr>
       <tr><th>Activas NO de tienda (fundador/gratis/mentoría, por diseño)</th><td>${r.activas_no_tienda||0}</td></tr>
     </tbody></table></div>`;
+  // Roster completo: quién tiene recurrencia activa y quién no (todos los clientes).
+  const ros=data.roster||{},rr=data.resumen_roster||{};
+  const listaR=(titulo,arr,col)=>{if(!arr||!arr.length)return '';return `<details style="margin-bottom:6px"><summary style="cursor:pointer;font-weight:700;color:${col||'var(--txt)'}">${titulo} (${arr.length})</summary><table style="margin-top:4px"><tr><th>Cliente</th><th>Tier</th><th>Próx. cobro / motivo</th></tr>${arr.map(x=>`<tr><td>${esc(x.nombre||'')}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted" style="font-size:11px">${esc(x.motivo||x.prox_cobro||'—')}</td></tr>`).join('')}</table></details>`;};
+  h+=`<div class="card"><h2 style="margin-top:0">Recurrencia por cliente (${rr.total_clientes||0} clientes)</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Quién tiene suscripción recurrente activa (Apple/Google les cobra solo) y quién no.</div>
+    ${listaR('✅ Recurrente activa (les cobra solo cada mes)',ros.recurrente_activa,'var(--ok)')}
+    ${listaR('⚠️ Activa pero NO se auto-renueva (se va a caer)',ros.activa_no_recurrente,'var(--warn)')}
+    ${listaR('🎁 Activa sin cobro de tienda (fundador/gratis/mentoría)',ros.no_tienda_activa)}
+    ${listaR('❌ Vencida (sin acceso)',ros.vencida,'var(--rojo)')}
+    ${listaR('❓ Sin fila de suscripción',ros.sin_suscripcion,'var(--rojo)')}
+  </div>`;
   const at=data.atencion||[];
   h+=`<div class="card" style="border:1px solid ${at.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Requieren atención (pagos no al día) ${at.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${at.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ✅ ninguno</span>'}</h2>`;
   if(at.length){
