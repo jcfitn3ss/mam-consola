@@ -321,8 +321,16 @@ async function verPagos(){
     h+=`<table><tr><th>Cliente</th><th>Motivo</th><th>Tier</th><th>Próx. cobro</th><th></th></tr>`+at.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td style="color:var(--warn)">${esc(x.motivo)}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted">${esc(x.prox_cobro||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`).join('')+`</table>`;
   } else h+=`<div class="muted" style="font-size:12px">Todos los pagos de tienda están al día. ✓</div>`;
   h+=`</div>`;
-  h+=`<div class="card"><h2 style="margin-top:0">Verificación con RevenueCat (muestra)</h2>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pill('Verificadas '+(m.verificados||0))}${pill('Se renuevan '+(m.se_renuevan||0),'rgba(95,208,127,.16)')}${pill('Problema de cobro '+(m.con_problema_de_cobro||0),(m.con_problema_de_cobro||0)?'rgba(226,59,59,.12)':'var(--card2)')}${pill('Contradicen '+(m.contradicen||0),(m.contradicen||0)?'rgba(226,59,59,.12)':'var(--card2)')}</div>
+  const nr=m.no_renuevan||[];
+  h+=`<div class="card" style="border:1px solid ${nr.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Recurrencia verificada 100% con RevenueCat</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pill('Verificadas '+(m.verificados||0))}${pill('✅ Se renuevan '+(m.se_renuevan||0),'rgba(95,208,127,.16)')}${pill('Problema de cobro '+(m.con_problema_de_cobro||0),(m.con_problema_de_cobro||0)?'rgba(226,59,59,.12)':'var(--card2)')}${pill('Contradicen '+(m.contradicen||0),(m.contradicen||0)?'rgba(226,59,59,.12)':'var(--card2)')}</div>`;
+  if(nr.length){
+    h+=`<div class="muted" style="font-size:12px;margin-bottom:6px"><b style="color:var(--warn)">Estas NO se van a cobrar el próximo mes</b> (auto-renovación apagada por el cliente, o problema de cobro). Contáctalos para que la reactiven en su tienda — <b>ni la app ni nosotros podemos forzar la auto-renovación de Apple/Google</b>, solo el cliente.</div>`;
+    h+=`<table><tr><th>Cliente</th><th>Motivo</th><th>Tier</th><th>Caduca</th><th></th></tr>`+nr.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td style="color:var(--warn)">${esc(x.motivo)}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted">${esc(x.expira||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`).join('')+`</table>`;
+  } else h+=`<div style="color:var(--ok);font-size:12px">✅ Todas las suscripciones activas de tienda se auto-renuevan sin fallas.</div>`;
+  h+=`</div>`;
+  h+=`<div class="card"><h2 style="margin-top:0">Detalle de verificación</h2>
+    <div class="muted" style="font-size:11px;margin-bottom:6px">Cada suscripción activa de tienda contra RevenueCat.</div>
     <div style="border-top:1px solid var(--line);padding-top:8px"><b style="font-size:13px">Diagnóstico</b><ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.6">${(data.diagnostico||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
   $("v-pagos").innerHTML=h;
 }
