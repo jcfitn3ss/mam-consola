@@ -147,6 +147,7 @@
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
+      <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
       <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
       <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
       <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
@@ -170,6 +171,7 @@
     <div id="v-recordatorios" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
+    <div id="v-salud" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
     <div id="v-ejercicios" class="hide"></div>
@@ -289,7 +291,36 @@ async function init(){const {data:{session}}=await sb.auth.getSession();if(sessi
 async function login(){$("loginErr").textContent="Entrando…";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}$("loginErr").textContent="";await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
-function tab(t){["clientes","recordatorios","llamadas","pagos","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+function tab(t){["clientes","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+// ---- SALUD DE DATOS: huecos por cliente (sin plan/rutina/objetivo/altura, etc.) ----
+async function verSalud(){
+  $("v-salud").innerHTML='<div class="card">Analizando la salud de datos de tus clientes…</div>';
+  const {data,error}=await invokeFn("salud-datos",{body:{}});
+  if(error||(data&&data.error)){$("v-salud").innerHTML=`<div class="card alert">No se pudo analizar: ${esc((data&&data.error)||error.message)}</div>`;return;}
+  const R=data.detalle||{},res=data.resumen||{};
+  // Definición de cada hueco: etiqueta, severidad (color), y qué significa.
+  const SECC=[
+    ['sin_altura','📏 Sin altura','var(--rojo)','El plan y las calorías se calculan mal. Se les pide al abrir la app; o cárgala tú en la ficha.'],
+    ['sin_plan','📋 Sin plan','var(--rojo)','No tienen plan generado (a veces por no completar el cuestionario). El entreno puede fallar.'],
+    ['sin_rutina','🏋️ Sin rutina','var(--rojo)','No tienen rutina asignada. Genérala en la ficha (Entrenamiento).'],
+    ['sin_objetivo','🎯 Sin objetivo','var(--warn)','Sin objetivo/calorías definidas. Ponlo en la ficha (Objetivo, calorías y enfoque).'],
+    ['cuestionario_pendiente','📝 Cuestionario pendiente','var(--warn)','Tienen acceso pero no completaron el cuestionario inicial (no están bien configurados).'],
+    ['nombre_sin_apellidos','👤 Nombre sin 2 apellidos','var(--warn)','Falta nombre completo. Corrígelo en la ficha → Contrato e ingreso.'],
+    ['inactivos_14d','😴 Inactivos (14+ días)','#e0b84a','No entrenan hace 2+ semanas. Riesgo de que se caigan; contáctalos.'],
+    ['sin_registrar_comida_14d','🍽️ Sin registrar comida (14+ días)','var(--muted)','No registran comida. Normal en muchos; míralo solo si te interesa su nutrición.'],
+  ];
+  let h=`<div class="card"><h2 style="margin-top:0">🩺 Salud de datos <span class="muted" style="font-size:13px;font-weight:400">· ${data.clientes_con_acceso||0} clientes con acceso</span></h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Huecos que hacen que la app no funcione bien. Se actualiza cada vez que abres esta pestaña. <button class="sm ghost" onclick="verSalud()">↻ Actualizar</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${SECC.map(([k,l,c])=>`<span class="pill" style="background:${(res[k]||0)?'var(--card2)':'rgba(95,208,127,.12)'};font-weight:700;color:${(res[k]||0)?c:'var(--ok)'}">${l.replace(/^[^ ]+ /,'')}: ${res[k]||0}</span>`).join('')}</div></div>`;
+  SECC.forEach(([k,l,c,desc])=>{
+    const arr=R[k]||[];
+    h+=`<div class="card"><details ${arr.length?'':'style="opacity:.7"'}><summary style="cursor:pointer;font-weight:700;color:${arr.length?c:'var(--ok)'}">${l} (${arr.length})</summary>
+      <div class="muted" style="font-size:12px;margin:6px 0 8px">${esc(desc)}</div>
+      ${arr.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${arr.map(n=>`<span class="pill" style="background:var(--card2)">${esc(n)}</span>`).join('')}</div>`:`<div style="color:var(--ok);font-size:12px">✅ Ninguno.</div>`}
+    </details></div>`;
+  });
+  $("v-salud").innerHTML=h;
+}
 // ---- PAGOS Y SUSCRIPCIONES: cruza nuestra DB con RevenueCat (fuente de verdad) ----
 async function verPagos(){
   $("v-pagos").innerHTML='<div class="card">Verificando pagos con RevenueCat… (puede tardar unos segundos)</div>';
