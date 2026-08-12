@@ -314,12 +314,31 @@ async function verSalud(){
     <div style="display:flex;gap:6px;flex-wrap:wrap">${SECC.map(([k,l,c])=>`<span class="pill" style="background:${(res[k]||0)?'var(--card2)':'rgba(95,208,127,.12)'};font-weight:700;color:${(res[k]||0)?c:'var(--ok)'}">${l.replace(/^[^ ]+ /,'')}: ${res[k]||0}</span>`).join('')}</div></div>`;
   SECC.forEach(([k,l,c,desc])=>{
     const arr=R[k]||[];
+    let cuerpo;
+    if(!arr.length){cuerpo=`<div style="color:var(--ok);font-size:12px">✅ Ninguno.</div>`;}
+    else if(k==='nombre_sin_apellidos'){
+      // Editor en LOTE: input por persona (prellenado) + guardar. Nombre + 2 apellidos.
+      cuerpo=`<div style="display:flex;flex-direction:column;gap:6px">`+arr.map((x,i)=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="sn_${i}" data-nocaps value="${esc(x.nombre_completo||x.nombre||'')}" placeholder="Nombre y dos apellidos" style="margin:0;flex:1;min-width:200px"><button class="sm" onclick="guardarNombreSalud('${x.user_id}','sn_${i}',this)">Guardar</button><span class="salMsg" style="font-size:11px"></span></div>`).join('')+`</div>`;
+    } else if(k==='inactivos_14d'){
+      cuerpo=`<div style="display:flex;flex-direction:column;gap:6px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.dias_sin_entrenar!=null?x.dias_sin_entrenar+' días sin entrenar':'nunca ha entrenado'}</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
+      <div class="muted" style="font-size:11px;margin-top:8px">Mensaje sugerido para reactivar (cópialo): <span style="color:var(--txt)">"Hola {nombre}, te vi flojito con los entrenos esta semana 👀. Cuéntame qué pasó y retomamos hoy mismo — no perdamos el ritmo que ya llevabas. 💪"</span></div>`;
+    } else {
+      cuerpo=`<div style="display:flex;flex-wrap:wrap;gap:6px">${arr.map(n=>`<span class="pill" style="background:var(--card2)">${esc(typeof n==='string'?n:(n.nombre||''))}</span>`).join('')}</div>`;
+    }
     h+=`<div class="card"><details ${arr.length?'':'style="opacity:.7"'}><summary style="cursor:pointer;font-weight:700;color:${arr.length?c:'var(--ok)'}">${l} (${arr.length})</summary>
-      <div class="muted" style="font-size:12px;margin:6px 0 8px">${esc(desc)}</div>
-      ${arr.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${arr.map(n=>`<span class="pill" style="background:var(--card2)">${esc(n)}</span>`).join('')}</div>`:`<div style="color:var(--ok);font-size:12px">✅ Ninguno.</div>`}
+      <div class="muted" style="font-size:12px;margin:6px 0 8px">${esc(desc)}</div>${cuerpo}
     </details></div>`;
   });
   $("v-salud").innerHTML=h;
+}
+// Guardar nombre completo desde el editor en lote de Salud de datos.
+async function guardarNombreSalud(id,inputId,btn){
+  const el=$(inputId);const val=(el?el.value:'').trim().replace(/\s+/g,' ');
+  const msg=btn&&btn.parentElement?btn.parentElement.querySelector('.salMsg'):null;
+  if(val.split(' ').filter(Boolean).length<3){if(msg){msg.style.color='var(--warn)';msg.textContent='Nombre + 2 apellidos.';}return;}
+  const e=errFilas(await sb.from("perfiles").update({nombre:val,nombre_completo:val}).eq("user_id",id).select("user_id"));
+  if(msg){if(e){msg.style.color='var(--rojo)';msg.textContent=e;}else{msg.style.color='var(--ok)';msg.textContent='✓';}}
+  if(!e){[CLIENTES,TODOS].forEach(L=>{const c=(L||[]).find(x=>x.user_id===id);if(c){c.nombre=val;c.nombre_completo=val;}});poblarDropCli();}
 }
 // ---- PAGOS Y SUSCRIPCIONES: cruza nuestra DB con RevenueCat (fuente de verdad) ----
 async function verPagos(){
