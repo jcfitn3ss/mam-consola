@@ -319,9 +319,10 @@ async function verPagos(){
   const listaR=(titulo,arr,col)=>{if(!arr||!arr.length)return '';return `<details style="margin-bottom:6px"><summary style="cursor:pointer;font-weight:700;color:${col||'var(--txt)'}">${titulo} (${arr.length})</summary><table style="margin-top:4px"><tr><th>Cliente</th><th>Tier</th><th>Próx. cobro / motivo</th></tr>${arr.map(x=>`<tr><td>${esc(x.nombre||'')}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted" style="font-size:11px">${esc(x.motivo||x.prox_cobro||'—')}</td></tr>`).join('')}</table></details>`;};
   h+=`<div class="card"><h2 style="margin-top:0">Recurrencia por cliente (${rr.total_clientes||0} clientes)</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Quién tiene suscripción recurrente activa (Apple/Google les cobra solo) y quién no.</div>
-    ${listaR('✅ Recurrente activa (les cobra solo cada mes)',ros.recurrente_activa,'var(--ok)')}
+    ${listaR('✅ Recurrente automática (Apple/Google les cobra solo)',ros.recurrente_activa,'var(--ok)')}
     ${listaR('⚠️ Activa pero NO se auto-renueva (se va a caer)',ros.activa_no_recurrente,'var(--warn)')}
-    ${listaR('🎁 Activa sin cobro de tienda (fundador/gratis/mentoría)',ros.no_tienda_activa)}
+    ${listaR('🖐️ Pago MANUAL por fuera (mentoría/familia · NO auto-recurrente)',ros.manual_externo,'var(--warn)')}
+    ${listaR('🎁 Cortesía (fundador/gratis · no paga)',ros.cortesia)}
     ${listaR('❌ Vencida (sin acceso)',ros.vencida,'var(--rojo)')}
     ${listaR('❓ Sin fila de suscripción',ros.sin_suscripcion,'var(--rojo)')}
   </div>`;
