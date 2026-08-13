@@ -3338,9 +3338,10 @@ async function verAlimentos(){
    <div id="abreclist"></div></div>
    <div class="card"><h2 style="margin-top:0">Nuevo alimento</h2>
    <div class="muted" style="margin-bottom:6px">Valores <b>por 100 g</b>, igual que la guía. El cliente lo verá primero al buscar (etiqueta <b>Oficial MAM</b>). Si dejas las kcal en blanco se calculan solas (P×4 + C×4 + G×9).</div>
-   <input id="a_nom" placeholder="Nombre tal cual (ej: Pechuga de pollo)">
+   <div class="row"><div style="flex:2"><label class="lbl">Nombre</label><input id="a_nom" placeholder="Nombre tal cual (ej: Pechuga de pollo)"></div><div style="flex:1"><label class="lbl">Marca (opcional)</label><input id="a_marca" placeholder="—"></div></div>
    <label class="lbl">Categoría</label><select id="a_cat">${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
    <div class="row"><div><label class="lbl">Proteína (g)</label><input id="a_p" type="number" step="0.1" value="0"></div><div><label class="lbl">Carbohidrato (g)</label><input id="a_c" type="number" step="0.1" value="0"></div><div><label class="lbl">Grasa (g)</label><input id="a_f" type="number" step="0.1" value="0"></div><div><label class="lbl">Kcal (opcional)</label><input id="a_k" type="number" step="0.1" placeholder="auto"></div></div>
+   <div class="row"><div><label class="lbl">Porción (g)</label><input id="a_pg" type="number" step="1" placeholder="—"></div><div><label class="lbl">Fibra (g)</label><input id="a_fib" type="number" step="0.1" placeholder="—"></div><div><label class="lbl">Azúcar (g)</label><input id="a_az" type="number" step="0.1" placeholder="—"></div><div><label class="lbl">Sodio (mg)</label><input id="a_sod" type="number" step="1" placeholder="—"></div></div>
    <button style="margin-top:8px" onclick="addAlimento()">Agregar al catálogo</button> <span id="aMsg" class="muted"></span></div>
    <div class="card"><h2 style="margin-top:0">Catálogo oficial (${AB.length})</h2>
      <input id="a_buscar" placeholder="Buscar…" oninput="renderAB()">
@@ -3400,9 +3401,8 @@ async function abGuardarEdit(id){
   const g=k=>{const el=document.getElementById(k);return el?el.value:'';};
   const nombre=(g('abe_nom')||'').trim();if(!nombre){alert('Falta el nombre.');return;}
   const p=+g('abe_p')||0,c=+g('abe_c')||0,f=+g('abe_f')||0;const kIn=(g('abe_k')||'').trim();const k=kIn!==''?(+kIn||0):Math.round(p*4+c*4+f*9);
-  const pgIn=(g('abe_pg')||'').trim();
-  const patch={nombre,categoria:g('abe_cat'),p,c,f,k};
-  if(pgIn!=='')patch.porcion_g=+pgIn||null;
+  const optg=key=>{const v=(g(key)||'').trim();return v===''?null:(+v||0);};
+  const patch={nombre,marca:(g('abe_marca')||'').trim()||null,categoria:g('abe_cat'),p,c,f,k,porcion_g:optg('abe_pg'),fib:optg('abe_fib'),az:optg('abe_az'),sod:optg('abe_sod')};
   const e=errFilas(await sb.from("alimentos_base").update(patch).eq("id",id).select("id"));
   if(e){alert(e);return;}
   const it=AB.find(x=>String(x.id)===String(id));if(it)Object.assign(it,patch);
@@ -3418,6 +3418,7 @@ function renderAB(){
       return `<tr style="background:var(--card2)"><td colspan="7" style="padding:8px">
         <div class="row" style="align-items:flex-end">
           <div style="flex:2"><label class="lbl">Nombre</label><input id="abe_nom" data-nocaps value="${esc(a.nombre||'')}" style="margin:0"></div>
+          <div style="flex:1"><label class="lbl">Marca (opcional)</label><input id="abe_marca" value="${esc(a.marca||'')}" placeholder="—" style="margin:0"></div>
           <div><label class="lbl">Categoría</label><select id="abe_cat" style="margin:0">${opt}</select></div>
         </div>
         <div class="row" style="align-items:flex-end;margin-top:6px">
@@ -3427,10 +3428,17 @@ function renderAB(){
           <div><label class="lbl">Kcal</label><input id="abe_k" type="number" step="0.1" value="${a.k??''}" placeholder="auto" style="margin:0"></div>
           <div><label class="lbl">Porción g</label><input id="abe_pg" type="number" step="1" value="${a.porcion_g??''}" placeholder="—" style="margin:0"></div>
         </div>
+        <div class="row" style="align-items:flex-end;margin-top:6px">
+          <div><label class="lbl">Fibra (g)</label><input id="abe_fib" type="number" step="0.1" value="${a.fib??''}" placeholder="—" style="margin:0"></div>
+          <div><label class="lbl">Azúcar (g)</label><input id="abe_az" type="number" step="0.1" value="${a.az??''}" placeholder="—" style="margin:0"></div>
+          <div><label class="lbl">Sodio (mg)</label><input id="abe_sod" type="number" step="1" value="${a.sod??''}" placeholder="—" style="margin:0"></div>
+          <div></div><div></div>
+        </div>
         <div style="margin-top:8px;display:flex;gap:6px"><button class="sm" onclick="abGuardarEdit('${a.id}')">Guardar</button><button class="sm ghost" onclick="abCancelEdit()">Cancelar</button><span class="muted" style="font-size:11px;align-self:center">Valores por 100 g.</span></div>
       </td></tr>`;
     }
-    return `<tr><td><b>${esc(a.nombre)}</b></td><td class="muted">${esc(catLabel(a.categoria))}</td><td>${Math.round(a.k||0)}</td><td>${a.p??0}</td><td>${a.c??0}</td><td>${a.f??0}</td><td style="white-space:nowrap"><button class="sm ghost" onclick="abEdit('${a.id}')" title="Editar">✏️</button><button class="sm ghost" onclick="borrarAlimento('${a.id}')" title="Quitar del catálogo">🗑</button></td></tr>`;
+    const oculto=a.activo===false;
+    return `<tr${oculto?' style="opacity:.5"':''}><td><b>${esc(a.nombre)}</b>${oculto?' <span class="pill" style="background:var(--card2)">oculto</span>':''}${a.marca?`<br><span class="muted" style="font-size:11px">${esc(a.marca)}</span>`:''}</td><td class="muted">${esc(catLabel(a.categoria))}</td><td>${Math.round(a.k||0)}</td><td>${a.p??0}</td><td>${a.c??0}</td><td>${a.f??0}</td><td style="white-space:nowrap"><button class="sm ghost" onclick="abEdit('${a.id}')" title="Editar">✏️</button><button class="sm ghost" onclick="toggleAlimentoActivo('${a.id}')" title="${oculto?'Mostrar de nuevo':'Ocultar sin borrar (deja de verlo el cliente, no se borra)'}">${oculto?'↩':'🚫'}</button><button class="sm ghost" onclick="borrarAlimento('${a.id}')" title="Quitar del catálogo (borra)">🗑</button></td></tr>`;
   };
   $("ablist").innerHTML=`<table><tr><th>Alimento</th><th>Categoría</th><th>Kcal</th><th>P</th><th>C</th><th>G</th><th></th></tr>${list.map(fila).join("")}</table>`;
 }
@@ -3438,10 +3446,21 @@ async function addAlimento(){
   const nom=$("a_nom").value.trim();if(!nom){$("aMsg").textContent="Falta el nombre.";return;}
   const p=+$("a_p").value||0,c=+$("a_c").value||0,f=+$("a_f").value||0;
   const kIn=$("a_k").value.trim();const k=kIn!==""?(+kIn||0):Math.round(p*4+c*4+f*9);
+  const opt=id=>{const v=($(id)?$(id).value:'').trim();return v===''?null:(+v||0);};
   $("aMsg").textContent="Guardando…";
-  const {data,error}=await sb.from("alimentos_base").insert({nombre:nom,categoria:$("a_cat").value,p,c,f,k,activo:true,aprobado:true}).select();
+  const row={nombre:nom,marca:($("a_marca")?$("a_marca").value.trim():'')||null,categoria:$("a_cat").value,p,c,f,k,porcion_g:opt("a_pg"),fib:opt("a_fib"),az:opt("a_az"),sod:opt("a_sod"),activo:true,aprobado:true};
+  const {data,error}=await sb.from("alimentos_base").insert(row).select();
   if(error){$("aMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
-  AB.push(data[0]);AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));$("aMsg").textContent="✓ Agregado.";$("a_nom").value=$("a_k").value="";$("a_p").value=$("a_c").value=$("a_f").value="0";renderAB();
+  AB.push(data[0]);AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));$("aMsg").textContent="✓ Agregado.";["a_nom","a_marca","a_k","a_pg","a_fib","a_az","a_sod"].forEach(id=>{if($(id))$(id).value="";});$("a_p").value=$("a_c").value=$("a_f").value="0";renderAB();
+}
+// Ocultar/mostrar sin borrar: activo=false lo saca de la búsqueda del cliente (el
+// buscador filtra activo=true) pero lo conserva en el catálogo para reactivarlo luego.
+async function toggleAlimentoActivo(id){
+  const a=AB.find(x=>String(x.id)===String(id));if(!a)return;
+  const val=(a.activo===false); // destino: si estaba oculto → mostrar(true); si visible → ocultar(false)
+  const e=errFilas(await sb.from("alimentos_base").update({activo:val}).eq("id",id).select("id"));
+  if(e){alert(e);return;}
+  a.activo=val;renderAB();
 }
 async function borrarAlimento(id){
   const a=AB.find(x=>String(x.id)===String(id));if(!a)return;
