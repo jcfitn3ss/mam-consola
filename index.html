@@ -553,6 +553,9 @@ function renderCampana(){
 function toggleCampana(){const p=$("campanaPanel");if(p)p.classList.toggle("hide");}
 function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("hide");tab('clientes');verCliente(id);window.scrollTo(0,0);}
 async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();}
+// Resolver una alerta DESDE la ficha del cliente: la marca resuelta, la quita de la
+// campana y refresca la ficha para que desaparezca de su sección de alertas.
+async function resolverAlertaFicha(aid,cid){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",aid);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(aid));renderCampana();verCliente(cid);}
 
 // ===== Recordatorios diarios: tabla con qué tener en cuenta de cada cliente =====
 let PAIS_DEF='57'; // prefijo de país por defecto para números locales de 10 dígitos (Colombia)
@@ -1152,7 +1155,22 @@ async function verCliente(id){
   else if(ses7<2)alertasR.push(`🟡 Poco entrenamiento (${ses7} sesión en 7 días)`);
   if(prom&&o.kcal&&Math.abs(prom.k-o.kcal)>=Math.max(250,Math.round(o.kcal*0.15)))alertasR.push(`🟡 Calorías ${prom.k>o.kcal?'por ENCIMA':'por DEBAJO'} del objetivo (${prom.k} vs ${o.kcal})`);
   if(alertasR.length)rep+=`<div style="background:rgba(226,59,59,.10);border:1px solid var(--rojo);border-radius:8px;padding:8px 10px;margin-bottom:10px"><b style="color:var(--rojo)">🚨 Requiere atención</b><ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5">${alertasR.map(a=>`<li>${a}</li>`).join('')}</ul></div>`;
-  else rep+=`<div style="color:var(--ok);font-size:12.5px;margin-bottom:10px">✓ Sin alertas: dolores, fatiga, calorías y entrenamiento en orden.</div>`;
+  else if(!alsCli.length)rep+=`<div style="color:var(--ok);font-size:12.5px;margin-bottom:10px">✓ Sin alertas: dolores, fatiga, calorías y entrenamiento en orden.</div>`;
+  // 🔔 Alertas GUARDADAS de este cliente (las mismas de la campana global: cobro no
+  // recurrente, fotos por revisar, etc.), ahora visibles y RESOLUBLES desde su ficha
+  // (JC 2026-08-13: "asegurémonos de que las alertas estén en cada cliente"). Ámbar
+  // para distinguirlas del bloque rojo de señales fisiológicas/entreno de arriba.
+  if(alsCli.length){
+    rep+=`<div style="background:rgba(224,184,74,.09);border:1px solid var(--warn);border-radius:8px;padding:8px 10px;margin-bottom:10px">
+      <b style="color:var(--warn)">🔔 Alertas de este cliente (${alsCli.length})</b>
+      <div style="margin-top:4px">${alsCli.map((a,i)=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:6px 0${i<alsCli.length-1?';border-bottom:1px solid var(--line)':''}">
+        <div style="min-width:0"><div style="font-weight:600;font-size:12.5px">${esc(a.tipo||'Alerta')}</div>
+        <div class="muted" style="font-size:12px">${esc(a.texto||'')}</div>
+        <div class="muted" style="font-size:10.5px">${esc((a.created_at||'').slice(0,10))}</div></div>
+        <button class="sm ghost" style="flex-shrink:0" onclick="resolverAlertaFicha('${a.id}','${id}')">Listo</button>
+      </div>`).join('')}</div>
+    </div>`;
+  }
   rep+=`<h3 style="margin:8px 0 2px">Cumplimiento de entrenamiento</h3>`;
   rep+=`<div class="kv">`;
   rep+=fila("Sesiones últimos 7 días",ses7+" sesión(es)",ses7===0);
