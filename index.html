@@ -532,7 +532,7 @@ async function cargarPrioridad(){
     sb.from("checkins").select("user_id,dart,fatiga,energia,fecha").gte("fecha",d14).order("fecha",{ascending:false}),
     sb.from("planes").select("user_id,inicio"),
     sb.from("objetivos").select("user_id,tipo"),
-    sb.from("perfiles").select("user_id,ticket,presupuesto_adicional,pago_confirmado"),
+    sb.from("perfiles").select("user_id,ticket,presupuesto_adicional,pago_confirmado,sexo,fecha_nacimiento"),
     // Sesiones finalizadas recientes: para detectar al cliente que dejo de entrenar.
     sb.from("sesiones").select("user_id,fecha").eq("finalizada",true).gte("fecha",d60).order("fecha",{ascending:false}),
   ]);
@@ -549,7 +549,7 @@ async function cargarPrioridad(){
   // Ultima sesion finalizada por usuario (la primera al venir ordenado desc).
   const ult={};(se.data||[]).forEach(s=>{if(s.user_id&&s.fecha&&!ult[s.user_id])ult[s.user_id]=s.fecha});
   CLIENTES.forEach(c=>{const u=c.user_id;let sc=0;const r=[];
-    const G=gm[u]||{};c._ticket=G.ticket||"";c._presu=!!G.presupuesto_adicional;c._pago=!!G.pago_confirmado;
+    const G=gm[u]||{};c._ticket=G.ticket||"";c._presu=!!G.presupuesto_adicional;c._pago=!!G.pago_confirmado;c._sexo=G.sexo||null;c._nac=G.fecha_nacimiento||null;c._objTipo=obj[u]||null;
     // No terminó el registro inicial (sin objetivo = no completó onboarding): no
     // puede recibir plan. Lo subimos a "Atención" para perseguirlo.
     c._sinObj=!obj[u];
@@ -628,7 +628,7 @@ async function renderHoy(){
     card('😴',nInact,'Inactivos 14+ días','var(--warn)',"tab('recordatorios')")+
     card('📞',nReu,'Reunión sin resumen','var(--muted)',"tab('llamadas')")+
     card('📏',nAltura,'Sin altura','var(--rojo)',"tab('salud')");
-  if(ATLETAS_FO&&ATLETAS_FO.length)cards+=card('🎯',ATLETAS_FO.length,'Atletas fuera de objetivo','var(--warn)',"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})");
+  if(ATLETAS_FO&&ATLETAS_FO.length)cards+=card('🎯',ATLETAS_FO.length,'Fuera de objetivo de peso','var(--warn)',"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})");
   el.innerHTML=cards;
 }
 // Evaluación compartida de la semana de prep — MISMA lógica para el aviso de Hoy y el
@@ -638,13 +638,14 @@ async function renderHoy(){
 function evalPrepSemana(o){
   const fase=String(o.fase||'').toLowerCase();
   if(/peak/.test(fase))return {nivel:'peak',motivo:'peak week: no perseguir báscula',color:'#f59e0b',rec:''};
-  if(o.real==null)return o.dowLate?{nivel:'sinpesos',motivo:'sin pesos esta semana',color:'var(--warn)',rec:'pídele pesos (varios días) antes de ajustar'}:{nivel:'ok',motivo:'',color:'var(--ok)',rec:''};
+  const directo=(o.ritmoRealDirecto!=null); // ritmo ya calculado (regresión, no-atletas)
+  if(!directo&&o.real==null)return o.dowLate?{nivel:'sinpesos',motivo:'sin pesos esta semana',color:'var(--warn)',rec:'pídele pesos (varios días) antes de ajustar'}:{nivel:'ok',motivo:'',color:'var(--ok)',rec:''};
   const objN=(o.obj!=null&&o.obj!=='')?+o.obj:null;
   const tol=objN!=null?Math.max(0.4,objN*0.006):0.4;
-  const dP=objN!=null?Math.round((o.real-objN)*10)/10:null;
+  const dP=(objN!=null&&o.real!=null)?Math.round((o.real-objN)*10)/10:null;
   const planBaja=(o.prevObj!=null&&objN!=null)?(objN<(+o.prevObj)-0.05):true; // ¿la semana planea bajar?
   const confia=((o.nPesajes||0)>=2);
-  const ritmoReal=(o.prev&&o.prev>0)?(o.prev-o.real)/o.prev*100:null;
+  const ritmoReal=directo?o.ritmoRealDirecto:((o.prev&&o.prev>0)?(o.prev-o.real)/o.prev*100:null);
   const rp=+o.ritmoPlan||0.7;
   const lento=planBaja&&confia&&ritmoReal!=null&&ritmoReal<0.5*rp;
   const rapido=confia&&ritmoReal!=null&&ritmoReal>1.5*rp;
@@ -653,6 +654,54 @@ function evalPrepSemana(o){
   if(rapido||debajo)return {nivel:'rapido',dP,ritmoReal,motivo:`${debajo?dP+' kg bajo objetivo':''}${rapido?(debajo?', ':'')+'baja rápido ('+ritmoReal.toFixed(2)+'%/sem)':''}`,color:'#4c8dff',rec:'sube ~100–150 kcal para proteger músculo'};
   return {nivel:'ok',dP,ritmoReal,motivo:planBaja?'en objetivo y al ritmo':'holdeando en objetivo',color:'var(--ok)',rec:'mantén, sin cambios esta semana'};
 }
+function edadDe(fnac){if(!fnac)return null;const d=new Date(String(fnac).slice(0,10)+'T00:00:00');if(isNaN(d))return null;const a=(Date.now()-d.getTime())/(365.25*864e5);return (a>0&&a<120)?Math.floor(a):null;}
+// % de grasa: medido por pliegues si hay; si no, estimado con Deurenberg (IMC/edad/sexo).
+function estimarGrasa(o){
+  if(o.grasaMed!=null&&+o.grasaMed>0)return {bf:Math.round(+o.grasaMed*10)/10,fuente:'medido (pliegues)'};
+  const h=(+o.alturaCm||0)/100,w=+o.peso||0,edad=+o.edad||30;
+  if(!(h>0&&w>0))return {bf:null,fuente:null};
+  const bmi=w/(h*h);
+  const sx=(/^(m|h)/i.test(String(o.sexo||'')))?1:0; // hombre=1, mujer=0
+  let bf=1.20*bmi+0.23*edad-10.8*sx-5.4; // Deurenberg 1991
+  bf=Math.max(4,Math.min(60,Math.round(bf*10)/10));
+  return {bf,fuente:'estimado (IMC/edad/sexo)'};
+}
+// Ritmo de bajada SEGURO según %grasa (más grasa = más rápido; más seco = más lento,
+// para proteger músculo). Ajuste por sexo (mujeres ~+8% grasa esencial). %/semana.
+function ritmoPorGrasa(bf,sexo){
+  if(bf==null)return 0.7;
+  const b=bf-((/^f/i.test(String(sexo||'')))?8:0);
+  if(b>=30)return 1.2; if(b>=25)return 1.0; if(b>=20)return 0.85; if(b>=15)return 0.7; if(b>=12)return 0.6; return 0.5;
+}
+// Ritmo real de bajada (%/sem) por regresión lineal sobre los pesos de ~28 días
+// (robusto ante ruido/pesajes dispersos). Necesita ≥3 puntos y ≥10 días de rango.
+function ritmoRealSemana(pesos){
+  const pts=(pesos||[]).filter(p=>p&&p.fecha&&isFinite(+p.peso)).map(p=>({t:new Date(String(p.fecha).slice(0,10)+'T00:00:00').getTime(),w:+p.peso})).sort((a,b)=>a.t-b.t);
+  const cut=Date.now()-28*864e5,rec=pts.filter(p=>p.t>=cut);
+  if(rec.length<3)return {rate:null,n:rec.length};
+  const t0=rec[0].t,xs=rec.map(p=>(p.t-t0)/864e5),ys=rec.map(p=>p.w),n=rec.length;
+  const sx=xs.reduce((a,b)=>a+b,0),sy=ys.reduce((a,b)=>a+b,0),sxx=xs.reduce((a,b)=>a+b*b,0),sxy=xs.reduce((a,_,i)=>a+xs[i]*ys[i],0);
+  const den=n*sxx-sx*sx;const span=xs[n-1]-xs[0];
+  if(den===0||span<10)return {rate:null,n};
+  const slope=(n*sxy-sx*sy)/den,avgW=sy/n; // kg/día
+  const rate=avgW>0?Math.round((-slope*7/avgW*100)*100)/100:null; // %/sem (positivo=baja)
+  return {rate,n,avgW:Math.round(avgW*10)/10,span:Math.round(span)};
+}
+// Panel de decisión de peso (ficha, no-atletas en corte). Recalcula al cambiar el %grasa.
+function segPesoOutHTML(bf){
+  const s=window.SEGP||{};
+  const recRate=ritmoPorGrasa(bf,s.sexo);
+  const tgtKg=Math.round(recRate/100*(s.peso||0)*100)/100;
+  const real=s.rateReal;
+  const realTxt=real!=null?`${real.toFixed(2)}%/sem (${(real*(s.peso||0)/100).toFixed(2)} kg/sem)`:'—';
+  const ev=real!=null?evalPrepSemana({obj:null,ritmoRealDirecto:real,ritmoPlan:recRate,nPesajes:s.n||0,dowLate:true}):null;
+  const recBox=real==null?`<div class="muted" style="font-size:12px">Necesito ~3 pesajes en las últimas 4 semanas para leer el ritmo. Pídele registrar peso varios días.</div>`
+    :`<div style="color:${ev.color};font-weight:600;font-size:12.5px">${ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':''}${ev.rec}.</div>`;
+  return `<div class="kv"><div class="fila"><span class="muted">Ritmo recomendado (por %grasa)</span><b>${recRate}%/sem <span class="muted" style="font-weight:400">≈ ${tgtKg} kg/sem</span></b></div>
+    <div class="fila"><span class="muted">Ritmo real (últimas 4 sem)</span><b>${realTxt}</b></div></div>
+    <div style="margin-top:8px">${recBox}</div>`;
+}
+function segPesoRecalc(inp){const bf=+inp.value;if(window.SEGP)window.SEGP.bf=bf;const o=$("segPesoOut");if(o)o.innerHTML=segPesoOutHTML(isFinite(bf)?bf:null);}
 // 🎯 Atletas fuera de objetivo: revisa (client-side, sin escribir a la BD) a cada
 // atleta con calendario — promedio semanal del peso app vs objetivo de la semana en
 // curso + ritmo real vs planeado. Surface en la franja Hoy y en una tarjeta arriba de
@@ -662,38 +711,54 @@ async function revisarAtletas(){
   ATLETAS_FO=[];
   try{
     const {data:cals}=await sb.from("calendario_atleta").select("user_id,fecha_show,semanas,volumen");
-    const rows=(cals||[]).filter(c=>Array.isArray(c.semanas)&&c.semanas.length);
-    if(rows.length){
-      const ids=rows.map(c=>c.user_id);
-      const {data:pes}=await sb.from("pesos").select("user_id,fecha,peso").in("user_id",ids).gte("fecha",hace(28));
-      const byU={};(pes||[]).forEach(p=>{(byU[p.user_id]=byU[p.user_id]||[]).push(p);});
-      const hoy=hace(0),dowLate=((new Date().getDay()+6)%7)>=3; // jueves+ para "sin pesos"
-      rows.forEach(c=>{
-        const sem=c.semanas||[];
-        const ci=sem.findIndex(s=>s.ini&&s.fin&&hoy>=s.ini&&hoy<=s.fin);
-        if(ci<0)return; // hoy no cae en su timeline
-        const cur=sem[ci],prevRow=ci>0?sem[ci-1]:null;
-        const ritmoPlan=+(((c.volumen||{}).__prep)||{}).ritmo||0.7;
-        const mine=byU[c.user_id]||[];
-        const inWk=s=>mine.filter(p=>s&&p.fecha>=s.ini&&p.fecha<=s.fin).map(p=>+p.peso).filter(isFinite);
-        const curW=inWk(cur),prevW=inWk(prevRow);
-        const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;
-        const ev=evalPrepSemana({obj:cur.peso_obj,prevObj:prevRow?prevRow.peso_obj:null,real:avg(curW),prev:avg(prevW),ritmoPlan,nPesajes:curW.length,fase:cur.fase,dowLate});
-        if(['lento','rapido','sinpesos'].includes(ev.nivel)){
-          const nom=(CLIENTES.find(x=>x.user_id===c.user_id)||{}).nombre||c.user_id.slice(0,8);
-          ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:ev.motivo,col:ev.color});
-        }
-      });
-    }
+    const atRows=(cals||[]).filter(c=>Array.isArray(c.semanas)&&c.semanas.length);
+    const atIds=atRows.map(c=>c.user_id),atSet=new Set(atIds);
+    // Clientes en corte (def/rec) que NO son atletas → seguimiento por %grasa estimado.
+    const cut=CLIENTES.filter(c=>(c._objTipo==='def'||c._objTipo==='rec')&&!atSet.has(c.user_id));
+    const allIds=[...new Set([...atIds,...cut.map(c=>c.user_id)])];
+    if(!allIds.length){renderAtletasFO();renderHoy();return;}
+    const {data:pes}=await sb.from("pesos").select("user_id,fecha,peso").in("user_id",allIds).gte("fecha",hace(35));
+    const byU={};(pes||[]).forEach(p=>{(byU[p.user_id]=byU[p.user_id]||[]).push(p);});
+    const hoy=hace(0),dowLate=((new Date().getDay()+6)%7)>=3; // jueves+ para "sin pesos"
+    // --- Atletas (calendario con objetivo de peso por semana) ---
+    atRows.forEach(c=>{
+      const sem=c.semanas||[];
+      const ci=sem.findIndex(s=>s.ini&&s.fin&&hoy>=s.ini&&hoy<=s.fin);
+      if(ci<0)return;
+      const cur=sem[ci],prevRow=ci>0?sem[ci-1]:null;
+      const ritmoPlan=+(((c.volumen||{}).__prep)||{}).ritmo||0.7;
+      const mine=byU[c.user_id]||[];
+      const inWk=s=>mine.filter(p=>s&&p.fecha>=s.ini&&p.fecha<=s.fin).map(p=>+p.peso).filter(isFinite);
+      const curW=inWk(cur),prevW=inWk(prevRow);
+      const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;
+      const ev=evalPrepSemana({obj:cur.peso_obj,prevObj:prevRow?prevRow.peso_obj:null,real:avg(curW),prev:avg(prevW),ritmoPlan,nPesajes:curW.length,fase:cur.fase,dowLate});
+      if(['lento','rapido','sinpesos'].includes(ev.nivel)){
+        const nom=(CLIENTES.find(x=>x.user_id===c.user_id)||{}).nombre||c.user_id.slice(0,8);
+        ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:ev.motivo,col:ev.color,atleta:true});
+      }
+    });
+    // --- Clientes en corte (ritmo de bajada escalado por %grasa estimado) ---
+    cut.forEach(c=>{
+      const mine=byU[c.user_id]||[];
+      const tr=ritmoRealSemana(mine);
+      if(tr.rate==null)return; // sin datos suficientes → no molestar
+      const latest=mine.reduce((a,b)=>(a&&a.fecha>b.fecha)?a:b,null);
+      const g=estimarGrasa({peso:latest?+latest.peso:null,alturaCm:c.altura,sexo:c._sexo,edad:edadDe(c._nac),grasaMed:null});
+      const recRate=ritmoPorGrasa(g.bf,c._sexo);
+      const ev=evalPrepSemana({obj:null,ritmoRealDirecto:tr.rate,ritmoPlan:recRate,nPesajes:tr.n,dowLate});
+      if(ev.nivel==='lento'||ev.nivel==='rapido'){
+        ATLETAS_FO.push({user_id:c.user_id,nombre:c.nombre||c.user_id.slice(0,8),motivo:(ev.nivel==='lento'?'baja lento':'baja rápido')+` (${tr.rate.toFixed(2)}%/sem vs ${recRate}% sugerido${g.bf!=null?', grasa ~'+g.bf+'%':''})`,col:ev.color});
+      }
+    });
   }catch(e){/* si falla, no rompe la consola */}
   renderAtletasFO();renderHoy();
 }
 function renderAtletasFO(){
   const el=$("atletasFO");if(!el)return;
   if(!ATLETAS_FO.length){el.innerHTML='';return;}
-  el.innerHTML=`<div class="card" style="border:1px solid var(--warn)"><h2 style="margin-top:0">🎯 Atletas fuera de objetivo (${ATLETAS_FO.length})</h2>
-    <div class="muted" style="font-size:12px;margin-bottom:6px">Prep desviada del plan (promedio semanal del peso vs objetivo de la semana). Actúa sin abrir cada ficha.</div>
-    ${ATLETAS_FO.map(a=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(a.nombre)}</b> <span style="color:${a.col};font-size:12px">· ${esc(a.motivo)}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="verCliente('${a.user_id}')">Abrir ficha →</button></div>`).join('')}</div>`;
+  el.innerHTML=`<div class="card" style="border:1px solid var(--warn)"><h2 style="margin-top:0">🎯 Fuera de objetivo de peso (${ATLETAS_FO.length})</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Atletas (vs su plan) y clientes en corte (ritmo de bajada escalado por %grasa: más grasa = puede bajar más rápido). Promedio semanal, no un día. Actúa sin abrir cada ficha.</div>
+    ${ATLETAS_FO.map(a=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(a.nombre)}</b>${a.atleta?' <span class="pill" style="background:var(--card2);font-size:10px">atleta</span>':''} <span style="color:${a.col};font-size:12px">· ${esc(a.motivo)}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="verCliente('${a.user_id}')">Abrir ficha →</button></div>`).join('')}</div>`;
 }
 
 // ===== Recordatorios diarios: tabla con qué tener en cuenta de cada cliente =====
@@ -1311,6 +1376,17 @@ async function verCliente(id){
         <button class="sm ghost" style="flex-shrink:0" onclick="resolverAlertaFicha('${a.id}','${id}')">Listo</button>
       </div>`).join('')}</div>
     </div>`;
+  }
+  // 📉 Seguimiento de peso (decisión) — clientes en corte/recomp. Ritmo de bajada
+  // escalado por %grasa estimado (medido por pliegues si hay; si no, Deurenberg). Editable.
+  if(o.tipo==='def'||o.tipo==='rec'){
+    const grasaMed=(()=>{const P=(plg&&plg.data)||[];for(let i=P.length-1;i>=0;i--){if(P[i].grasa!=null&&+P[i].grasa>0)return +P[i].grasa;}return null;})();
+    const g=estimarGrasa({peso:peso,alturaCm:(per.data&&per.data.altura),sexo:(per.data&&per.data.sexo),edad:edadDe(per.data&&per.data.fecha_nacimiento),grasaMed});
+    window.SEGP={sexo:(per.data&&per.data.sexo)||null,peso:peso||0,rateReal:ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso}))).rate,n:ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso}))).n};
+    rep+=`<h3 style="margin:10px 0 2px">📉 Seguimiento de peso</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:4px">Ritmo de bajada seguro según su grasa: más grasa = puede bajar más rápido; más seco = más lento (proteger músculo).${g.fuente?' %grasa '+g.fuente+'.':''}</div>
+      <div class="row" style="align-items:flex-end"><div style="max-width:170px"><label class="lbl">% grasa estimado</label><input type="number" step="0.1" value="${g.bf!=null?g.bf:''}" oninput="segPesoRecalc(this)"></div></div>
+      <div id="segPesoOut" style="margin-top:6px">${segPesoOutHTML(g.bf)}</div>`;
   }
   rep+=`<h3 style="margin:8px 0 2px">Cumplimiento de entrenamiento</h3>`;
   rep+=`<div class="kv">`;
