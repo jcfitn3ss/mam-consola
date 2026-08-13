@@ -185,6 +185,7 @@
 
     <div id="v-clientes">
       <div id="hoyStrip" class="hoy"></div>
+      <div id="atletasFO"></div>
       <div id="solicitudes"></div>
       <div class="card" id="listaCard">
         <h2 style="margin-top:0">Clientes (<span id="nCli">0</span>) · por prioridad</h2>
@@ -578,7 +579,7 @@ async function cargarPrioridad(){
     if(ini[u]){const dd=Math.floor((Date.now()-new Date(ini[u]).getTime())/864e5);if(dd>=30)c._mes=Math.floor(dd/30);}
   });
   CLIENTES.sort((a,b)=>b._sc-a._sc);renderClientes();
-  ALERTAS=al.data||[];renderCampana();renderHoy();
+  ALERTAS=al.data||[];renderCampana();renderHoy();revisarAtletas();
 }
 // Campanita de notificaciones (alertas abiertas de todos los clientes).
 function renderCampana(){
@@ -621,12 +622,60 @@ async function renderHoy(){
   let nReu=0;
   try{const hoy=hace(0);const {data}=await sb.from("reuniones").select("resumen,transcripcion,fecha").gte("fecha",hace(40)).lte("fecha",hoy);nReu=(data||[]).filter(r=>!(r.resumen&&String(r.resumen).trim())&&!(r.transcripcion&&String(r.transcripcion).trim())).length;}catch(e){}
   const card=(emoji,n,label,color,on)=>`<div class="hoyCard" style="border-left-color:${n>0?color:'var(--muted)'}" onclick="${on}"><div class="n" style="color:${n>0?color:'var(--muted)'}">${n}</div><div class="l">${emoji} ${label}</div></div>`;
-  el.innerHTML=
+  let cards=
     card('🔔',nAlert,'Alertas abiertas','var(--rojo)','toggleCampana()')+
     card('💳',nPago,'Pagos por revisar','var(--warn)',"tab('pagos')")+
     card('😴',nInact,'Inactivos 14+ días','var(--warn)',"tab('recordatorios')")+
     card('📞',nReu,'Reunión sin resumen','var(--muted)',"tab('llamadas')")+
     card('📏',nAltura,'Sin altura','var(--rojo)',"tab('salud')");
+  if(ATLETAS_FO&&ATLETAS_FO.length)cards+=card('🎯',ATLETAS_FO.length,'Atletas fuera de objetivo','var(--warn)',"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})");
+  el.innerHTML=cards;
+}
+// 🎯 Atletas fuera de objetivo: revisa (client-side, sin escribir a la BD) a cada
+// atleta con calendario — promedio semanal del peso app vs objetivo de la semana en
+// curso + ritmo real vs planeado. Surface en la franja Hoy y en una tarjeta arriba de
+// la lista, para actuar sin abrir cada ficha. Salta la peak week (no se persigue báscula).
+let ATLETAS_FO=[];
+async function revisarAtletas(){
+  ATLETAS_FO=[];
+  try{
+    const {data:cals}=await sb.from("calendario_atleta").select("user_id,fecha_show,semanas,volumen");
+    const rows=(cals||[]).filter(c=>Array.isArray(c.semanas)&&c.semanas.length);
+    if(rows.length){
+      const ids=rows.map(c=>c.user_id);
+      const {data:pes}=await sb.from("pesos").select("user_id,fecha,peso").in("user_id",ids).gte("fecha",hace(28));
+      const byU={};(pes||[]).forEach(p=>{(byU[p.user_id]=byU[p.user_id]||[]).push(p);});
+      const hoy=hace(0);
+      rows.forEach(c=>{
+        const sem=c.semanas||[];
+        const ci=sem.findIndex(s=>s.ini&&s.fin&&hoy>=s.ini&&hoy<=s.fin);
+        if(ci<0)return; // hoy no cae en su timeline
+        const cur=sem[ci];
+        if(/peak/i.test(cur.fase||''))return; // peak week: no perseguir báscula
+        const ritmoPlan=+(((c.volumen||{}).__prep)||{}).ritmo||0.7;
+        const mine=byU[c.user_id]||[];
+        const avgWk=s=>{const w=mine.filter(p=>p.fecha>=s.ini&&p.fecha<=s.fin).map(p=>+p.peso).filter(isFinite);return w.length?w.reduce((a,x)=>a+x,0)/w.length:null;};
+        const nom=(CLIENTES.find(x=>x.user_id===c.user_id)||{}).nombre||c.user_id.slice(0,8);
+        const real=avgWk(cur);
+        if(real==null){ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:'sin pesos esta semana',col:'var(--warn)'});return;}
+        const obj=cur.peso_obj!=null?+cur.peso_obj:null;
+        const prev=ci>0?avgWk(sem[ci-1]):null;
+        const ritmoReal=(prev&&prev>0)?(prev-real)/prev*100:null;
+        const dP=obj!=null?Math.round((real-obj)*10)/10:null;
+        const lento=(ritmoReal!=null&&ritmoReal<0.5*ritmoPlan),rapido=(ritmoReal!=null&&ritmoReal>1.5*ritmoPlan),encima=(dP!=null&&dP>0.5),debajo=(dP!=null&&dP<-0.5);
+        if(lento||encima)ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:`${encima?'+'+dP+' kg sobre objetivo':''}${lento?(encima?', ':'')+'baja lento ('+ritmoReal.toFixed(2)+'%/sem vs '+ritmoPlan+'%)':''}`,col:'var(--rojo)'});
+        else if(rapido||debajo)ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:`${debajo?dP+' kg bajo objetivo':''}${rapido?(debajo?', ':'')+'baja rápido ('+ritmoReal.toFixed(2)+'%/sem)':''}`,col:'#4c8dff'});
+      });
+    }
+  }catch(e){/* si falla, no rompe la consola */}
+  renderAtletasFO();renderHoy();
+}
+function renderAtletasFO(){
+  const el=$("atletasFO");if(!el)return;
+  if(!ATLETAS_FO.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="card" style="border:1px solid var(--warn)"><h2 style="margin-top:0">🎯 Atletas fuera de objetivo (${ATLETAS_FO.length})</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Prep desviada del plan (promedio semanal del peso vs objetivo de la semana). Actúa sin abrir cada ficha.</div>
+    ${ATLETAS_FO.map(a=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(a.nombre)}</b> <span style="color:${a.col};font-size:12px">· ${esc(a.motivo)}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="verCliente('${a.user_id}')">Abrir ficha →</button></div>`).join('')}</div>`;
 }
 
 // ===== Recordatorios diarios: tabla con qué tener en cuenta de cada cliente =====
@@ -835,7 +884,7 @@ function copiarCorreos(){
     prompt('Copia estos correos:',correos.join(', '));
   });
 }
-function volverLista(){SEL=null;$("detalle").innerHTML='';const _hs=$("hoyStrip");if(_hs)_hs.style.display='';renderClientes();window.scrollTo(0,0);}
+function volverLista(){SEL=null;$("detalle").innerHTML='';const _hs=$("hoyStrip");if(_hs)_hs.style.display='';const _afo=$("atletasFO");if(_afo)_afo.style.display='';renderClientes();window.scrollTo(0,0);}
 // "Resuelto hoy": oculta la alerta del cliente en el panel de atención SOLO hoy
 // (mismo almacén per-día que "Atendido"); mañana reaparece si sigue con alerta.
 function resolverHoy(uid){const s=atSet();s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));renderClientes();}
@@ -1118,6 +1167,7 @@ async function verCliente(id){
   // a la vez). "← Volver a la lista" (volverLista) la muestra de nuevo.
   const _lc=document.getElementById('listaCard');if(_lc)_lc.style.display='none';
   const _hs=document.getElementById('hoyStrip');if(_hs)_hs.style.display='none'; // foco: 1 cliente a la vez
+  const _afo=document.getElementById('atletasFO');if(_afo)_afo.style.display='none';
   if(!_mismo)$("detalle").innerHTML='<div class="card">Cargando…</div>';
   const wk=weekId(),d7=hace(7);
   const d28=hace(28);
