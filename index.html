@@ -474,16 +474,20 @@ async function trasLogin(){
 // RevenueCat (Apple/Google) en segundo plano y activamos SOLO a quien pagó (esta
 // vía NUNCA quita acceso). Así la consola refleja el estado real sin tocar nada.
 async function autoSyncPagos(){
-  const pill=document.createElement('div');
-  pill.style.cssText='position:fixed;right:14px;bottom:14px;z-index:9999;background:var(--card);border:1px solid var(--line);color:var(--txt);padding:8px 12px;border-radius:10px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:280px';
+  const old=document.getElementById('syncPill');if(old)old.remove(); // una sola a la vez
+  const pill=document.createElement('div');pill.id='syncPill';
+  pill.style.cssText='position:fixed;right:14px;bottom:14px;z-index:9999;background:var(--card);border:1px solid var(--line);color:var(--txt);padding:10px 12px;border-radius:10px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:300px';
   pill.textContent='Sincronizando pagos con Apple/Google…';
   document.body.appendChild(pill);
   const cerrar=()=>{pill.style.transition='opacity .6s';pill.style.opacity='0';setTimeout(()=>pill.remove(),700);};
+  // ⑥ En error NO se cierra sola: se queda con Reintentar/Cerrar para que no se te pase.
+  const fallo=()=>{pill.style.borderColor='var(--rojo)';pill.innerHTML=`<div style="color:var(--rojo);font-weight:700;margin-bottom:6px">⚠️ No se pudieron sincronizar los pagos.</div><div style="display:flex;gap:6px"><button class="sm" onclick="autoSyncPagos()">Reintentar</button><button class="sm ghost" onclick="var p=document.getElementById('syncPill');if(p)p.remove()">Cerrar</button></div>`;};
   try{
     const {data,error}=await invokeFn("reconciliar-accesos",{body:{modo:'activar'}});
-    if(error||(data&&data.error)){pill.textContent='No se pudo sincronizar pagos (se reintenta al recargar).';setTimeout(cerrar,5000);return;}
+    if(error||(data&&data.error)){fallo();return;}
     const n=(data&&data.activados)||0;
-    pill.textContent=n?`✔ Pagos: ${n} cliente(s) activado(s) por su pago en Apple/Google.`:'✔ Pagos al día con Apple/Google.';
+    const hora=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    pill.innerHTML=(n?`✔ Pagos: ${n} cliente(s) activado(s) por su pago en Apple/Google.`:'✔ Pagos al día con Apple/Google.')+`<div class="muted" style="font-size:10.5px;margin-top:3px">Sincronizado ${hora}</div>`;
     if(n>0){
       try{
         const {data:subs}=await sb.from("suscripciones").select("user_id,estado,tier");
@@ -493,8 +497,8 @@ async function autoSyncPagos(){
         await cargarPrioridad();
       }catch(e){/* si falla el refresco, los estados igual quedaron corregidos en la base */}
     }
-  }catch(e){pill.textContent='No se pudo sincronizar pagos.';}
-  setTimeout(cerrar,4500);
+    setTimeout(cerrar,4500);
+  }catch(e){fallo();}
 }
 
 // Solicitudes de cupón (mentoría) pendientes de aprobación.
@@ -580,13 +584,26 @@ function renderCampana(){
   const panel=$("campanaPanel");if(!panel)return;
   const nom=id=>{const c=CLIENTES.find(x=>x.user_id===id);return c?(c.nombre||id.slice(0,8)):id.slice(0,8);};
   let h=`<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Notificaciones (${ALERTAS.length})</h2><button class="sm ghost" onclick="toggleCampana()">Cerrar</button></div>`;
-  if(!ALERTAS.length)h+=`<div class="muted" style="margin-top:6px">Sin notificaciones abiertas.</div>`;
-  else h+=ALERTAS.map(a=>`<div style="border-left:3px solid var(--rojo);padding:6px 10px;margin:8px 0"><div class="muted" style="font-size:11px">${esc((a.created_at||'').slice(0,10))} · ${esc(a.tipo||'')}</div><div style="font-weight:600">${esc(nom(a.cliente_id))}</div><div class="muted" style="font-size:13px">${esc(a.texto||'')}</div><div style="margin-top:4px;display:flex;gap:6px"><button class="sm" onclick="abrirDesdeCampana('${a.cliente_id}')">Abrir cliente</button><button class="sm ghost" onclick="resolverAlerta('${a.id}')">Listo</button></div></div>`).join("");
+  if(!ALERTAS.length){h+=`<div class="muted" style="margin-top:6px">Sin notificaciones abiertas.</div>`;panel.innerHTML=h;return;}
+  // ⑦ Agrupar por cliente: un bloque por persona con sus alertas dentro (antes era
+  // una lista plana; con varias del mismo cliente se hacía larga y repetía el nombre).
+  const porCli={};ALERTAS.forEach(a=>{(porCli[a.cliente_id]=porCli[a.cliente_id]||[]).push(a);});
+  h+=Object.entries(porCli).map(([cid,arr])=>`<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:8px 0">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <b>${esc(nom(cid))} <span class="pill" style="background:var(--card2)">${arr.length}</span></b>
+      <button class="sm" onclick="abrirDesdeCampana('${cid}')">Abrir →</button>
+    </div>
+    <div style="margin-top:4px">${arr.map(a=>`<div style="border-left:3px solid var(--rojo);padding:4px 8px;margin:6px 0">
+      <div class="muted" style="font-size:11px">${esc((a.created_at||'').slice(0,10))} · ${esc(a.tipo||'')}</div>
+      <div style="font-size:12.5px">${esc(a.texto||'')}</div>
+      <button class="sm ghost" style="margin-top:3px" onclick="resolverAlerta('${a.id}')">Listo</button>
+    </div>`).join('')}</div>
+  </div>`).join("");
   panel.innerHTML=h;
 }
 function toggleCampana(){const p=$("campanaPanel");if(p)p.classList.toggle("hide");}
 function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("hide");tab('clientes');verCliente(id);window.scrollTo(0,0);}
-async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();}
+async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();renderHoy();}
 // Resolver una alerta DESDE la ficha del cliente: la marca resuelta, la quita de la
 // campana y refresca la ficha para que desaparezca de su sección de alertas.
 async function resolverAlertaFicha(aid,cid){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",aid);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(aid));renderCampana();renderHoy();verCliente(cid);}
