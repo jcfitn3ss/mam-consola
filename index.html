@@ -43,7 +43,7 @@
   .brand{display:flex;align-items:center;gap:11px}
   .brandMark{width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#e23b3b,#9c1616);color:#fff;font-weight:900;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px -4px rgba(226,59,59,.6);flex-shrink:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center}
   .brandSub{color:var(--muted);font-weight:600}
-  .nav{display:flex;gap:4px;margin:6px 0 14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+  .nav{display:flex;gap:4px;margin:6px 0 14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;position:relative;align-items:center}
   .nav button{background:transparent;border:1px solid transparent;color:var(--muted);font-weight:600;padding:8px 13px;border-radius:20px;transition:all .15s}
   .nav button:hover{color:var(--txt);background:rgba(255,255,255,.05);filter:none}
   .nav button.on{background:var(--rojo);color:#fff;border-color:var(--rojo)}
@@ -118,6 +118,28 @@
   .kv .fila{margin:0}
   .kv .fila:nth-child(even){background:rgba(255,255,255,.022)}
   .kv .fila:last-child{border-bottom:none}
+  /* ① Menú "Más ▾" de la navegación (agrupa las pestañas secundarias) */
+  .nav button#masBtn.on{background:var(--rojo);color:#fff;border-color:var(--rojo)}
+  .menu{position:absolute;top:46px;right:0;background:var(--card2);border:1px solid var(--line2);border-radius:12px;padding:6px;box-shadow:var(--sh);z-index:20;min-width:210px;display:none}
+  .menu.open{display:block}
+  .menu button{display:block;width:100%;text-align:left;border-radius:8px;background:transparent;color:var(--txt);font-weight:600;padding:9px 12px;border:0}
+  .menu button:hover{background:rgba(255,255,255,.06);filter:none}
+  .menu button.on{background:var(--rojo);color:#fff}
+  /* ② Franja "Hoy": triage del día de un vistazo */
+  .hoy{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .hoyCard{flex:1;min-width:148px;background:var(--card);border:1px solid var(--line);border-left-width:3px;border-radius:12px;padding:11px 13px;cursor:pointer;transition:transform .08s,border-color .15s;box-shadow:var(--sh);text-align:left}
+  .hoyCard:hover{transform:translateY(-2px);border-color:var(--line2)}
+  .hoyCard .n{font-size:24px;font-weight:800;line-height:1}
+  .hoyCard .l{font-size:12px;color:var(--muted);margin-top:3px}
+  /* ③ Botón destructivo: distinto del primario (rojo lleno). Delineado = cuidado. */
+  button.danger{background:transparent;border:1px solid rgba(226,59,59,.5);color:var(--rojo2);font-weight:700}
+  button.danger:hover{background:var(--rojoSoft);filter:none;border-color:var(--rojo)}
+  /* ④ Tablas anchas: scroll horizontal propio en móvil (no rompen la página).
+     Las tablas clave/valor y de checkboxes se excluyen (se leen mejor envolviendo). */
+  .scrollX{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+  @media(max-width:680px){
+    .card table.data,.card table:not(.kv):not(.chkTbl){display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;max-width:100%}
+  }
 </style>
 </head>
 <body>
@@ -147,17 +169,21 @@
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
-      <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
-      <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
-      <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
-      <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
-      <button id="t-alimentos" onclick="tab('alimentos')">Alimentos</button>
-      <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
-      <button id="t-sugerencias" onclick="tab('sugerencias')">Sugerencias</button>
-      <button id="t-interno" onclick="tab('interno')">Mejorar consola</button>
+      <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
+      <div class="menu" id="masMenu">
+        <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
+        <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
+        <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
+        <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
+        <button id="t-alimentos" onclick="tab('alimentos')">Alimentos</button>
+        <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
+        <button id="t-sugerencias" onclick="tab('sugerencias')">Sugerencias</button>
+        <button id="t-interno" onclick="tab('interno')">Mejorar consola</button>
+      </div>
     </div>
 
     <div id="v-clientes">
+      <div id="hoyStrip" class="hoy"></div>
       <div id="solicitudes"></div>
       <div class="card" id="listaCard">
         <h2 style="margin-top:0">Clientes (<span id="nCli">0</span>) · por prioridad</h2>
@@ -291,7 +317,15 @@ async function init(){const {data:{session}}=await sb.auth.getSession();if(sessi
 async function login(){$("loginErr").textContent="Entrando…";const {error}=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(error){$("loginErr").textContent=error.message;return;}$("loginErr").textContent="";await trasLogin();}
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
-function tab(t){["clientes","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();}
+// Pestañas que viven dentro del menú "Más ▾" (las secundarias).
+const TABS_SEC=["salud","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"];
+function tab(t){["clientes","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+  // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
+  const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
+  const mm=$("masMenu");if(mm)mm.classList.remove("open");}
+function toggleMas(e){if(e)e.stopPropagation();const m=$("masMenu");if(m)m.classList.toggle("open");}
+// Cerrar el menú "Más" al hacer clic fuera.
+document.addEventListener("click",e=>{const m=$("masMenu"),b=$("masBtn");if(m&&m.classList.contains("open")&&!m.contains(e.target)&&e.target!==b)m.classList.remove("open");});
 // ---- SALUD DE DATOS: huecos por cliente (sin plan/rutina/objetivo/altura, etc.) ----
 async function verSalud(){
   $("v-salud").innerHTML='<div class="card">Analizando la salud de datos de tus clientes…</div>';
@@ -538,7 +572,7 @@ async function cargarPrioridad(){
     if(ini[u]){const dd=Math.floor((Date.now()-new Date(ini[u]).getTime())/864e5);if(dd>=30)c._mes=Math.floor(dd/30);}
   });
   CLIENTES.sort((a,b)=>b._sc-a._sc);renderClientes();
-  ALERTAS=al.data||[];renderCampana();
+  ALERTAS=al.data||[];renderCampana();renderHoy();
 }
 // Campanita de notificaciones (alertas abiertas de todos los clientes).
 function renderCampana(){
@@ -555,7 +589,26 @@ function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("h
 async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();}
 // Resolver una alerta DESDE la ficha del cliente: la marca resuelta, la quita de la
 // campana y refresca la ficha para que desaparezca de su sección de alertas.
-async function resolverAlertaFicha(aid,cid){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",aid);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(aid));renderCampana();verCliente(cid);}
+async function resolverAlertaFicha(aid,cid){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",aid);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(aid));renderCampana();renderHoy();verCliente(cid);}
+// ② Franja "Hoy": el triage del día de un vistazo. Cada número lleva a su pestaña.
+// Usa datos ya cargados (alertas, suscripciones, inactividad, altura) + 1 consulta
+// de reuniones sin resumen. Se recalcula al cargar la prioridad y al resolver algo.
+async function renderHoy(){
+  const el=$("hoyStrip");if(!el)return;
+  const nAlert=(typeof ALERTAS!=='undefined'?ALERTAS:[]).length;
+  const nPago=CLIENTES.filter(c=>c._susE==='vencido'&&c._susT!=='fundador'&&c._susT!=='gratis').length;
+  const nInact=CLIENTES.filter(c=>c._inact!=null&&c._inact>=14).length;
+  const nAltura=CLIENTES.filter(c=>!c.altura).length;
+  let nReu=0;
+  try{const hoy=hace(0);const {data}=await sb.from("reuniones").select("resumen,transcripcion,fecha").gte("fecha",hace(40)).lte("fecha",hoy);nReu=(data||[]).filter(r=>!(r.resumen&&String(r.resumen).trim())&&!(r.transcripcion&&String(r.transcripcion).trim())).length;}catch(e){}
+  const card=(emoji,n,label,color,on)=>`<div class="hoyCard" style="border-left-color:${n>0?color:'var(--muted)'}" onclick="${on}"><div class="n" style="color:${n>0?color:'var(--muted)'}">${n}</div><div class="l">${emoji} ${label}</div></div>`;
+  el.innerHTML=
+    card('🔔',nAlert,'Alertas abiertas','var(--rojo)','toggleCampana()')+
+    card('💳',nPago,'Pagos por revisar','var(--warn)',"tab('pagos')")+
+    card('😴',nInact,'Inactivos 14+ días','var(--warn)',"tab('recordatorios')")+
+    card('📞',nReu,'Reunión sin resumen','var(--muted)',"tab('llamadas')")+
+    card('📏',nAltura,'Sin altura','var(--rojo)',"tab('salud')");
+}
 
 // ===== Recordatorios diarios: tabla con qué tener en cuenta de cada cliente =====
 let PAIS_DEF='57'; // prefijo de país por defecto para números locales de 10 dígitos (Colombia)
@@ -763,7 +816,7 @@ function copiarCorreos(){
     prompt('Copia estos correos:',correos.join(', '));
   });
 }
-function volverLista(){SEL=null;$("detalle").innerHTML='';renderClientes();window.scrollTo(0,0);}
+function volverLista(){SEL=null;$("detalle").innerHTML='';const _hs=$("hoyStrip");if(_hs)_hs.style.display='';renderClientes();window.scrollTo(0,0);}
 // "Resuelto hoy": oculta la alerta del cliente en el panel de atención SOLO hoy
 // (mismo almacén per-día que "Atendido"); mañana reaparece si sigue con alerta.
 function resolverHoy(uid){const s=atSet();s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));renderClientes();}
@@ -1045,6 +1098,7 @@ async function verCliente(id){
   // FOCO: al abrir un cliente se esconde la lista y se ve SOLO su ficha (un cliente
   // a la vez). "← Volver a la lista" (volverLista) la muestra de nuevo.
   const _lc=document.getElementById('listaCard');if(_lc)_lc.style.display='none';
+  const _hs=document.getElementById('hoyStrip');if(_hs)_hs.style.display='none'; // foco: 1 cliente a la vez
   if(!_mismo)$("detalle").innerHTML='<div class="card">Cargando…</div>';
   const wk=weekId(),d7=hace(7);
   const d28=hace(28);
@@ -1332,7 +1386,7 @@ async function verCliente(id){
       <div style="font-weight:600;margin-bottom:4px">Suscripción</div>
       <div class="muted" style="font-size:11px;margin-bottom:6px">Estado: <b style="color:${(susActiva||susFund)?'var(--ok)':'var(--warn)'}">${esc(susTxt)}</b>. ${(susActiva||susFund)?'El cliente puede usar la app.':'El cliente <b>NO pasa del paywall</b> hasta que pague por Apple o lo actives aquí (úsalo cuando confirmes el pago).'}</div>
       ${susFund?'':(susActiva
-        ? `<button onclick="setAcceso('${id}','vencido')">Quitar acceso (marcar sin pago)</button>`
+        ? `<button class="danger" onclick="setAcceso('${id}','vencido')">Quitar acceso (marcar sin pago)</button>`
         : `<button onclick="setAcceso('${id}','activa')">✅ Activar acceso (pago recibido)</button>`)}
       <span id="accMsg_${id}" class="muted" style="font-size:12px"></span>
     </div>
