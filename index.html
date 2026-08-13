@@ -658,6 +658,7 @@ function edadDe(fnac){if(!fnac)return null;const d=new Date(String(fnac).slice(0
 // % de grasa: medido por pliegues si hay; si no, estimado con Deurenberg (IMC/edad/sexo).
 function estimarGrasa(o){
   if(o.grasaMed!=null&&+o.grasaMed>0)return {bf:Math.round(+o.grasaMed*10)/10,fuente:'medido (pliegues)'};
+  if(o.grasaManual!=null&&+o.grasaManual>0)return {bf:Math.round(+o.grasaManual*10)/10,fuente:'estimado a mano'};
   const h=(+o.alturaCm||0)/100,w=+o.peso||0,edad=+o.edad||30;
   if(!(h>0&&w>0))return {bf:null,fuente:null};
   const bmi=w/(h*h);
@@ -702,6 +703,18 @@ function segPesoOutHTML(bf){
     <div style="margin-top:8px">${recBox}</div>`;
 }
 function segPesoRecalc(inp){const bf=+inp.value;if(window.SEGP)window.SEGP.bf=bf;const o=$("segPesoOut");if(o)o.innerHTML=segPesoOutHTML(isFinite(bf)?bf:null);}
+// Persiste el %grasa estimado a mano en perfiles.grasa_estimada (para clientes sin
+// pliegues). Si la columna no existe todavía, avisa cómo activarla (SQL 0049).
+async function segGrasaGuardar(id,quitar){
+  const inp=$("segGrasaInp"),m=$("segGrasaMsg");
+  const raw=quitar?'':(inp?inp.value:'');
+  const v=(quitar||raw==='')?null:(+raw||null);
+  const {error}=await sb.from("perfiles").update({grasa_estimada:v}).eq("user_id",id);
+  if(error){if(m)m.innerHTML=/column|does not exist|schema|grasa_estimada/i.test(error.message)?'<span style="color:var(--warn)">activa el guardado pegando el SQL 0049_grasa_estimada</span>':'<span style="color:var(--rojo)">'+esc(error.message)+'</span>';return;}
+  if(quitar&&inp)inp.value='';
+  if(m)m.innerHTML='<span style="color:var(--ok)">✓ guardado</span>';
+  if(inp)segPesoRecalc(inp);
+}
 // 🎯 Atletas fuera de objetivo: revisa (client-side, sin escribir a la BD) a cada
 // atleta con calendario — promedio semanal del peso app vs objetivo de la semana en
 // curso + ritmo real vs planeado. Surface en la franja Hoy y en una tarjeta arriba de
@@ -719,6 +732,9 @@ async function revisarAtletas(){
     if(!allIds.length){renderAtletasFO();renderHoy();return;}
     const {data:pes}=await sb.from("pesos").select("user_id,fecha,peso").in("user_id",allIds).gte("fecha",hace(35));
     const byU={};(pes||[]).forEach(p=>{(byU[p.user_id]=byU[p.user_id]||[]).push(p);});
+    // %grasa guardado a mano (aislado: si la columna no existe, mapa vacío → Deurenberg).
+    let grasaEstMap={};
+    if(cut.length){try{const {data:ges}=await sb.from("perfiles").select("user_id,grasa_estimada").in("user_id",cut.map(c=>c.user_id));(ges||[]).forEach(r=>{if(r&&r.grasa_estimada!=null)grasaEstMap[r.user_id]=+r.grasa_estimada;});}catch(e){}}
     const hoy=hace(0),dowLate=((new Date().getDay()+6)%7)>=3; // jueves+ para "sin pesos"
     // --- Atletas (calendario con objetivo de peso por semana) ---
     atRows.forEach(c=>{
@@ -743,7 +759,7 @@ async function revisarAtletas(){
       const tr=ritmoRealSemana(mine);
       if(tr.rate==null)return; // sin datos suficientes → no molestar
       const latest=mine.reduce((a,b)=>(a&&a.fecha>b.fecha)?a:b,null);
-      const g=estimarGrasa({peso:latest?+latest.peso:null,alturaCm:c.altura,sexo:c._sexo,edad:edadDe(c._nac),grasaMed:null});
+      const g=estimarGrasa({peso:latest?+latest.peso:null,alturaCm:c.altura,sexo:c._sexo,edad:edadDe(c._nac),grasaMed:null,grasaManual:grasaEstMap[c.user_id]});
       const recRate=ritmoPorGrasa(g.bf,c._sexo);
       const ev=evalPrepSemana({obj:null,ritmoRealDirecto:tr.rate,ritmoPlan:recRate,nPesajes:tr.n,dowLate});
       if(ev.nivel==='lento'||ev.nivel==='rapido'){
@@ -1289,6 +1305,9 @@ async function verCliente(id){
     sb.from("reuniones").select("*").eq("user_id",id).order("fecha",{ascending:false}),
   ]);
   const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
+  // %grasa estimado a mano (para quien NO puede registrar pliegues). Consulta AISLADA:
+  // si la columna `grasa_estimada` aún no existe, data queda null y cae a Deurenberg — no rompe.
+  let GRASA_EST=null;try{const _ge=await sb.from("perfiles").select("grasa_estimada").eq("user_id",id).maybeSingle();GRASA_EST=(_ge&&_ge.data&&_ge.data.grasa_estimada!=null)?+_ge.data.grasa_estimada:null;}catch(e){}
   // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
   // un fallo se veía igual que "sin datos" (ej. "Sin rutina generada" cuando en
   // realidad la consulta falló) y el entrenador planeaba sobre info que no cargó.
@@ -1381,11 +1400,14 @@ async function verCliente(id){
   // escalado por %grasa estimado (medido por pliegues si hay; si no, Deurenberg). Editable.
   if(o.tipo==='def'||o.tipo==='rec'){
     const grasaMed=(()=>{const P=(plg&&plg.data)||[];for(let i=P.length-1;i>=0;i--){if(P[i].grasa!=null&&+P[i].grasa>0)return +P[i].grasa;}return null;})();
-    const g=estimarGrasa({peso:peso,alturaCm:(per.data&&per.data.altura),sexo:(per.data&&per.data.sexo),edad:edadDe(per.data&&per.data.fecha_nacimiento),grasaMed});
-    window.SEGP={sexo:(per.data&&per.data.sexo)||null,peso:peso||0,rateReal:ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso}))).rate,n:ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso}))).n};
+    const g=estimarGrasa({peso:peso,alturaCm:(per.data&&per.data.altura),sexo:(per.data&&per.data.sexo),edad:edadDe(per.data&&per.data.fecha_nacimiento),grasaMed,grasaManual:GRASA_EST});
+    const _tr=ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso})));
+    window.SEGP={sexo:(per.data&&per.data.sexo)||null,peso:peso||0,rateReal:_tr.rate,n:_tr.n};
+    const medido=(grasaMed!=null&&+grasaMed>0);
     rep+=`<h3 style="margin:10px 0 2px">📉 Seguimiento de peso</h3>
-      <div class="muted" style="font-size:12px;margin-bottom:4px">Ritmo de bajada seguro según su grasa: más grasa = puede bajar más rápido; más seco = más lento (proteger músculo).${g.fuente?' %grasa '+g.fuente+'.':''}</div>
-      <div class="row" style="align-items:flex-end"><div style="max-width:170px"><label class="lbl">% grasa estimado</label><input type="number" step="0.1" value="${g.bf!=null?g.bf:''}" oninput="segPesoRecalc(this)"></div></div>
+      <div class="muted" style="font-size:12px;margin-bottom:4px">Ritmo de bajada seguro según su grasa: más grasa = puede bajar más rápido; más seco = más lento (proteger músculo).${g.fuente?' %grasa: <b>'+esc(g.fuente)+'</b>.':''}</div>
+      <div class="row" style="align-items:flex-end"><div style="max-width:150px"><label class="lbl">% grasa ${medido?'(medido)':'estimado'}</label><input id="segGrasaInp" type="number" step="0.1" value="${g.bf!=null?g.bf:''}" oninput="segPesoRecalc(this)"></div>${medido?'':`<div><button class="sm" onclick="segGrasaGuardar('${id}')">Guardar %grasa</button> <button class="sm ghost" onclick="segGrasaGuardar('${id}',true)">Quitar</button> <span id="segGrasaMsg" class="muted" style="font-size:11px"></span></div>`}</div>
+      ${medido?`<div class="muted" style="font-size:11px">Tiene pliegues medidos → se usa ese valor. Para clientes SIN pliegues, aquí puedes escribir y guardar un %grasa estimado.</div>`:`<div class="muted" style="font-size:11px">Para clientes que no pueden registrar pliegues: escribe tu estimado y <b>Guardar</b> (se recuerda). Si lo dejas vacío, se usa la fórmula por IMC/edad/sexo.</div>`}
       <div id="segPesoOut" style="margin-top:6px">${segPesoOutHTML(g.bf)}</div>`;
   }
   rep+=`<h3 style="margin:8px 0 2px">Cumplimiento de entrenamiento</h3>`;
