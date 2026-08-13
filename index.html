@@ -1289,6 +1289,11 @@ async function verCliente(id){
         ? `<button onclick="setAcceso('${id}','vencido')">Quitar acceso (marcar sin pago)</button>`
         : `<button onclick="setAcceso('${id}','activa')">✅ Activar acceso (pago recibido)</button>`)}
       <span id="accMsg_${id}" class="muted" style="font-size:12px"></span>
+      <div style="margin-top:8px">
+        <button class="sm" onclick="verificarPagoRC('${id}')">🔄 Verificar pago con RevenueCat</button>
+        <div class="muted" style="font-size:11px;margin-top:3px">Consulta Apple/Google en vivo (vía RevenueCat) y, si hay pago activo, activa al cliente SOLO. Así no dependes de activar a mano.</div>
+        <div id="rcMsg_${id}" style="font-size:12px;margin-top:4px"></div>
+      </div>
     </div>
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" ${pm.acceso_bloqueado===true?'checked':''} onchange="setModulo('${id}','acceso_bloqueado',this.checked)"> <b>⏸️ Pausar acceso por falta de pago</b></label>
@@ -2924,6 +2929,19 @@ async function setInicioPlan(id){
   if(e){if(msg)msg.innerHTML='<span class="alert">'+esc(e)+'</span>';return;}
   if(msg)msg.textContent="✓ Inicio guardado ("+v+")";
   setTimeout(()=>verCliente(id),650);
+}
+// Verifica el pago de un cliente contra RevenueCat (Apple/Google) y activa SOLO si
+// RC confirma pago. Detección automática desde la fuente real — reemplaza el activar a mano.
+async function verificarPagoRC(id){
+  const m=$("rcMsg_"+id);if(m){m.style.color='';m.textContent="Consultando RevenueCat…";}
+  const {data,error}=await invokeFn("verificar-pago-cliente",{body:{user_id:id}});
+  if(error||(data&&data.error)){if(m){m.style.color='var(--rojo)';m.textContent=(data&&data.error)||error.message;}return;}
+  const rc=(data.rc||[]);
+  let txt=data.actualizado?`<b style="color:var(--ok)">${esc(data.mensaje)}</b>`:`<span style="color:var(--warn)">${esc(data.mensaje)}</span>`;
+  if(rc.length)txt+=`<div class="muted" style="font-size:11px;margin-top:3px">RevenueCat: ${rc.map(s=>esc((s.store||'')+' '+(s.status||'')+(s.vence?' · vence '+s.vence:'')+(s.gives_access?' · da acceso':''))).join(' | ')}</div>`;
+  else txt+=`<div class="muted" style="font-size:11px;margin-top:3px">RevenueCat: sin suscripciones para esta cuenta.</div>`;
+  if(m){m.innerHTML=txt;}
+  if(data.actualizado)setTimeout(()=>verCliente(id),1500);
 }
 async function setAcceso(id,estado){
   const msg=$("accMsg_"+id);
