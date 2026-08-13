@@ -1910,6 +1910,10 @@ async function verCliente(id){
   CAL=cal.data||null;
   CAL_CTX={userId:id,nombre:nom,pesoActual:(peso!=null?+peso:null),kcalActual:(prom?prom.k:null),
     grasaActual:(()=>{const P=(plg&&plg.data)||[];for(let i=P.length-1;i>=0;i--){if(P[i].grasa!=null&&+P[i].grasa>0)return +P[i].grasa;}return null;})(),
+    // Datos para el seguimiento fino del proceso (tendencia por promedio semanal, adherencia).
+    pesosHist:(pesos||[]).map(x=>({fecha:x.fecha,peso:+x.peso})).filter(x=>isFinite(x.peso)),
+    promKcal:(prom?prom.k:null),ses7:ses7,ses28:ses28,
+    fatAvg:(fatAvg!=null?+fatAvg:null),enAvg:(enAvg!=null?+enAvg:null),sprom:(sprom!=null?+sprom:null),
     volRutina:(()=>{const v={};((RUT&&RUT.dias)||[]).forEach(d=>{(d.orden||[]).forEach(it=>{const g=gmap[String(it.id)]||it.g||'Otros';const s=+it.s||0;if(s>0)v[g]=(v[g]||0)+s;});});return v;})()};
   // El calendario de atleta SOLO aparece para clientes marcados como atleta.
   if(atl.data)h+=calCardHTML();
@@ -3848,6 +3852,7 @@ function calInnerHTML(){
   h+=`<h3>Semana actual — comparativo</h3>`;
   if(cur>=0)h+=calComparativo(CAL.semanas[cur]);
   else h+=`<div class="muted" style="font-size:12px">Hoy no cae en ninguna semana del timeline (genera o ajusta las fechas).</div>`;
+  h+=calSeguimiento();
   h+=`<h3>Volumen de entrenamiento semanal (series por músculo)</h3>`;
   h+=`<div class="muted" style="font-size:11px;margin-bottom:4px">Edítalo o usa "Traer de la rutina" para prellenar desde la rutina asignada.</div><button class="sm ghost" onclick="calVolAuto()" style="margin-bottom:6px">Traer de la rutina</button>`;
   let tot=0,rows='';CAL_MUS.forEach(m=>{const v=CAL.volumen[m]!=null?CAL.volumen[m]:'';if(v!=='')tot+=+v||0;rows+=`<tr><td>${m}</td><td><input type="number" value="${v}" onchange="CAL.volumen['${m}']=this.value===''?null:+this.value;calVolTotal()" style="width:70px;text-align:center"></td></tr>`;});
@@ -3876,6 +3881,67 @@ function calComparativo(s){
   const pa=CAL_CTX.pesoActual,ka=CAL_CTX.kcalActual;
   const row=(lbl,obj,act,u)=>{const o=(obj!=null&&obj!=='')?+obj:null;const a=act!=null?Math.round(act*10)/10:null;let dif='—',est='—',col='#888';if(o!=null&&a!=null){const d=Math.round((a-o)*10)/10;dif=(d>0?'+':'')+d+' '+u;const tol=u==='kg'?0.4:80;if(Math.abs(d)<=tol){est='En objetivo';col='#22c55e';}else if(d>0){est='Por encima';col='#e23b3b';}else{est='Por debajo';col='#4c8dff';}}return `<tr><td>${lbl}</td><td>${o!=null?o+' '+u:'—'}</td><td>${a!=null?a+' '+u:'—'}</td><td>${dif}</td><td style="color:${col};font-weight:700">${est}</td></tr>`;};
   return `<table style="font-size:12px;width:100%"><tr><th>Métrica</th><th>Objetivo</th><th>Actual</th><th>Diferencia</th><th>Estado</th></tr>${row('Peso (kg)',s.peso_obj,pa,'kg')}${row('Kcal diarias',s.kcal_obj,ka,'kcal')}</table>`;
+}
+// 🔬 Seguimiento fino del proceso (más exacto que un pesaje suelto): usa el PROMEDIO
+// semanal del peso de la app vs el objetivo, calcula el ritmo real vs el planeado,
+// proyecta al show y recomienda qué ajustar (con la lógica del culturismo natural:
+// primero recuperación/adherencia, luego dieta; nunca perseguir la báscula en peak).
+function calSeguimiento(){
+  const ctx=CAL_CTX||{},sem=CAL.semanas||[];
+  const pesos=(ctx.pesosHist||[]).filter(p=>p.fecha&&isFinite(p.peso));
+  // Promedio real por semana del plan (pesos de la app dentro de [ini,fin]).
+  const rows=sem.map(s=>{const inW=pesos.filter(p=>s.ini&&s.fin&&p.fecha>=s.ini&&p.fecha<=s.fin);const real=inW.length?Math.round(inW.reduce((a,p)=>a+p.peso,0)/inW.length*10)/10:null;return {s,real,n:inW.length};});
+  const conReal=rows.filter(r=>r.real!=null);
+  let h=`<h3>🔬 Seguimiento del proceso</h3>`;
+  if(!conReal.length)return h+`<div class="muted" style="font-size:12px">Aún no hay pesos por semana. Pide al atleta que registre su peso <b>varios días por semana</b>: el seguimiento usa el <b>promedio semanal</b> (no un día suelto) para decidir con exactitud.</div>`;
+  const ritmoPlan=+((CAL.volumen.__prep||{}).ritmo)||0.7;
+  const tarima=+((CAL.volumen.__prep||{}).tarima)||null;
+  // Ritmo real: entre las 2 últimas semanas con dato.
+  const lastTwo=conReal.slice(-2);
+  let ritmoReal=null;if(lastTwo.length===2&&lastTwo[0].real>0)ritmoReal=(lastTwo[0].real-lastTwo[1].real)/lastTwo[0].real*100;
+  // Semana actual: objetivo vs real (promedio), Δ.
+  const cur=calCur(),curRow=cur>=0?rows[cur]:null;
+  const curFaseTxt=(curRow&&curRow.s&&curRow.s.fase)||'';
+  const curObj=curRow&&curRow.s&&curRow.s.peso_obj!=null?+curRow.s.peso_obj:null;
+  const curReal=curRow&&curRow.real!=null?curRow.real:conReal[conReal.length-1].real;
+  const curKobj=curRow&&curRow.s&&curRow.s.kcal_obj!=null?+curRow.s.kcal_obj:null;
+  const dPeso=(curObj!=null&&curReal!=null)?Math.round((curReal-curObj)*10)/10:null;
+  const esPeak=/peak/i.test(curFaseTxt);
+  // Gráfica objetivo vs real (últimas 8 semanas con dato).
+  const ult=conReal.slice(-8),xL=ult.map(r=>String(r.s.semana||''));
+  const dObj={label:'Objetivo',color:'#9c98a6',pts:ult.filter(r=>r.s.peso_obj!=null).map(r=>({x:String(r.s.semana||''),y:+r.s.peso_obj,tip:'Obj '+r.s.peso_obj+' kg'}))};
+  const dReal={label:'Real (prom. semanal)',color:'#e23b3b',pts:ult.map(r=>({x:String(r.s.semana||''),y:r.real,tip:'S'+r.s.semana+': '+r.real+' kg ('+r.n+' pesajes)'}))};
+  h+=svgChart([dObj,dReal],xL,'kg',w=>'S'+w);
+  // Tabla últimas 6 semanas.
+  const filas=ult.slice(-6).map((r,i,arr)=>{const obj=r.s.peso_obj!=null?+r.s.peso_obj:null;const d=(obj!=null)?Math.round((r.real-obj)*10)/10:null;const prev=i>0?arr[i-1].real:null;const rit=(prev&&prev>0)?Math.round((prev-r.real)/prev*1000)/10:null;const dc=d==null?'#888':(Math.abs(d)<=0.4?'#22c55e':(d>0?'#e23b3b':'#4c8dff'));return `<tr><td>S${esc(String(r.s.semana||''))}${r.s.fase?` <span class="muted" style="font-size:10px">${esc(r.s.fase)}</span>`:''}</td><td>${obj!=null?obj:'—'}</td><td><b>${r.real}</b> <span class="muted" style="font-size:10px">(${r.n})</span></td><td style="color:${dc};font-weight:700">${d==null?'—':(d>0?'+':'')+d}</td><td class="muted">${rit==null?'—':(rit>0?'−':'+')+Math.abs(rit)+'%'}</td></tr>`;}).join('');
+  h+=`<table style="font-size:12px;width:100%;margin-top:6px"><tr><th>Sem</th><th>Objetivo</th><th>Real (prom)</th><th>Δ</th><th>Ritmo</th></tr>${filas}</table>`;
+  // Ritmo real vs plan + proyección al show.
+  const monday=d=>{const x=new Date(d);const dow=(x.getDay()+6)%7;x.setDate(x.getDate()-dow);x.setHours(0,0,0,0);return x;};
+  let weeksLeft=null;if(CAL.fecha_show){const wl=Math.round((monday(new Date(CAL.fecha_show+'T00:00:00'))-monday(new Date()))/(7*864e5));weeksLeft=wl>=0?wl:null;}
+  h+=`<div class="kv" style="margin-top:8px"><div class="fila"><span class="muted">Ritmo real vs planeado</span><b>${ritmoReal!=null?ritmoReal.toFixed(2)+'%/sem':'—'} <span class="muted" style="font-weight:400">vs ${ritmoPlan}%/sem</span></b></div>`;
+  let proyTxt='';
+  if(curReal!=null&&weeksLeft!=null&&tarima){
+    if(ritmoReal!=null&&ritmoReal>0.05){const proy=Math.round(curReal*Math.pow(1-ritmoReal/100,weeksLeft)*10)/10;const dd=Math.round((proy-tarima)*10)/10;proyTxt=Math.abs(dd)<=0.5?`Al ritmo actual llegas a la tarima (${tarima} kg) para el show. ✔`:dd>0?`Al ritmo actual llegarías a ${proy} kg: <b style="color:var(--rojo)">${dd} kg por encima</b> de la tarima. Aprieta o extiende.`:`Al ritmo actual llegarías a ${proy} kg: <b style="color:#4c8dff">${Math.abs(dd)} kg por debajo</b> (llegas antes/te pasas). Afloja.`;}
+    else proyTxt=`<b style="color:var(--rojo)">Al ritmo actual no llegas a la tarima (${tarima} kg)</b> para el show en ${weeksLeft} sem. Sube déficit/cardio.`;
+  }
+  if(proyTxt)h+=`<div class="fila"><span class="muted">Proyección al show</span><b style="text-align:right;max-width:62%">${proyTxt}</b></div>`;
+  if(weeksLeft!=null)h+=`<div class="fila"><span class="muted">Semanas al show</span><b>${weeksLeft}</b></div>`;
+  h+=`<div class="fila"><span class="muted">Adherencia</span><b style="text-align:right;font-weight:600">🏋️ ${ctx.ses7!=null?ctx.ses7:'—'} ses/7d · 🍽️ ${ctx.promKcal!=null?ctx.promKcal+' kcal'+(curKobj?(' / obj '+curKobj):''):'sin registro'} · 😴 ${ctx.sprom!=null?ctx.sprom.toFixed(1)+'h':'—'} · Fatiga ${ctx.fatAvg!=null?ctx.fatAvg:'—'} · Energía ${ctx.enAvg!=null?ctx.enAvg:'—'}</b></div></div>`;
+  // 🧭 Recomendación (motor de decisión, orden natural: recuperación/adherencia → dieta).
+  const recs=[];
+  if(curReal==null)recs.push({c:'var(--warn)',t:'Sin pesos esta semana → pídelos (varios días) antes de ajustar.'});
+  if(esPeak)recs.push({c:'#f59e0b',t:'Peak week: NO persigas la báscula; maneja agua/glucógeno/sodio según tu protocolo.'});
+  if(ctx.fatAvg!=null&&ctx.fatAvg>=7)recs.push({c:'var(--rojo)',t:`Fatiga alta (${ctx.fatAvg}/10): considera refeed/diet break antes de apretar; no bajes kcal esta semana.`});
+  else if(ctx.enAvg!=null&&ctx.enAvg<=3)recs.push({c:'var(--warn)',t:`Energía baja (${ctx.enAvg}/5): prioriza sueño/recuperación antes de recortar.`});
+  if(ctx.ses7!=null&&ctx.ses7<3)recs.push({c:'var(--warn)',t:`Adherencia de entreno baja (${ctx.ses7} ses/7d): recupera el entreno antes de tocar la dieta.`});
+  if(curReal!=null&&!esPeak){
+    const lento=(ritmoReal!=null&&ritmoReal<0.5*ritmoPlan),rapido=(ritmoReal!=null&&ritmoReal>1.5*ritmoPlan),encima=(dPeso!=null&&dPeso>0.4),debajo=(dPeso!=null&&dPeso<-0.4);
+    if(lento||encima)recs.push({c:'var(--rojo)',t:`${encima?'+'+dPeso+' kg por encima del objetivo':''}${lento?(encima?' y ':'')+'bajando lento ('+ritmoReal.toFixed(2)+'%/sem vs '+ritmoPlan+'%)':''} → sube cardio/pasos o baja ~150–200 kcal.`});
+    else if(rapido||debajo)recs.push({c:'#4c8dff',t:`${debajo?dPeso+' kg por debajo del objetivo':''}${rapido?(debajo?' y ':'')+'bajando rápido ('+ritmoReal.toFixed(2)+'%/sem)':''} → sube ~100–150 kcal para proteger músculo.`});
+    else recs.push({c:'var(--ok)',t:'En objetivo y al ritmo planeado → mantén, sin cambios esta semana.'});
+  }
+  h+=`<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-left:3px solid var(--rojo);border-radius:8px;padding:8px 10px;margin-top:10px"><b>🧭 Recomendación</b><ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px;line-height:1.55">${recs.map(r=>`<li style="color:${r.c}">${r.t}</li>`).join('')}</ul><div class="muted" style="font-size:10.5px;margin-top:6px">Guía natural (Helms/3DMJ, RP): decisiones sobre el PROMEDIO semanal, no un día; primero recuperación y adherencia, luego dieta. Tú decides — esto es apoyo.</div></div>`;
+  return h;
 }
 function calVolTotal(){let t=0;CAL_MUS.forEach(m=>{t+=+CAL.volumen[m]||0;});const el=$("calVolTot");if(el)el.innerHTML='<b>'+t+'</b>';}
 function calVolAuto(){const map={Pecho:'Pectoral',Espalda:'Espalda',Hombro:'Hombros','Bíceps':'Bíceps','Tríceps':'Tríceps',Core:'Abdomen','Cuádriceps':'Cuádriceps','Femoral/Glúteo':'Glúteo',Pantorrilla:'Pantorrilla'};const v={};Object.keys(CAL_CTX.volRutina||{}).forEach(g=>{const m=map[g];if(m)v[m]=(v[m]||0)+CAL_CTX.volRutina[g];});CAL.volumen=Object.assign({},CAL.volumen,v);calRefresh();}
