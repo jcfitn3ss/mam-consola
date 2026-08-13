@@ -631,6 +631,28 @@ async function renderHoy(){
   if(ATLETAS_FO&&ATLETAS_FO.length)cards+=card('🎯',ATLETAS_FO.length,'Atletas fuera de objetivo','var(--warn)',"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})");
   el.innerHTML=cards;
 }
+// Evaluación compartida de la semana de prep — MISMA lógica para el aviso de Hoy y el
+// panel de la ficha, así nunca se contradicen. Afinado: tolerancia ~0.6% del objetivo
+// (mín 0.4 kg); el ritmo solo cuenta si la semana PLANEA bajar y hay ≥2 pesajes (evita
+// ruido de un día suelto); "sin pesos" solo si ya avanzó la semana. {nivel,motivo,color,rec}.
+function evalPrepSemana(o){
+  const fase=String(o.fase||'').toLowerCase();
+  if(/peak/.test(fase))return {nivel:'peak',motivo:'peak week: no perseguir báscula',color:'#f59e0b',rec:''};
+  if(o.real==null)return o.dowLate?{nivel:'sinpesos',motivo:'sin pesos esta semana',color:'var(--warn)',rec:'pídele pesos (varios días) antes de ajustar'}:{nivel:'ok',motivo:'',color:'var(--ok)',rec:''};
+  const objN=(o.obj!=null&&o.obj!=='')?+o.obj:null;
+  const tol=objN!=null?Math.max(0.4,objN*0.006):0.4;
+  const dP=objN!=null?Math.round((o.real-objN)*10)/10:null;
+  const planBaja=(o.prevObj!=null&&objN!=null)?(objN<(+o.prevObj)-0.05):true; // ¿la semana planea bajar?
+  const confia=((o.nPesajes||0)>=2);
+  const ritmoReal=(o.prev&&o.prev>0)?(o.prev-o.real)/o.prev*100:null;
+  const rp=+o.ritmoPlan||0.7;
+  const lento=planBaja&&confia&&ritmoReal!=null&&ritmoReal<0.5*rp;
+  const rapido=confia&&ritmoReal!=null&&ritmoReal>1.5*rp;
+  const encima=dP!=null&&dP>tol,debajo=dP!=null&&dP<-tol;
+  if(lento||encima)return {nivel:'lento',dP,ritmoReal,motivo:`${encima?'+'+dP+' kg sobre objetivo':''}${lento?(encima?', ':'')+'baja lento ('+ritmoReal.toFixed(2)+'%/sem vs '+rp+'%)':''}`,color:'var(--rojo)',rec:'sube cardio/pasos o baja ~150–200 kcal'};
+  if(rapido||debajo)return {nivel:'rapido',dP,ritmoReal,motivo:`${debajo?dP+' kg bajo objetivo':''}${rapido?(debajo?', ':'')+'baja rápido ('+ritmoReal.toFixed(2)+'%/sem)':''}`,color:'#4c8dff',rec:'sube ~100–150 kcal para proteger músculo'};
+  return {nivel:'ok',dP,ritmoReal,motivo:planBaja?'en objetivo y al ritmo':'holdeando en objetivo',color:'var(--ok)',rec:'mantén, sin cambios esta semana'};
+}
 // 🎯 Atletas fuera de objetivo: revisa (client-side, sin escribir a la BD) a cada
 // atleta con calendario — promedio semanal del peso app vs objetivo de la semana en
 // curso + ritmo real vs planeado. Surface en la franja Hoy y en una tarjeta arriba de
@@ -645,26 +667,22 @@ async function revisarAtletas(){
       const ids=rows.map(c=>c.user_id);
       const {data:pes}=await sb.from("pesos").select("user_id,fecha,peso").in("user_id",ids).gte("fecha",hace(28));
       const byU={};(pes||[]).forEach(p=>{(byU[p.user_id]=byU[p.user_id]||[]).push(p);});
-      const hoy=hace(0);
+      const hoy=hace(0),dowLate=((new Date().getDay()+6)%7)>=3; // jueves+ para "sin pesos"
       rows.forEach(c=>{
         const sem=c.semanas||[];
         const ci=sem.findIndex(s=>s.ini&&s.fin&&hoy>=s.ini&&hoy<=s.fin);
         if(ci<0)return; // hoy no cae en su timeline
-        const cur=sem[ci];
-        if(/peak/i.test(cur.fase||''))return; // peak week: no perseguir báscula
+        const cur=sem[ci],prevRow=ci>0?sem[ci-1]:null;
         const ritmoPlan=+(((c.volumen||{}).__prep)||{}).ritmo||0.7;
         const mine=byU[c.user_id]||[];
-        const avgWk=s=>{const w=mine.filter(p=>p.fecha>=s.ini&&p.fecha<=s.fin).map(p=>+p.peso).filter(isFinite);return w.length?w.reduce((a,x)=>a+x,0)/w.length:null;};
-        const nom=(CLIENTES.find(x=>x.user_id===c.user_id)||{}).nombre||c.user_id.slice(0,8);
-        const real=avgWk(cur);
-        if(real==null){ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:'sin pesos esta semana',col:'var(--warn)'});return;}
-        const obj=cur.peso_obj!=null?+cur.peso_obj:null;
-        const prev=ci>0?avgWk(sem[ci-1]):null;
-        const ritmoReal=(prev&&prev>0)?(prev-real)/prev*100:null;
-        const dP=obj!=null?Math.round((real-obj)*10)/10:null;
-        const lento=(ritmoReal!=null&&ritmoReal<0.5*ritmoPlan),rapido=(ritmoReal!=null&&ritmoReal>1.5*ritmoPlan),encima=(dP!=null&&dP>0.5),debajo=(dP!=null&&dP<-0.5);
-        if(lento||encima)ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:`${encima?'+'+dP+' kg sobre objetivo':''}${lento?(encima?', ':'')+'baja lento ('+ritmoReal.toFixed(2)+'%/sem vs '+ritmoPlan+'%)':''}`,col:'var(--rojo)'});
-        else if(rapido||debajo)ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:`${debajo?dP+' kg bajo objetivo':''}${rapido?(debajo?', ':'')+'baja rápido ('+ritmoReal.toFixed(2)+'%/sem)':''}`,col:'#4c8dff'});
+        const inWk=s=>mine.filter(p=>s&&p.fecha>=s.ini&&p.fecha<=s.fin).map(p=>+p.peso).filter(isFinite);
+        const curW=inWk(cur),prevW=inWk(prevRow);
+        const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;
+        const ev=evalPrepSemana({obj:cur.peso_obj,prevObj:prevRow?prevRow.peso_obj:null,real:avg(curW),prev:avg(prevW),ritmoPlan,nPesajes:curW.length,fase:cur.fase,dowLate});
+        if(['lento','rapido','sinpesos'].includes(ev.nivel)){
+          const nom=(CLIENTES.find(x=>x.user_id===c.user_id)||{}).nombre||c.user_id.slice(0,8);
+          ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:ev.motivo,col:ev.color});
+        }
       });
     }
   }catch(e){/* si falla, no rompe la consola */}
@@ -3985,10 +4003,9 @@ function calSeguimiento(){
   else if(ctx.enAvg!=null&&ctx.enAvg<=3)recs.push({c:'var(--warn)',t:`Energía baja (${ctx.enAvg}/5): prioriza sueño/recuperación antes de recortar.`});
   if(ctx.ses7!=null&&ctx.ses7<3)recs.push({c:'var(--warn)',t:`Adherencia de entreno baja (${ctx.ses7} ses/7d): recupera el entreno antes de tocar la dieta.`});
   if(curReal!=null&&!esPeak){
-    const lento=(ritmoReal!=null&&ritmoReal<0.5*ritmoPlan),rapido=(ritmoReal!=null&&ritmoReal>1.5*ritmoPlan),encima=(dPeso!=null&&dPeso>0.4),debajo=(dPeso!=null&&dPeso<-0.4);
-    if(lento||encima)recs.push({c:'var(--rojo)',t:`${encima?'+'+dPeso+' kg por encima del objetivo':''}${lento?(encima?' y ':'')+'bajando lento ('+ritmoReal.toFixed(2)+'%/sem vs '+ritmoPlan+'%)':''} → sube cardio/pasos o baja ~150–200 kcal.`});
-    else if(rapido||debajo)recs.push({c:'#4c8dff',t:`${debajo?dPeso+' kg por debajo del objetivo':''}${rapido?(debajo?' y ':'')+'bajando rápido ('+ritmoReal.toFixed(2)+'%/sem)':''} → sube ~100–150 kcal para proteger músculo.`});
-    else recs.push({c:'var(--ok)',t:'En objetivo y al ritmo planeado → mantén, sin cambios esta semana.'});
+    const prevRow=cur>=1?rows[cur-1]:null;
+    const ev=evalPrepSemana({obj:curObj,prevObj:prevRow&&prevRow.s?prevRow.s.peso_obj:null,real:curReal,prev:prevRow?prevRow.real:null,ritmoPlan,nPesajes:curRow?curRow.n:0,fase:curFaseTxt,dowLate:true});
+    if(ev.rec){const m=ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':'';recs.push({c:ev.color,t:m+ev.rec+'.'});}
   }
   h+=`<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-left:3px solid var(--rojo);border-radius:8px;padding:8px 10px;margin-top:10px"><b>🧭 Recomendación</b><ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px;line-height:1.55">${recs.map(r=>`<li style="color:${r.c}">${r.t}</li>`).join('')}</ul><div class="muted" style="font-size:10.5px;margin-top:6px">Guía natural (Helms/3DMJ, RP): decisiones sobre el PROMEDIO semanal, no un día; primero recuperación y adherencia, luego dieta. Tú decides — esto es apoyo.</div></div>`;
   return h;
