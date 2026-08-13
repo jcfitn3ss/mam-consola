@@ -125,6 +125,8 @@
   .menu button{display:block;width:100%;text-align:left;border-radius:8px;background:transparent;color:var(--txt);font-weight:600;padding:9px 12px;border:0}
   .menu button:hover{background:rgba(255,255,255,.06);filter:none}
   .menu button.on{background:var(--rojo);color:#fff}
+  .menu .menuGrp{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;padding:8px 12px 3px;opacity:.8}
+  .menu .menuGrp:first-child{padding-top:2px}
   /* ② Franja "Hoy": triage del día de un vistazo */
   .hoy{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .hoyCard{flex:1;min-width:148px;background:var(--card);border:1px solid var(--line);border-left-width:3px;border-radius:12px;padding:11px 13px;cursor:pointer;transition:transform .08s,border-color .15s;box-shadow:var(--sh);text-align:left}
@@ -171,14 +173,19 @@
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
       <div class="menu" id="masMenu">
+        <div class="menuGrp">Decisiones</div>
         <button id="t-revision" onclick="tab('revision')">🧭 Revisión del día</button>
-        <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
-        <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
-        <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
+        <button id="t-riesgo" onclick="tab('riesgo')">⚠️ Riesgo de baja</button>
+        <div class="menuGrp">Biblioteca</div>
         <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
         <button id="t-plantillas" onclick="tab('plantillas')">Rutinas estándar</button>
         <button id="t-alimentos" onclick="tab('alimentos')">Alimentos</button>
+        <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
+        <div class="menuGrp">Operación</div>
+        <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
+        <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
         <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
+        <div class="menuGrp">Consola</div>
         <button id="t-sugerencias" onclick="tab('sugerencias')">Sugerencias</button>
         <button id="t-interno" onclick="tab('interno')">Mejorar consola</button>
       </div>
@@ -198,6 +205,7 @@
       <div id="detalle"></div>
     </div>
     <div id="v-revision" class="hide"></div>
+    <div id="v-riesgo" class="hide"></div>
     <div id="v-recordatorios" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
@@ -323,8 +331,8 @@ async function login(){$("loginErr").textContent="Entrando…";const {error}=awa
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
-const TABS_SEC=["revision","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","revision","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="revision")verRevision();if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+const TABS_SEC=["revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
+function tab(t){["clientes","revision","riesgo","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -534,7 +542,7 @@ async function cargarPrioridad(){
     sb.from("checkins").select("user_id,dart,fatiga,energia,fecha").gte("fecha",d14).order("fecha",{ascending:false}),
     sb.from("planes").select("user_id,inicio"),
     sb.from("objetivos").select("user_id,tipo"),
-    sb.from("perfiles").select("user_id,ticket,presupuesto_adicional,pago_confirmado,sexo,fecha_nacimiento"),
+    sb.from("perfiles").select("user_id,ticket,presupuesto_adicional,pago_confirmado,sexo,fecha_nacimiento,telefono"),
     // Sesiones finalizadas recientes: para detectar al cliente que dejo de entrenar.
     sb.from("sesiones").select("user_id,fecha").eq("finalizada",true).gte("fecha",d60).order("fecha",{ascending:false}),
   ]);
@@ -590,7 +598,16 @@ async function cargarPrioridad(){
     else if(!(Number(c.altura)>0)){ac='Pedir/cargar altura';acol='var(--warn)';}
     else if(c._mes){ac='Enviar informe mes '+c._mes;acol='#5f7dd0';}
     else {ac='En orden';acol='var(--ok)';}
-    c._accion=ac;c._accionCol=acol;
+    c._accion=ac;c._accionCol=acol;c._tel=G.telefono||'';
+    // 💼 Riesgo de baja (churn): combina pago + adherencia/actividad + onboarding.
+    // 0–100. ≥45 = "en riesgo de irse" → lista proactiva de retención.
+    let ch=0;const chr=[];
+    if(c._susE==='vencido'&&c._susT!=='fundador'&&c._susT!=='gratis'){ch+=45;chr.push('pago vencido');}
+    if(c._sinObj){ch+=25;chr.push('no terminó registro');}
+    if(c._inact!=null){ch+=c._inact>=14?35:c._inact>=7?22:12;chr.push(c._nuncaEntreno?'nunca ha entrenado':c._inact+'d sin entrenar');}
+    if(na)ch+=8*Math.min(na,3);
+    if(sp!=null&&sp<6)ch+=5; // duerme muy poco: señal de mala experiencia/estrés
+    c._churn=Math.min(100,ch);c._churnR=chr;
   });
   CLIENTES.sort((a,b)=>b._sc-a._sc);renderClientes();
   ALERTAS=al.data||[];renderCampana();renderHoy();revisarAtletas();
@@ -643,6 +660,8 @@ async function renderHoy(){
     card('📞',nReu,'Reunión sin resumen','var(--muted)',"tab('llamadas')")+
     card('📏',nAltura,'Sin altura','var(--rojo)',"tab('salud')");
   if(ATLETAS_FO&&ATLETAS_FO.length)cards+=card('🎯',ATLETAS_FO.length,'Fuera de objetivo de peso','var(--warn)',"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})");
+  const nRisk=(CLIENTES||[]).filter(c=>(c._churn||0)>=45).length;
+  if(nRisk)cards+=card('⚠️',nRisk,'Riesgo de baja','var(--rojo)',"tab('riesgo')");
   el.innerHTML=cards;
 }
 // Evaluación compartida de la semana de prep — MISMA lógica para el aviso de Hoy y el
@@ -808,6 +827,24 @@ async function verRevision(){
   cont.innerHTML=h;
 }
 function revHecho(uid){const s=atSet();s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));verRevision();}
+// 💼 Riesgo de baja (retención): lista proactiva de clientes a punto de irse, con
+// score de churn (pago+actividad+onboarding), motivos y WhatsApp con mensaje sugerido.
+function verRiesgo(){
+  const cont=$("v-riesgo");if(!cont)return;
+  if(!CLIENTES||!CLIENTES.length){cont.innerHTML='<div class="card muted" style="padding:14px">Cargando…</div>';return;}
+  const risk=CLIENTES.filter(c=>(c._churn||0)>=45).sort((a,b)=>(b._churn||0)-(a._churn||0));
+  const med=CLIENTES.filter(c=>(c._churn||0)>=25&&(c._churn||0)<45).sort((a,b)=>(b._churn||0)-(a._churn||0));
+  const nivel=v=>v>=70?['🔴','var(--rojo)']:v>=45?['🟠','#e0843a']:['🟡','var(--warn)'];
+  const msgSug=c=>{const n=(c.nombre||'').split(' ')[0]||'';return `Hola ${n}, te noté flojito esta semana 👀. ¿Cómo vas? Cuéntame qué se te atravesó y lo retomamos hoy mismo — no perdamos el ritmo que ya llevabas. 💪`;};
+  const fila=c=>{const nv=nivel(c._churn),tel=c._tel||'',wl=tel?waLink(tel,msgSug(c)):null;return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${nv[0]} ${esc(c.nombre||c.user_id.slice(0,8))}</b> <span class="pill" style="background:var(--card2);color:${nv[1]};font-weight:700">${c._churn}%</span><div class="muted" style="font-size:12px">${esc((c._churnR||[]).join(' · ')||'—')}</div></div><div style="display:flex;gap:6px;flex-shrink:0">${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px">WhatsApp</a>`:''}<button class="sm ghost" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir →</button></div></div>`;};
+  let h=`<div class="card" style="border:1px solid ${risk.length?'var(--rojo)':'var(--ok)'}"><h2 style="margin-top:0">⚠️ Riesgo de baja · ${risk.length} en riesgo</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Score que combina pago + actividad + onboarding. Contacta a los de arriba HOY: recuperar cuesta menos que conseguir uno nuevo. El botón WhatsApp lleva un mensaje sugerido (edítalo antes de enviar).</div>`;
+  if(!risk.length)h+=`<div style="color:var(--ok)">✓ Nadie en riesgo alto ahora mismo.</div>`;
+  else h+=risk.map(fila).join('');
+  if(med.length)h+=`<h3 style="margin-top:16px;color:var(--warn)">Vigilar (${med.length})</h3>`+med.map(fila).join('');
+  h+=`</div>`;
+  cont.innerHTML=h;
+}
 function renderAtletasFO(){
   const el=$("atletasFO");if(!el)return;
   if(!ATLETAS_FO.length){el.innerHTML='';return;}
