@@ -827,6 +827,18 @@ async function verRevision(){
   cont.innerHTML=h;
 }
 function revHecho(uid){const s=atSet();s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));verRevision();}
+// Registra una decisión de coaching en la bitácora (tabla decisiones).
+async function decGuardar(id){
+  const tipo=$("dec_tipo")?$("dec_tipo").value:'otro';
+  const texto=($("dec_txt")?$("dec_txt").value:'').trim();
+  const motivo=($("dec_motivo")?$("dec_motivo").value:'').trim()||null;
+  const m=$("decMsg");
+  if(!texto){if(m){m.style.color='var(--warn)';m.textContent='Escribe qué decidiste.';}return;}
+  const {error}=await sb.from("decisiones").insert({user_id:id,autor:MIID,tipo,texto,motivo});
+  if(error){if(m)m.innerHTML=/relation|does not exist|schema|decisiones/i.test(error.message)?'<span style="color:var(--warn)">activa la bitácora pegando el SQL 0050_decisiones</span>':'<span style="color:var(--rojo)">'+esc(error.message)+'</span>';return;}
+  verCliente(id);
+}
+async function decBorrar(id,decId){if(!confirm('¿Borrar esta decisión de la bitácora?'))return;const {error}=await sb.from("decisiones").delete().eq("id",decId);if(error){alert(error.message);return;}verCliente(id);}
 // 💼 Riesgo de baja (retención): lista proactiva de clientes a punto de irse, con
 // score de churn (pago+actividad+onboarding), motivos y WhatsApp con mensaje sugerido.
 function verRiesgo(){
@@ -1385,6 +1397,8 @@ async function verCliente(id){
   // %grasa estimado a mano (para quien NO puede registrar pliegues). Consulta AISLADA:
   // si la columna `grasa_estimada` aún no existe, data queda null y cae a Deurenberg — no rompe.
   let GRASA_EST=null;try{const _ge=await sb.from("perfiles").select("grasa_estimada").eq("user_id",id).maybeSingle();GRASA_EST=(_ge&&_ge.data&&_ge.data.grasa_estimada!=null)?+_ge.data.grasa_estimada:null;}catch(e){}
+  // Bitácora de decisiones (audit trail). Aislada: si la tabla no existe, DECS=[] y no rompe.
+  let DECS=[];try{const _d=await sb.from("decisiones").select("*").eq("user_id",id).order("created_at",{ascending:false}).limit(20);DECS=(_d&&_d.data)||[];}catch(e){}
   // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
   // un fallo se veía igual que "sin datos" (ej. "Sin rutina generada" cuando en
   // realidad la consulta falló) y el entrenador planeaba sobre info que no cargó.
@@ -1589,7 +1603,17 @@ async function verCliente(id){
     reuCard+=`</div>`;
   }
 
-  let h=avisoCarga+rep+reuCard+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
+  // 📝 Bitácora de decisiones (audit trail de coaching) → pestaña Gestión.
+  const _decTipos=['kcal','volumen','fase','cardio','rutina','contacto','otro'];
+  const _decItems=(DECS||[]).map(d=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px"><div style="min-width:0"><span class="muted" style="font-size:11px">${esc(String(d.created_at||'').slice(0,10))}${d.tipo?' · '+esc(d.tipo):''}</span><div style="font-size:12.5px">${esc(d.texto||'')}${d.motivo?` <span class="muted">— ${esc(d.motivo)}</span>`:''}</div></div><button class="sm ghost" onclick="decBorrar('${id}','${d.id}')" style="flex-shrink:0" title="Borrar">×</button></div>`).join('')||'<div class="muted" style="font-size:12px">Sin decisiones registradas aún.</div>';
+  const bitCard=`<div class="card"><h2 style="margin-top:0">📝 Bitácora de decisiones</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Registra qué ajustaste y por qué; queda con fecha para ver luego si funcionó. Es tu audit trail de coaching (bucle de resultados).</div>
+    <div class="row"><div style="flex:0 0 140px"><label class="lbl">Tipo</label><select id="dec_tipo" style="margin:0">${_decTipos.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div><div style="flex:2;min-width:180px"><label class="lbl">Qué decidiste</label><input id="dec_txt" placeholder="Ej: bajé 150 kcal / subí 1 serie a espalda" style="margin:0"></div></div>
+    <input id="dec_motivo" placeholder="Motivo (opcional): por qué" style="margin-top:6px">
+    <div style="margin-top:8px"><button onclick="decGuardar('${id}')">Registrar decisión</button> <span id="decMsg" class="muted" style="font-size:12px"></span></div>
+    <div style="margin-top:10px">${_decItems}</div>
+  </div>`;
+  let h=avisoCarga+rep+reuCard+bitCard+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
   h+=`<div class="kv">`+fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—")+`</div>`;
 
   // ---- Atleta (culturismo): SOLO el entrenador decide ----
@@ -2216,7 +2240,7 @@ function hacerColapsables(){
     if(/objetivo|nutrici|macros|refeed|informe mensual|plan de alimentaci|registro.*comida|plan de comidas/.test(t))return 'nutricion';
     if(/progreso f[ií]sico|comparativa|comparaciones|gr[aá]ficas|calendario|pliegues|peso|medidas|fotos/.test(t))return 'progreso';
     if(/reuni/.test(t))return 'reuniones';
-    if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos|acceso|suscripci/.test(t))return 'gestion';
+    if(/contrato|gesti[oó]n interna|atleta|entrenadores|m[oó]dulos|acceso|suscripci|decisi|bit[aá]cora/.test(t))return 'gestion';
     return 'resumen';};
   const abiertos=window.ACORD_ABIERTOS, conts=[];
   cards.forEach((card)=>{
