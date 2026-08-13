@@ -171,6 +171,7 @@
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
       <div class="menu" id="masMenu">
+        <button id="t-revision" onclick="tab('revision')">🧭 Revisión del día</button>
         <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
         <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
         <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
@@ -196,6 +197,7 @@
       </div>
       <div id="detalle"></div>
     </div>
+    <div id="v-revision" class="hide"></div>
     <div id="v-recordatorios" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
@@ -321,8 +323,8 @@ async function login(){$("loginErr").textContent="Entrando…";const {error}=awa
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
-const TABS_SEC=["salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+const TABS_SEC=["revision","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
+function tab(t){["clientes","revision","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="revision")verRevision();if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -577,6 +579,18 @@ async function cargarPrioridad(){
     }
     c._sc=sc;c._r=r;c._obj=OBJL[obj[u]]||"";c._mes=null;
     if(ini[u]){const dd=Math.floor((Date.now()-new Date(ini[u]).getTime())/864e5);if(dd>=30)c._mes=Math.floor(dd/30);}
+    // 🧭 Próxima acción: la decisión más importante de este cliente, de un vistazo.
+    let ac=null,acol='var(--ok)';
+    if(c._sinObj){ac='Completar registro (sin objetivo)';acol='var(--rojo)';}
+    else if(c._susE==='vencido'&&c._susT!=='fundador'&&c._susT!=='gratis'){ac='Regularizar pago / contactar';acol='var(--rojo)';}
+    else if(na){ac='Revisar '+na+' alerta'+(na>1?'s':'');acol='var(--rojo)';}
+    else if(k&&(k.dart||0)>=6){ac='Revisar carga (dolor '+k.dart+')';acol='var(--rojo)';}
+    else if(c._inact!=null){ac='Contactar: '+(c._nuncaEntreno?'nunca ha entrenado ('+c._inact+'d)':c._inact+'d sin entrenar');acol='var(--warn)';}
+    else if(k&&(k.fatiga||0)>=7){ac='Vigilar recuperación (fatiga '+k.fatiga+')';acol='var(--warn)';}
+    else if(!(Number(c.altura)>0)){ac='Pedir/cargar altura';acol='var(--warn)';}
+    else if(c._mes){ac='Enviar informe mes '+c._mes;acol='#5f7dd0';}
+    else {ac='En orden';acol='var(--ok)';}
+    c._accion=ac;c._accionCol=acol;
   });
   CLIENTES.sort((a,b)=>b._sc-a._sc);renderClientes();
   ALERTAS=al.data||[];renderCampana();renderHoy();revisarAtletas();
@@ -749,7 +763,8 @@ async function revisarAtletas(){
       const avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;
       const ev=evalPrepSemana({obj:cur.peso_obj,prevObj:prevRow?prevRow.peso_obj:null,real:avg(curW),prev:avg(prevW),ritmoPlan,nPesajes:curW.length,fase:cur.fase,dowLate});
       if(['lento','rapido','sinpesos'].includes(ev.nivel)){
-        const nom=(CLIENTES.find(x=>x.user_id===c.user_id)||{}).nombre||c.user_id.slice(0,8);
+        const cli=CLIENTES.find(x=>x.user_id===c.user_id);const nom=(cli||{}).nombre||c.user_id.slice(0,8);
+        if(cli){cli._accion='Ajustar prep: '+ev.motivo;cli._accionCol=ev.color;}
         ATLETAS_FO.push({user_id:c.user_id,nombre:nom,motivo:ev.motivo,col:ev.color,atleta:true});
       }
     });
@@ -763,12 +778,36 @@ async function revisarAtletas(){
       const recRate=ritmoPorGrasa(g.bf,c._sexo);
       const ev=evalPrepSemana({obj:null,ritmoRealDirecto:tr.rate,ritmoPlan:recRate,nPesajes:tr.n,dowLate});
       if(ev.nivel==='lento'||ev.nivel==='rapido'){
-        ATLETAS_FO.push({user_id:c.user_id,nombre:c.nombre||c.user_id.slice(0,8),motivo:(ev.nivel==='lento'?'baja lento':'baja rápido')+` (${tr.rate.toFixed(2)}%/sem vs ${recRate}% sugerido${g.bf!=null?', grasa ~'+g.bf+'%':''})`,col:ev.color});
+        const motivo=(ev.nivel==='lento'?'baja lento':'baja rápido')+` (${tr.rate.toFixed(2)}%/sem vs ${recRate}% sugerido${g.bf!=null?', grasa ~'+g.bf+'%':''})`;
+        c._accion='Ajustar peso: '+motivo;c._accionCol=ev.color;
+        ATLETAS_FO.push({user_id:c.user_id,nombre:c.nombre||c.user_id.slice(0,8),motivo,col:ev.color});
       }
     });
   }catch(e){/* si falla, no rompe la consola */}
-  renderAtletasFO();renderHoy();
+  renderAtletasFO();renderHoy();renderClientes();
+  if(typeof verRevision==='function'&&$("v-revision")&&!$("v-revision").classList.contains("hide"))verRevision();
 }
+// 🧭 Revisión del día: TODAS las decisiones (próxima acción por cliente) en una pasada,
+// agrupadas por urgencia. "Hecho" marca atendido hoy (reusa atSet, per-día). El ritual.
+async function verRevision(){
+  const cont=$("v-revision");if(!cont)return;
+  if(!CLIENTES||!CLIENTES.length){cont.innerHTML='<div class="card muted" style="padding:14px">Cargando clientes…</div>';return;}
+  const at=atSet();
+  const pend=CLIENTES.filter(c=>c._accion&&c._accion!=='En orden'&&!at.has(c.user_id));
+  const done=CLIENTES.filter(c=>c._accion&&c._accion!=='En orden'&&at.has(c.user_id));
+  const byCol=col=>pend.filter(c=>c._accionCol===col).sort((a,b)=>(b._sc||0)-(a._sc||0));
+  const rojo=byCol('var(--rojo)'),warn=byCol('var(--warn)');
+  const otros=pend.filter(c=>c._accionCol!=='var(--rojo)'&&c._accionCol!=='var(--warn)').sort((a,b)=>(b._sc||0)-(a._sc||0));
+  const fila=c=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(c.nombre||c.user_id.slice(0,8))}</b> <span style="color:${c._accionCol};font-size:12.5px;font-weight:600">· ${esc(c._accion)}</span></div><div style="display:flex;gap:6px;flex-shrink:0"><button class="sm ghost" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir →</button><button class="sm" onclick="revHecho('${c.user_id}')">Hecho</button></div></div>`;
+  const secc=(t,arr,col)=>arr.length?`<h3 style="color:${col};margin-top:14px">${t} (${arr.length})</h3>${arr.map(fila).join('')}`:'';
+  let h=`<div class="card"><h2 style="margin-top:0">🧭 Revisión del día · ${pend.length} pendiente${pend.length===1?'':'s'}</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Todas las decisiones en una pasada. "Hecho" lo marca atendido hoy (reaparece mañana si sigue el motivo).${done.length?` <button class="sm ghost" onclick="reabrirResueltos();verRevision()">↩ Reabrir ${done.length} hecho(s)</button>`:''}</div>`;
+  if(!pend.length)h+=`<div style="color:var(--ok)">✓ Nada pendiente — todo en orden.</div>`;
+  h+=secc('🔴 Urgente',rojo,'var(--rojo)')+secc('🟡 Atender',warn,'var(--warn)')+secc('🔵 Seguimiento',otros,'#5f7dd0');
+  h+=`</div>`;
+  cont.innerHTML=h;
+}
+function revHecho(uid){const s=atSet();s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));verRevision();}
 function renderAtletasFO(){
   const el=$("atletasFO");if(!el)return;
   if(!ATLETAS_FO.length){el.innerHTML='';return;}
@@ -1246,7 +1285,8 @@ function cardClienteHTML(c,enAtencion){
   // Nombre completo (dos apellidos) si existe y aporta info sobre el nombre corto.
   const _nc=(c.nombre_completo||'').trim();
   const fullL=(_nc && _nc.toLowerCase()!==(c.nombre||'').trim().toLowerCase())?`<div class="muted" style="font-size:11px;margin-top:1px;user-select:text">👤 ${esc(_nc)}</div>`:"";
-  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${inact}${sinAlt}${rs}${ms}</button>`;
+  const acc=(c._accion&&c._accion!=='En orden')?`<div style="margin-top:4px;font-size:12.5px;font-weight:700;color:${c._accionCol||'var(--warn)'}">→ ${esc(c._accion)}</div>`:"";
+  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${acc}${inact}${sinAlt}${rs}${ms}</button>`;
   return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${cardBtn}<button class="sm ghost" onclick="resolverHoy('${c.user_id}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:cardBtn;
 }
 
