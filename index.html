@@ -205,6 +205,7 @@
       </div>
       <div id="detalle"></div>
     </div>
+    <div id="v-resumen" class="hide"></div>
     <div id="v-revision" class="hide"></div>
     <div id="v-riesgo" class="hide"></div>
     <div id="v-recordatorios" class="hide"></div>
@@ -332,8 +333,8 @@ async function login(){$("loginErr").textContent="Entrando…";const {error}=awa
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
-const TABS_SEC=["revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","revision","riesgo","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
+function tab(t){["clientes","resumen","revision","riesgo","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -864,6 +865,52 @@ async function segRegistrarDecision(){
   const {error}=await sb.from("decisiones").insert({user_id:s.id,autor:MIID,tipo:'kcal',texto:s.rec,motivo:'seguimiento de peso'});
   if(error){alert(/relation|does not exist|schema|decisiones/i.test(error.message)?'Activa la bitácora con el SQL 0050_decisiones.':error.message);return;}
   verCliente(s.id);
+}
+// 📊 Resumen de gestión: KPIs del negocio y del coaching de un vistazo (reusa lo ya
+// calculado en CLIENTES + 2 consultas livianas). Cada número lleva a su pestaña.
+async function verResumen(){
+  const cont=$("v-resumen");if(!cont)return;
+  if(!CLIENTES||!CLIENTES.length){cont.innerHTML='<div class="card muted" style="padding:14px">Cargando…</div>';return;}
+  const STORE=new Set(['publico','publico_anual','programa']);
+  const total=CLIENTES.length;
+  const pagando=CLIENTES.filter(c=>pagoInfo(c).pagando).length;
+  const riesgo=CLIENTES.filter(c=>(c._churn||0)>=45).length;
+  const fuera=(ATLETAS_FO||[]).length;
+  const acciones=CLIENTES.filter(c=>c._accion&&c._accion!=='En orden').length;
+  const inact=CLIENTES.filter(c=>c._inact!=null&&c._inact>=14).length;
+  const sinAlt=CLIENTES.filter(c=>!(Number(c.altura)>0)).length;
+  const sinObj=CLIENTES.filter(c=>c._sinObj).length;
+  const pagoRev=CLIENTES.filter(c=>c._susE==='vencido'&&c._susT!=='fundador'&&c._susT!=='gratis').length;
+  let nReu=0,nDec=0;
+  try{const hoy=hace(0);const {data}=await sb.from("reuniones").select("resumen,transcripcion,fecha").gte("fecha",hace(40)).lte("fecha",hoy);nReu=(data||[]).filter(r=>!(r.resumen&&String(r.resumen).trim())&&!(r.transcripcion&&String(r.transcripcion).trim())).length;}catch(e){}
+  try{const {data}=await sb.from("decisiones").select("id").gte("created_at",hace(7));nDec=(data||[]).length;}catch(e){}
+  const C={ok:'var(--ok)',warn:'var(--warn)',rojo:'var(--rojo)',mut:'var(--muted)',az:'#5f7dd0'};
+  const kpi=(n,label,col,on)=>`<div class="hoyCard" style="border-left-color:${col};min-width:132px;cursor:${on?'pointer':'default'}" ${on?`onclick="${on}"`:''}><div class="n" style="color:${col}">${n}</div><div class="l">${label}</div></div>`;
+  let h=`<div class="card"><h2 style="margin-top:0">📊 Resumen de gestión</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Estado del negocio y del coaching de un vistazo. Cada número lleva a su pestaña. Se actualiza al abrir.</div>
+    <h3>Negocio</h3><div class="hoy">
+      ${kpi(total,'Clientes activos',C.ok,"tab('clientes')")}
+      ${kpi(pagando,'Pagando (tienda)',C.ok,"tab('pagos')")}
+      ${kpi(riesgo,'En riesgo de baja',riesgo?C.rojo:C.ok,"tab('riesgo')")}
+      ${kpi(pagoRev,'Pagos por revisar',pagoRev?C.warn:C.ok,"tab('pagos')")}
+    </div>
+    <h3>Coaching</h3><div class="hoy">
+      ${kpi(acciones,'Acciones pendientes',acciones?C.warn:C.ok,"tab('revision')")}
+      ${kpi(fuera,'Fuera de objetivo (peso)',fuera?C.warn:C.ok,"tab('clientes')")}
+      ${kpi(inact,'Inactivos 14+ días',inact?C.warn:C.ok,"tab('recordatorios')")}
+      ${kpi(nDec,'Decisiones (7 días)',nDec?C.az:C.mut)}
+    </div>
+    <h3>Datos y operación</h3><div class="hoy">
+      ${kpi(sinObj,'Sin objetivo',sinObj?C.rojo:C.ok,"tab('salud')")}
+      ${kpi(sinAlt,'Sin altura',sinAlt?C.rojo:C.ok,"tab('salud')")}
+      ${kpi(nReu,'Reunión sin resumen',nReu?C.mut:C.ok,"tab('llamadas')")}
+    </div></div>`;
+  const urg=CLIENTES.filter(c=>c._accion&&c._accion!=='En orden'&&c._accionCol==='var(--rojo)').sort((a,b)=>(b._sc||0)-(a._sc||0)).slice(0,5);
+  const topR=CLIENTES.filter(c=>(c._churn||0)>=45).sort((a,b)=>(b._churn||0)-(a._churn||0)).slice(0,5);
+  const li=c=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(c.nombre||c.user_id.slice(0,8))}</b> <span class="muted" style="font-size:12px">· ${esc(c._accion||'')}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir →</button></div>`;
+  if(urg.length)h+=`<div class="card"><h2 style="margin-top:0">🔴 Urgentes de hoy</h2>${urg.map(li).join('')}</div>`;
+  if(topR.length)h+=`<div class="card"><h2 style="margin-top:0">⚠️ Top riesgo de baja</h2>${topR.map(c=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(c.nombre||'')}</b> <span class="pill" style="background:var(--card2);color:var(--rojo);font-weight:700">${c._churn}%</span> <span class="muted" style="font-size:12px">${esc((c._churnR||[]).join(' · '))}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="tab('riesgo')">Retención →</button></div>`).join('')}</div>`;
+  cont.innerHTML=h;
 }
 // 💼 Riesgo de baja (retención): lista proactiva de clientes a punto de irse, con
 // score de churn (pago+actividad+onboarding), motivos y WhatsApp con mensaje sugerido.
