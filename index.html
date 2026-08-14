@@ -536,6 +536,7 @@ async function aprobarCupon(uid,ok){
 // Umbral (dias sin entrenar) a partir del cual un cliente entra en riesgo de fuga.
 const DIAS_INACTIVO=3;
 async function cargarPrioridad(){
+ try{
   const d14=hace(14);
   const d60=hace(60);
   const [al,su,ck,pl,ob,pf,se,pe]=await Promise.all([
@@ -619,8 +620,16 @@ async function cargarPrioridad(){
     }
     c._churn=Math.min(100,ch);c._churnR=chr;
   });
-  CLIENTES.sort((a,b)=>b._sc-a._sc);renderClientes();
-  ALERTAS=al.data||[];renderCampana();renderHoy();revisarAtletas();
+  ALERTAS=al.data||[];
+ }catch(e){console.error('cargarPrioridad falló:',e);if(!(PRIO_FALLO&&PRIO_FALLO.length))PRIO_FALLO=['datos de prioridad'];}
+ // 🔴 GARANTÍA (JC urgente 2026-08-14): renderizar SIEMPRE la lista, aunque el
+ // enriquecimiento (prioridad/churn/acción) falle, para que los clientes NUNCA
+ // desaparezcan por un error de cálculo. Cada render va protegido.
+ try{CLIENTES.sort((a,b)=>(b._sc||0)-(a._sc||0));}catch(_){}
+ try{renderClientes();}catch(e){console.error('renderClientes:',e);const _c=$("clientes");if(_c)_c.innerHTML='<div class="alert" style="padding:12px">Error pintando la lista: '+esc(String(e&&e.message||e))+'. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>';}
+ try{renderCampana();}catch(_){}
+ try{renderHoy();}catch(_){}
+ try{revisarAtletas();}catch(_){}
 }
 // Campanita de notificaciones (alertas abiertas de todos los clientes).
 function renderCampana(){
