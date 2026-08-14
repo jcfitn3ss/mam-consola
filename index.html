@@ -349,6 +349,7 @@ async function verSalud(){
   const R=data.detalle||{},res=data.resumen||{};
   // Definición de cada hueco: etiqueta, severidad (color), y qué significa.
   const SECC=[
+    ['sesiones_abandonadas','🧟 Sesiones abandonadas (traban el entreno)','var(--rojo)','Sesiones empezadas sin finalizar de días pasados. En builds viejos BLOQUEAN el "empezar" (fue el caso de Daniela). Limpiarlas NO borra los workouts registrados.'],
     ['sin_altura','📏 Sin altura','var(--rojo)','El plan y las calorías se calculan mal. Se les pide al abrir la app; o cárgala tú en la ficha.'],
     ['sin_plan','📋 Sin plan','var(--rojo)','No tienen plan generado (a veces por no completar el cuestionario). El entreno puede fallar.'],
     ['sin_rutina','🏋️ Sin rutina','var(--rojo)','No tienen rutina asignada. Genérala en la ficha (Entrenamiento).'],
@@ -371,6 +372,11 @@ async function verSalud(){
     } else if(k==='inactivos_14d'){
       cuerpo=`<div style="display:flex;flex-direction:column;gap:6px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.dias_sin_entrenar!=null?x.dias_sin_entrenar+' días sin entrenar':'nunca ha entrenado'}</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
       <div class="muted" style="font-size:11px;margin-top:8px">Mensaje sugerido para reactivar (cópialo): <span style="color:var(--txt)">"Hola {nombre}, te vi flojito con los entrenos esta semana 👀. Cuéntame qué pasó y retomamos hoy mismo — no perdamos el ritmo que ya llevabas. 💪"</span></div>`;
+    } else if(k==='sesiones_abandonadas'){
+      const totAband=arr.reduce((a,x)=>a+(+x.n||0),0);
+      cuerpo=`<button class="sm danger" onclick="limpiarSesionesAbandonadas(this)" style="margin-bottom:8px">🧹 Limpiar TODAS las abandonadas (${totAband})</button> <span id="limpSesMsg" class="muted" style="font-size:12px"></span>
+      <div class="muted" style="font-size:11px;margin:2px 0 6px">Destraba a todos de una. No toca las series/workouts ni las sesiones de hoy.</div>
+      <div style="display:flex;flex-direction:column;gap:2px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.n} atascada(s)</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>`;
     } else {
       cuerpo=`<div style="display:flex;flex-wrap:wrap;gap:6px">${arr.map(n=>`<span class="pill" style="background:var(--card2)">${esc(typeof n==='string'?n:(n.nombre||''))}</span>`).join('')}</div>`;
     }
@@ -379,6 +385,17 @@ async function verSalud(){
     </details></div>`;
   });
   $("v-salud").innerHTML=h;
+}
+// Limpia TODAS las sesiones abandonadas (vía salud-datos con service_role). Destraba
+// el "no me deja empezar" sin borrar workouts. Reemplaza el SQL manual que antes se pegaba.
+async function limpiarSesionesAbandonadas(btn){
+  if(!confirm('¿Limpiar TODAS las sesiones abandonadas (iniciadas sin finalizar de días pasados)? No borra los workouts/series; solo destraba a los clientes.'))return;
+  if(btn){btn.disabled=true;btn.textContent='Limpiando…';}
+  const {data,error}=await invokeFn("salud-datos",{body:{limpiar_sesiones:true}});
+  const m=$("limpSesMsg");
+  if(error||(data&&data.error)){if(m){m.style.color='var(--rojo)';m.textContent=(data&&data.error)||(error&&error.message)||'Error';}if(btn){btn.disabled=false;btn.textContent='🧹 Reintentar limpieza';}return;}
+  if(m){m.style.color='var(--ok)';m.textContent='✓ '+((data&&data.limpiadas)||0)+' sesión(es) limpiada(s).';}
+  setTimeout(()=>verSalud(),900);
 }
 // Guardar nombre completo desde el editor en lote de Salud de datos.
 async function guardarNombreSalud(id,inputId,btn){
