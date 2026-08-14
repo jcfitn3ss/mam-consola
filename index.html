@@ -542,7 +542,7 @@ async function cargarPrioridad(){
     sb.from("checkins").select("user_id,dart,fatiga,energia,fecha").gte("fecha",d14).order("fecha",{ascending:false}),
     sb.from("planes").select("user_id,inicio"),
     sb.from("objetivos").select("user_id,tipo"),
-    sb.from("perfiles").select("user_id,ticket,presupuesto_adicional,pago_confirmado,sexo,fecha_nacimiento,telefono"),
+    sb.from("perfiles").select("user_id,ticket,presupuesto_adicional,pago_confirmado,sexo,fecha_nacimiento,telefono,nivel"),
     // Sesiones finalizadas recientes: para detectar al cliente que dejo de entrenar.
     sb.from("sesiones").select("user_id,fecha").eq("finalizada",true).gte("fecha",d60).order("fecha",{ascending:false}),
     // Pesos recientes: señal de enganche (para el riesgo de baja).
@@ -562,7 +562,7 @@ async function cargarPrioridad(){
   // Ultima sesion finalizada por usuario (la primera al venir ordenado desc).
   const ult={};(se.data||[]).forEach(s=>{if(s.user_id&&s.fecha&&!ult[s.user_id])ult[s.user_id]=s.fecha});
   CLIENTES.forEach(c=>{const u=c.user_id;let sc=0;const r=[];
-    const G=gm[u]||{};c._ticket=G.ticket||"";c._presu=!!G.presupuesto_adicional;c._pago=!!G.pago_confirmado;c._sexo=G.sexo||null;c._nac=G.fecha_nacimiento||null;c._objTipo=obj[u]||null;
+    const G=gm[u]||{};c._ticket=G.ticket||"";c._presu=!!G.presupuesto_adicional;c._pago=!!G.pago_confirmado;c._sexo=G.sexo||null;c._nac=G.fecha_nacimiento||null;c._objTipo=obj[u]||null;c._nivel=G.nivel||null;
     // No terminó el registro inicial (sin objetivo = no completó onboarding): no
     // puede recibir plan. Lo subimos a "Atención" para perseguirlo.
     c._sinObj=!obj[u];
@@ -715,6 +715,9 @@ function ritmoPorGrasa(bf,sexo){
   const b=bf-((/^f/i.test(String(sexo||'')))?8:0);
   if(b>=30)return 1.2; if(b>=25)return 1.0; if(b>=20)return 0.85; if(b>=15)return 0.7; if(b>=12)return 0.6; return 0.5;
 }
+// Volumen: ritmo de ganancia magra por nivel (espejo de src/domain/prep.mjs, con tests).
+function ritmoGananciaVolumen(nivel){const n=String(nivel||'').toLowerCase();if(/princip/.test(n))return 0.5;if(/avanz/.test(n))return 0.15;return 0.3;}
+function evalVolumenSemana(o){const confia=(o.nPesajes||0)>=2;const gain=o.rateReal!=null?-o.rateReal:null;const tgt=+o.targetGain||0.3;if(gain==null||!confia)return{nivel:'ok',motivo:'sin datos suficientes',color:'var(--muted)',rec:''};if(gain<0.25*tgt)return{nivel:'lento',motivo:`casi no gana (${gain.toFixed(2)}%/sem vs ${tgt}%)`,color:'var(--warn)',rec:'sube ~150–200 kcal para que progrese'};if(gain>2*tgt)return{nivel:'rapido',motivo:`gana muy rápido (${gain.toFixed(2)}%/sem)`,color:'var(--rojo)',rec:'baja ~100–150 kcal: acumula más grasa de la necesaria'};return{nivel:'ok',motivo:`gana al ritmo (${gain.toFixed(2)}%/sem)`,color:'var(--ok)',rec:'mantén el superávit'};}
 // Ritmo real de bajada (%/sem) por regresión lineal sobre los pesos de ~28 días
 // (robusto ante ruido/pesajes dispersos). Necesita ≥3 puntos y ≥10 días de rango.
 function ritmoRealSemana(pesos){
@@ -769,7 +772,7 @@ async function revisarAtletas(){
     const atRows=(cals||[]).filter(c=>Array.isArray(c.semanas)&&c.semanas.length);
     const atIds=atRows.map(c=>c.user_id),atSet=new Set(atIds);
     // Clientes en corte (def/rec) que NO son atletas → seguimiento por %grasa estimado.
-    const cut=CLIENTES.filter(c=>(c._objTipo==='def'||c._objTipo==='rec')&&!atSet.has(c.user_id));
+    const cut=CLIENTES.filter(c=>(c._objTipo==='def'||c._objTipo==='rec'||c._objTipo==='vol')&&!atSet.has(c.user_id));
     const allIds=[...new Set([...atIds,...cut.map(c=>c.user_id)])];
     if(!allIds.length){renderAtletasFO();renderHoy();return;}
     const {data:pes}=await sb.from("pesos").select("user_id,fecha,peso").in("user_id",allIds).gte("fecha",hace(35));
@@ -801,6 +804,11 @@ async function revisarAtletas(){
       const mine=byU[c.user_id]||[];
       const tr=ritmoRealSemana(mine);
       if(tr.rate==null)return; // sin datos suficientes → no molestar
+      if(c._objTipo==='vol'){ // volumen: ritmo de ganancia por nivel
+        const evV=evalVolumenSemana({rateReal:tr.rate,targetGain:ritmoGananciaVolumen(c._nivel),nPesajes:tr.n});
+        if(evV.nivel==='lento'||evV.nivel==='rapido'){c._accion='Ajustar volumen: '+evV.motivo;c._accionCol=evV.color;ATLETAS_FO.push({user_id:c.user_id,nombre:c.nombre||c.user_id.slice(0,8),motivo:evV.motivo,col:evV.color});}
+        return;
+      }
       const latest=mine.reduce((a,b)=>(a&&a.fecha>b.fecha)?a:b,null);
       const g=estimarGrasa({peso:latest?+latest.peso:null,alturaCm:c.altura,sexo:c._sexo,edad:edadDe(c._nac),grasaMed:null,grasaManual:grasaEstMap[c.user_id]});
       const recRate=ritmoPorGrasa(g.bf,c._sexo);
@@ -1517,6 +1525,18 @@ async function verCliente(id){
       <div class="row" style="align-items:flex-end"><div style="max-width:150px"><label class="lbl">% grasa ${medido?'(medido)':'estimado'}</label><input id="segGrasaInp" type="number" step="0.1" value="${g.bf!=null?g.bf:''}" oninput="segPesoRecalc(this)"></div>${medido?'':`<div><button class="sm" onclick="segGrasaGuardar('${id}')">Guardar %grasa</button> <button class="sm ghost" onclick="segGrasaGuardar('${id}',true)">Quitar</button> <span id="segGrasaMsg" class="muted" style="font-size:11px"></span></div>`}</div>
       ${medido?`<div class="muted" style="font-size:11px">Tiene pliegues medidos → se usa ese valor. Para clientes SIN pliegues, aquí puedes escribir y guardar un %grasa estimado.</div>`:`<div class="muted" style="font-size:11px">Para clientes que no pueden registrar pliegues: escribe tu estimado y <b>Guardar</b> (se recuerda). Si lo dejas vacío, se usa la fórmula por IMC/edad/sexo.</div>`}
       <div id="segPesoOut" style="margin-top:6px">${segPesoOutHTML(g.bf)}</div>`;
+  }
+  // 📈 Seguimiento de VOLUMEN (bulk): ritmo de ganancia magra por nivel.
+  else if(o.tipo==='vol'){
+    const _trv=ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso})));
+    const nivelV=(per.data&&per.data.nivel)||null;
+    const tgtV=ritmoGananciaVolumen(nivelV);
+    const evV=_trv.rate!=null?evalVolumenSemana({rateReal:_trv.rate,targetGain:tgtV,nPesajes:_trv.n}):null;
+    const realV=_trv.rate!=null?((-_trv.rate).toFixed(2)+'%/sem ganancia ('+((-_trv.rate)*(peso||0)/100).toFixed(2)+' kg/sem)'):'—';
+    rep+=`<h3 style="margin:10px 0 2px">📈 Seguimiento de volumen</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:4px">Ritmo de ganancia magra según nivel${nivelV?' ('+esc(nivelV)+')':''}: principiante gana más rápido, avanzado muy lento (para no acumular grasa de más).</div>
+      <div class="kv"><div class="fila"><span class="muted">Ganancia objetivo</span><b>${tgtV}%/sem <span class="muted" style="font-weight:400">≈ ${Math.round(tgtV/100*(peso||0)*100)/100} kg/sem</span></b></div><div class="fila"><span class="muted">Ganancia real (últimas 4 sem)</span><b>${realV}</b></div></div>
+      <div style="margin-top:8px">${evV?`<div style="color:${evV.color};font-weight:600;font-size:12.5px">${evV.motivo.charAt(0).toUpperCase()+evV.motivo.slice(1)}${evV.rec?' → '+evV.rec:''}.</div>`:`<div class="muted" style="font-size:12px">Necesito ~3 pesajes en 4 semanas para leer el ritmo.</div>`}</div>`;
   }
   rep+=`<h3 style="margin:8px 0 2px">Cumplimiento de entrenamiento</h3>`;
   rep+=`<div class="kv">`;
