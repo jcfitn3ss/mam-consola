@@ -500,11 +500,30 @@ async function trasLogin(){
   await cargarPrioridad();
   await cargarSolicitudes();
   autoSyncPagos(); // en segundo plano: cruza TODOS con RevenueCat y activa a quien pagó
+  autoLimpiarSesiones(); // en segundo plano: borra sesiones atascadas que traban el entreno
 }
 
 // Auto-detección de pagos: al abrir la consola cruzamos a TODOS los clientes con
 // RevenueCat (Apple/Google) en segundo plano y activamos SOLO a quien pagó (esta
 // vía NUNCA quita acceso). Así la consola refleja el estado real sin tocar nada.
+// 🧹 Prevención "que no le pase a nadie más": al entrar a la consola, limpia en 2º
+// plano las sesiones ABANDONADAS (iniciadas sin finalizar de días pasados) que traban
+// el "no me deja registrar" en builds viejos. Seguro: no toca workouts ni las de hoy.
+// Vía salud-datos (service_role). Si limpió alguna, avisa con una notita.
+async function autoLimpiarSesiones(){
+  try{
+    const {data,error}=await invokeFn("salud-datos",{body:{limpiar_sesiones:true}});
+    if(error||(data&&data.error))return;
+    const n=(data&&data.limpiadas)||0;
+    if(n>0){
+      const pill=document.createElement('div');
+      pill.style.cssText='position:fixed;left:14px;bottom:14px;z-index:9999;background:var(--card);border:1px solid var(--ok);color:var(--txt);padding:9px 12px;border-radius:10px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:300px';
+      pill.textContent='🧹 Destrabé '+n+' sesión(es) atascada(s) que impedían registrar entrenos.';
+      document.body.appendChild(pill);
+      setTimeout(()=>{pill.style.transition='opacity .6s';pill.style.opacity='0';setTimeout(()=>pill.remove(),700);},5000);
+    }
+  }catch(e){/* silencioso: si falla, la limpieza manual en Salud de datos sigue disponible */}
+}
 async function autoSyncPagos(){
   const old=document.getElementById('syncPill');if(old)old.remove(); // una sola a la vez
   const pill=document.createElement('div');pill.id='syncPill';
