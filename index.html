@@ -1462,13 +1462,15 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cm,fts,pes,meds,ser,rut,sue,pc,reg,intk,per,cic,ses,mac,atl,esp,serHist,cm30,medsAll,cal,fz,recCli,regLog,plg,rns]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cmAll,fts,pes,meds,ser,rut,sue,pc,intk,per,cic,ses,mac,atl,esp,serHist,medsAll,cal,fz,recCli,plg,rns]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
     sb.from("checkins").select("*").eq("user_id",id).order("fecha",{ascending:false}).limit(10),
     sb.from("journal").select("*").eq("user_id",id).order("fecha",{ascending:false}).limit(5),
-    sb.from("comidas").select("fecha,kcal,prot,carb,fat").eq("user_id",id).gte("fecha",d7),
+    // PERF: 1 sola consulta de comidas (35 días, todas las columnas) → de aquí se
+    // derivan cm/reg/cm30/regLog abajo. Antes eran 4 consultas a la misma tabla.
+    sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at,foto_url,saciedad,disfrute,ruido,fibra").eq("user_id",id).gte("fecha",hace(35)).order("fecha",{ascending:false}).order("created_at",{ascending:true}).limit(600),
     sb.from("fotos").select("*").eq("user_id",id).order("fecha",{ascending:true}),
     sb.from("pesos").select("fecha,peso").eq("user_id",id).order("fecha",{ascending:false}).limit(12),
     sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:false}).limit(2),
@@ -1476,7 +1478,6 @@ async function verCliente(id){
     sb.from("rutinas").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sueno").select("horas,fecha").eq("user_id",id).order("fecha",{ascending:false}).limit(14),
     sb.from("plan_comidas").select("*").eq("user_id",id),
-    sb.from("comidas").select("descripcion,kcal,prot,carb,fat").eq("user_id",id).order("id",{ascending:false}).limit(120),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
     sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura,unidad_peso").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
@@ -1485,15 +1486,20 @@ async function verCliente(id){
     sb.from("atletas").select("*").eq("user_id",id).maybeSingle(),
     sb.from("especializacion").select("*").eq("user_id",id).maybeSingle(),
     sb.from("series").select("ejercicio_id,peso,reps,rir,rpe,semana,fecha").eq("user_id",id),
-    sb.from("comidas").select("fecha,kcal").eq("user_id",id).gte("fecha",hace(35)),
     sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:true}),
     sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
     sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
     sb.from("recetas").select("*").eq("owner",id).order("nombre"),
-    sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at,foto_url,saciedad,disfrute,ruido,fibra").eq("user_id",id).gte("fecha",hace(21)).order("fecha",{ascending:false}).order("created_at",{ascending:true}).limit(500),
     sb.from("pliegues").select("*").eq("user_id",id).order("fecha",{ascending:true}),
     sb.from("reuniones").select("*").eq("user_id",id).order("fecha",{ascending:false}),
   ]);
+  // Deriva las 4 vistas de comidas de la única consulta (mismo shape {data,error}
+  // que antes → el resto del código no cambia).
+  const _cmA=(cmAll&&cmAll.data)||[],_cmErr=cmAll&&cmAll.error,_d21=hace(21);
+  const cm={data:_cmA.filter(x=>x.fecha>=d7),error:_cmErr};        // 7d (macros diarias)
+  const cm30={data:_cmA,error:_cmErr};                              // 35d (gráfica kcal)
+  const regLog={data:_cmA.filter(x=>x.fecha>=_d21),error:_cmErr};  // 21d (registro diario)
+  const reg={data:_cmA,error:_cmErr};                              // alimentos únicos (recetas)
   const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
   // %grasa estimado a mano (para quien NO puede registrar pliegues). Consulta AISLADA:
   // si la columna `grasa_estimada` aún no existe, data queda null y cae a Deurenberg — no rompe.
