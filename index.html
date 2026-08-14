@@ -1481,7 +1481,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
-  const [obj,susc,pln,ck,jr,cmAll,fts,pes,meds,ser,rut,sue,pc,intk,per,cic,ses,mac,atl,esp,serHist,medsAll,cal,fz,recCli,plg,rns]=await Promise.all([
+  const [obj,susc,pln,ck,jr,cmAll,fts,pes,rut,sue,pc,intk,per,cic,ses,mac,atl,esp,serHist,medsAll,cal,fz,recCli,plg,rns]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
     sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
@@ -1492,8 +1492,6 @@ async function verCliente(id){
     sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at,foto_url,saciedad,disfrute,ruido,fibra").eq("user_id",id).gte("fecha",hace(35)).order("fecha",{ascending:false}).order("created_at",{ascending:true}).limit(600),
     sb.from("fotos").select("*").eq("user_id",id).order("fecha",{ascending:true}),
     sb.from("pesos").select("fecha,peso").eq("user_id",id).order("fecha",{ascending:false}).limit(12),
-    sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:false}).limit(2),
-    sb.from("series").select("ejercicio_id,fecha,semana").eq("user_id",id).eq("semana",wk),
     sb.from("rutinas").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sueno").select("horas,fecha").eq("user_id",id).order("fecha",{ascending:false}).limit(14),
     sb.from("plan_comidas").select("*").eq("user_id",id),
@@ -1519,6 +1517,10 @@ async function verCliente(id){
   const cm30={data:_cmA,error:_cmErr};                              // 35d (gráfica kcal)
   const regLog={data:_cmA.filter(x=>x.fecha>=_d21),error:_cmErr};  // 21d (registro diario)
   const reg={data:_cmA,error:_cmErr};                              // alimentos únicos (recetas)
+  // Deriva medidas (últimas 2) del set completo, y series de la semana actual del
+  // histórico → 2 consultas menos, sin cambiar la lógica.
+  const meds={data:((medsAll&&medsAll.data)||[]).slice(-2).reverse(),error:medsAll&&medsAll.error};
+  const ser={data:((serHist&&serHist.data)||[]).filter(s=>String(s.semana)===String(wk)),error:serHist&&serHist.error};
   const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
   // %grasa estimado a mano (para quien NO puede registrar pliegues). Consulta AISLADA:
   // si la columna `grasa_estimada` aún no existe, data queda null y cae a Deurenberg — no rompe.
