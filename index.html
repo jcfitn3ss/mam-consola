@@ -536,7 +536,7 @@ const DIAS_INACTIVO=3;
 async function cargarPrioridad(){
   const d14=hace(14);
   const d60=hace(60);
-  const [al,su,ck,pl,ob,pf,se]=await Promise.all([
+  const [al,su,ck,pl,ob,pf,se,pe]=await Promise.all([
     sb.from("alertas").select("id,cliente_id,tipo,texto,created_at").eq("estado","abierta").order("created_at",{ascending:false}),
     sb.from("sueno").select("user_id,horas,fecha").gte("fecha",d14),
     sb.from("checkins").select("user_id,dart,fatiga,energia,fecha").gte("fecha",d14).order("fecha",{ascending:false}),
@@ -545,15 +545,18 @@ async function cargarPrioridad(){
     sb.from("perfiles").select("user_id,ticket,presupuesto_adicional,pago_confirmado,sexo,fecha_nacimiento,telefono"),
     // Sesiones finalizadas recientes: para detectar al cliente que dejo de entrenar.
     sb.from("sesiones").select("user_id,fecha").eq("finalizada",true).gte("fecha",d60).order("fecha",{ascending:false}),
+    // Pesos recientes: señal de enganche (para el riesgo de baja).
+    sb.from("pesos").select("user_id,fecha").gte("fecha",d14),
   ]);
   // Si falló alguna consulta del radar, el score de prioridad queda INCOMPLETO
   // (un cliente en riesgo podría verse en verde). Avisamos en la lista.
-  const _pf={'alertas':al,'sueño':su,'check-ins':ck,'planes':pl,'objetivos':ob,'perfiles':pf,'sesiones':se};
+  const _pf={'alertas':al,'sueño':su,'check-ins':ck,'planes':pl,'objetivos':ob,'perfiles':pf,'sesiones':se,'pesos':pe};
   PRIO_FALLO=Object.entries(_pf).filter(([,r])=>r&&r.error).map(([k])=>k);
   const cnt={};(al.data||[]).forEach(a=>cnt[a.cliente_id]=(cnt[a.cliente_id]||0)+1);
   const sl={};(su.data||[]).forEach(s=>{(sl[s.user_id]=sl[s.user_id]||[]).push(+s.horas)});
   const lc={};(ck.data||[]).forEach(c=>{if(!lc[c.user_id])lc[c.user_id]=c});
   const ini={};(pl.data||[]).forEach(p=>ini[p.user_id]=p.inicio);
+  const pesoRec={};(pe&&pe.data||[]).forEach(p=>pesoRec[p.user_id]=true); // ¿se pesó en 14d?
   const obj={};(ob.data||[]).forEach(o=>obj[o.user_id]=o.tipo);
   const gm={};(pf.data||[]).forEach(p=>gm[p.user_id]=p);
   // Ultima sesion finalizada por usuario (la primera al venir ordenado desc).
@@ -607,6 +610,11 @@ async function cargarPrioridad(){
     if(c._inact!=null){ch+=c._inact>=14?35:c._inact>=7?22:12;chr.push(c._nuncaEntreno?'nunca ha entrenado':c._inact+'d sin entrenar');}
     if(na)ch+=8*Math.min(na,3);
     if(sp!=null&&sp<6)ch+=5; // duerme muy poco: señal de mala experiencia/estrés
+    // Desenganche (predictor fuerte de baja): con plan activo pero sin pesarse ni check-in.
+    if(ini[u]&&Date.now()>=new Date(ini[u]+"T00:00:00").getTime()){
+      if(!pesoRec[u]){ch+=10;chr.push('sin pesarse 14d');}
+      if(!lc[u]){ch+=8;chr.push('sin check-in 14d');}
+    }
     c._churn=Math.min(100,ch);c._churnR=chr;
   });
   CLIENTES.sort((a,b)=>b._sc-a._sc);renderClientes();
@@ -729,8 +737,9 @@ function segPesoOutHTML(bf){
   const real=s.rateReal;
   const realTxt=real!=null?`${real.toFixed(2)}%/sem (${(real*(s.peso||0)/100).toFixed(2)} kg/sem)`:'—';
   const ev=real!=null?evalPrepSemana({obj:null,ritmoRealDirecto:real,ritmoPlan:recRate,nPesajes:s.n||0,dowLate:true}):null;
+  if(window.SEGP)window.SEGP.rec=ev?((ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':'')+ev.rec):null;
   const recBox=real==null?`<div class="muted" style="font-size:12px">Necesito ~3 pesajes en las últimas 4 semanas para leer el ritmo. Pídele registrar peso varios días.</div>`
-    :`<div style="color:${ev.color};font-weight:600;font-size:12.5px">${ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':''}${ev.rec}.</div>`;
+    :`<div style="color:${ev.color};font-weight:600;font-size:12.5px">${ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':''}${ev.rec}.</div><button class="sm ghost" style="margin-top:6px" onclick="segRegistrarDecision()">📝 Registrar en bitácora</button>`;
   return `<div class="kv"><div class="fila"><span class="muted">Ritmo recomendado (por %grasa)</span><b>${recRate}%/sem <span class="muted" style="font-weight:400">≈ ${tgtKg} kg/sem</span></b></div>
     <div class="fila"><span class="muted">Ritmo real (últimas 4 sem)</span><b>${realTxt}</b></div></div>
     <div style="margin-top:8px">${recBox}</div>`;
@@ -839,6 +848,14 @@ async function decGuardar(id){
   verCliente(id);
 }
 async function decBorrar(id,decId){if(!confirm('¿Borrar esta decisión de la bitácora?'))return;const {error}=await sb.from("decisiones").delete().eq("id",decId);if(error){alert(error.message);return;}verCliente(id);}
+// Registra la recomendación de peso actual en la bitácora, en un clic (cierra el bucle).
+async function segRegistrarDecision(){
+  const s=window.SEGP||{};
+  if(!s.id||!s.rec){alert('No hay una recomendación para registrar todavía.');return;}
+  const {error}=await sb.from("decisiones").insert({user_id:s.id,autor:MIID,tipo:'kcal',texto:s.rec,motivo:'seguimiento de peso'});
+  if(error){alert(/relation|does not exist|schema|decisiones/i.test(error.message)?'Activa la bitácora con el SQL 0050_decisiones.':error.message);return;}
+  verCliente(s.id);
+}
 // 💼 Riesgo de baja (retención): lista proactiva de clientes a punto de irse, con
 // score de churn (pago+actividad+onboarding), motivos y WhatsApp con mensaje sugerido.
 function verRiesgo(){
@@ -1493,7 +1510,7 @@ async function verCliente(id){
     const grasaMed=(()=>{const P=(plg&&plg.data)||[];for(let i=P.length-1;i>=0;i--){if(P[i].grasa!=null&&+P[i].grasa>0)return +P[i].grasa;}return null;})();
     const g=estimarGrasa({peso:peso,alturaCm:(per.data&&per.data.altura),sexo:(per.data&&per.data.sexo),edad:edadDe(per.data&&per.data.fecha_nacimiento),grasaMed,grasaManual:GRASA_EST});
     const _tr=ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso})));
-    window.SEGP={sexo:(per.data&&per.data.sexo)||null,peso:peso||0,rateReal:_tr.rate,n:_tr.n};
+    window.SEGP={sexo:(per.data&&per.data.sexo)||null,peso:peso||0,rateReal:_tr.rate,n:_tr.n,id:id};
     const medido=(grasaMed!=null&&+grasaMed>0);
     rep+=`<h3 style="margin:10px 0 2px">📉 Seguimiento de peso</h3>
       <div class="muted" style="font-size:12px;margin-bottom:4px">Ritmo de bajada seguro según su grasa: más grasa = puede bajar más rápido; más seco = más lento (proteger músculo).${g.fuente?' %grasa: <b>'+esc(g.fuente)+'</b>.':''}</div>
