@@ -1502,7 +1502,10 @@ async function verCliente(id){
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
     sb.from("atletas").select("*").eq("user_id",id).maybeSingle(),
     sb.from("especializacion").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("series").select("ejercicio_id,peso,reps,rir,rpe,semana,fecha").eq("user_id",id),
+    // PERF: histórico de series ACOTADO a 1 año (antes traía TODO). Alimenta el nivel
+    // sugerido (progresión reciente) y las gráficas de Análisis; 12 meses son de sobra
+    // y evita traer miles de filas de clientes con años de datos.
+    sb.from("series").select("ejercicio_id,peso,reps,rir,rpe,semana,fecha").eq("user_id",id).gte("fecha",hace(365)),
     sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:true}),
     sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
     sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
