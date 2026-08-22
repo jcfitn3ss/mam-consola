@@ -478,6 +478,7 @@ async function trasLogin(){
   // Lista vía edge (service_role): NO depende del RLS → SIEMPRE salen todos.
   const _lst=await invokeFn("consola-rutina",{action:'lista'});
   const data=(_lst.data&&_lst.data.clientes)||null,eCli=_lst.error;
+  window._cliErr=eCli?eCli.message:(Array.isArray(data)&&data.length?'':'lista vacía');
   if(eCli){const _c=$("clientes");if(_c)_c.innerHTML='<div class="alert" style="padding:14px">No se pudieron cargar los clientes: '+esc(eCli.message)+'. Revisa tu conexión o cierra sesión y entra de nuevo.</div>';}
   // Lista de PRIORIDAD (arriba): solo clientes reales, sin entrenadores ni archivados.
   CLIENTES=(data||[]).filter(c=>c.rol!=='entrenador' && !c.archivado);
@@ -1415,7 +1416,7 @@ function renderClientes(){
     </div>`;
   if(PRIO_FALLO.length)head=`<div class="alert" style="margin-bottom:8px">⚠️ No cargó: <b>${esc(PRIO_FALLO.join(", "))}</b>. El orden de prioridad puede estar incompleto. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>`+head;
   // 🔴 Diagnóstico claro si NO se cargó ningún cliente (casi siempre = sesión vencida).
-  if(!CLIENTES.length)head=`<div class="alert" style="margin-bottom:8px;padding:12px"><b>⚠️ No se cargó ningún cliente.</b> Casi siempre es la <b>sesión vencida</b> (la base no te reconoce como entrenador). Cierra sesión y vuelve a entrar. <div style="margin-top:6px;display:flex;gap:6px"><button class="sm" onclick="logout()">Cerrar sesión y reingresar</button><button class="sm ghost" onclick="trasLogin()">Reintentar carga</button></div></div>`+head;
+  if(!CLIENTES.length)head=`<div class="alert" style="margin-bottom:8px;padding:12px"><b>⚠️ No se cargó ningún cliente.</b> ${window._cliErr?('Motivo: <b>'+esc(window._cliErr)+'</b>'):'Casi siempre es la <b>sesión vencida</b>.'} <div style="margin-top:6px;display:flex;gap:6px"><button class="sm" onclick="logout()">Cerrar sesión y reingresar</button><button class="sm ghost" onclick="trasLogin()">Reintentar carga</button></div></div>`+head;
   if(!q && VER_PAGO==='atencion'){
     const nRes=[...RES].filter(uid=>CLIENTES.some(c=>c.user_id===uid&&(c._sc>=2||c._inact||c._mes))).length;
     head += `<div class="muted" style="font-size:12px;margin-bottom:8px">${list.length?`<b style="color:var(--txt)">${list.length}</b> cliente(s) por resolver hoy.`:'✓ Todo resuelto por hoy.'} Marca <b>“✓ Resuelto hoy”</b> al atender a alguien: se oculta hoy y reaparece mañana si sigue la alerta.${nRes?` <button class="sm ghost" style="padding:2px 8px" onclick="reabrirResueltos()">↺ Reabrir ${nRes} resuelto(s)</button>`:''}</div>`;
