@@ -1485,6 +1485,7 @@ async function verCliente(id){
   const d28=hace(28);
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
+  try{
   const [obj,susc,pln,ck,jr,cmAll,fts,pes,rut,sue,pc,intk,per,cic,ses,mac,atl,esp,serHist,medsAll,cal,fz,recCli,plg,rns]=await Promise.all([
     sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
     sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
@@ -1500,7 +1501,7 @@ async function verCliente(id){
     sb.from("sueno").select("horas,fecha").eq("user_id",id).order("fecha",{ascending:false}).limit(14),
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura,unidad_peso,respiro_prioritario").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura,unidad_peso").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
@@ -2370,6 +2371,13 @@ async function verCliente(id){
   // Carga el plan y el informe guardados (para re-descargarlos/editarlos sin regenerar).
   planCargarGuardado(id);
   infCargarGuardado(id);
+  }catch(err){
+    // NUNCA dejar la ficha en blanco: si algo revienta (cliente nuevo sin datos,
+    // un valor null inesperado), mostramos el error y un botón para reintentar, en
+    // vez de una pantalla vacía ("no sale nada").
+    console.error('verCliente',err);
+    const _d=$("detalle");if(_d)_d.innerHTML='<div style="position:sticky;top:0;background:var(--bg);padding:8px 0;margin-bottom:6px;border-bottom:1px solid var(--line)"><button class="sm" onclick="volverLista()" style="margin:0">← Volver a la lista</button></div><div class="card" style="border:1px solid var(--rojo);background:rgba(209,43,43,.08)"><b style="color:var(--rojo)">⚠️ No se pudo cargar la ficha completa.</b><div class="muted" style="margin:6px 0">'+esc((err&&err.message)||String(err))+'</div><button class="sm" onclick="verCliente(\''+id+'\')">Reintentar</button></div>';
+  }
 }
 // Hace cada tarjeta del detalle un desplegable (clic en el título) para no verse invasivo.
 function hacerColapsables(){
