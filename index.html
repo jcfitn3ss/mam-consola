@@ -475,7 +475,9 @@ async function trasLogin(){
   show("login",false);show("app",true);show("logout",true);
   const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
-  const {data,error:eCli}=await sb.from("perfiles").select("user_id,nombre,nombre_completo,rol,archivado,altura").order("nombre");
+  // Lista vía edge (service_role): NO depende del RLS → SIEMPRE salen todos.
+  const _lst=await invokeFn("consola-rutina",{action:'lista'});
+  const data=(_lst.data&&_lst.data.clientes)||null,eCli=_lst.error;
   if(eCli){const _c=$("clientes");if(_c)_c.innerHTML='<div class="alert" style="padding:14px">No se pudieron cargar los clientes: '+esc(eCli.message)+'. Revisa tu conexión o cierra sesión y entra de nuevo.</div>';}
   // Lista de PRIORIDAD (arriba): solo clientes reales, sin entrenadores ni archivados.
   CLIENTES=(data||[]).filter(c=>c.rol!=='entrenador' && !c.archivado);
