@@ -476,7 +476,7 @@ async function trasLogin(){
   const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
   // Lista vía edge (service_role): NO depende del RLS → SIEMPRE salen todos.
-  const _lst=await invokeFn("consola-rutina",{action:'lista'});
+  const _lst=await invokeFn("consola-rutina",{body:{action:'lista'}});
   const data=(_lst.data&&_lst.data.clientes)||null,eCli=_lst.error;
   window._cliErr=eCli?eCli.message:(Array.isArray(data)&&data.length?'':'lista vacía');
   if(eCli){const _c=$("clientes");if(_c)_c.innerHTML='<div class="alert" style="padding:14px">No se pudieron cargar los clientes: '+esc(eCli.message)+'. Revisa tu conexión o cierra sesión y entra de nuevo.</div>';}
@@ -1500,7 +1500,7 @@ async function verCliente(id){
     sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at,foto_url,saciedad,disfrute,ruido,fibra").eq("user_id",id).gte("fecha",hace(35)).order("fecha",{ascending:false}).order("created_at",{ascending:true}).limit(600),
     sb.from("fotos").select("*").eq("user_id",id).order("fecha",{ascending:true}),
     sb.from("pesos").select("fecha,peso").eq("user_id",id).order("fecha",{ascending:false}).limit(12),
-    invokeFn("consola-rutina",{action:'get',cliente:id}),
+    invokeFn("consola-rutina",{body:{action:'get',cliente:id}}),
     sb.from("sueno").select("horas,fecha").eq("user_id",id).order("fecha",{ascending:false}).limit(14),
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
@@ -3221,7 +3221,7 @@ async function guardarRutinaImport(cli){
     dias.push({nombre:d.nombre,grupos:d.grupos||[],orden});
   });
   // 3) Guardar rutina + ajustar días del plan.
-  const r1=await invokeFn("consola-rutina",{action:'guardar',cliente:cli,dias,tecnicas});
+  const r1=await invokeFn("consola-rutina",{body:{action:'guardar',cliente:cli,dias,tecnicas}});
   if(r1.error){ $("impSave").textContent="Error guardando la rutina: "+r1.error.message; return; }
   $("impSave").textContent="✓ Rutina guardada. El cliente ya puede registrarla.";
   IMPORT_DIAS=null; setTimeout(()=>verCliente(cli),1000);
@@ -3343,9 +3343,9 @@ async function generarRutina(id){
   const dias=asignar(plan.dias);
   const dias_b=plan.dias_b?asignar(plan.dias_b):null;
   const prev=RUT||{};
-  const _gr=await invokeFn("consola-rutina",{action:'guardar',cliente:id,split:nd+" días",dias,dias_b,rotativo:plan.rotativo,slots:5,asign:prev.asign||{},tecnicas:prev.tecnicas||{},swaps:prev.swaps||{}});
+  const _gr=await invokeFn("consola-rutina",{body:{action:'guardar',cliente:id,split:nd+" días",dias,dias_b,rotativo:plan.rotativo,slots:5,asign:prev.asign||{},tecnicas:prev.tecnicas||{},swaps:prev.swaps||{}}});
   if(_gr.error){if(m)m.innerHTML=`<span class="alert">${esc(_gr.error.message)}</span>`;return;}
-  const _fr=await invokeFn("consola-rutina",{action:'get',cliente:id});const fresh={data:(_fr.data&&_fr.data.rutina)||null};
+  const _fr=await invokeFn("consola-rutina",{body:{action:'get',cliente:id}});const fresh={data:(_fr.data&&_fr.data.rutina)||null};
   if(fresh){RUT=fresh;rutRefrescar();}
   if(m)m.textContent="✓ Rutina generada ("+nd+" días"+(plan.rotativo?", rotativa por semanas":dist?", "+dist:"")+"). Revísala y edítala abajo; luego Guardar rutina.";
 }
@@ -3359,7 +3359,7 @@ async function guardarRutina(id){
     const {data:actual}=await sb.from("rutinas").select("updated_at").eq("user_id",id).maybeSingle();
     if(actual&&actual.updated_at&&new Date(actual.updated_at)>new Date(cargadaEn)){
       $("rutMsg").innerHTML=`<span class="alert">⚠️ Otra persona acaba de modificar esta rutina. Recargué la versión más reciente para NO borrar su trabajo: revísala y vuelve a aplicar tus cambios.</span>`;
-      const _fr=await invokeFn("consola-rutina",{action:'get',cliente:id});const fresh={data:(_fr.data&&_fr.data.rutina)||null};
+      const _fr=await invokeFn("consola-rutina",{body:{action:'get',cliente:id}});const fresh={data:(_fr.data&&_fr.data.rutina)||null};
       if(fresh){RUT=fresh;const ed=$("editorRut");if(ed)ed.innerHTML=editorRutinaHTML();}
       return;
     }
@@ -3388,13 +3388,13 @@ async function guardarRutina(id){
   // actualiza si ya existe. Así SIEMPRE se puede guardar (antes, si no existía
   // la fila, el update afectaba 0 filas y "no guardaba").
   const row={user_id:id,dias,tecnicas:tec,split:(RUT.split||(dias.length+" días")),slots:(RUT.slots||5),asign:(RUT.asign||{}),swaps:(RUT.swaps||{}),rotativo:(RUT.rotativo||false),dias_b:(RUT.dias_b||null),updated_at:new Date().toISOString()};
-  const _rr=await invokeFn("consola-rutina",{action:'guardar',cliente:id,dias,tecnicas:tec,split:row.split,slots:row.slots,asign:row.asign,swaps:row.swaps,rotativo:row.rotativo,dias_b:row.dias_b});
+  const _rr=await invokeFn("consola-rutina",{body:{action:'guardar',cliente:id,dias,tecnicas:tec,split:row.split,slots:row.slots,asign:row.asign,swaps:row.swaps,rotativo:row.rotativo,dias_b:row.dias_b}});
   if(_rr.error){$("rutMsg").innerHTML=`<span class="alert">Error al guardar: ${esc(_rr.error.message)}.</span>`;return;}
   RUT.dias=dias;RUT.tecnicas=tec;
   // Recarga la rutina DESDE LA BASE y re-renderiza: así ves el estado REAL
   // guardado (no una copia local). Confirma que sí quedó. Los reps/RIR ya viajaron
   // dentro de `dias` (override por cliente), no hay que escribir en `ejercicios`.
-  const _fr=await invokeFn("consola-rutina",{action:'get',cliente:id});const fresh={data:(_fr.data&&_fr.data.rutina)||null};
+  const _fr=await invokeFn("consola-rutina",{body:{action:'get',cliente:id}});const fresh={data:(_fr.data&&_fr.data.rutina)||null};
   if(fresh){RUT=fresh;const ed=$("editorRut");if(ed)ed.innerHTML=editorRutinaHTML();}
   $("rutMsg").textContent=`✓ Rutina guardada y verificada (series, técnica y reps/RIR por cliente aplicados a la app).`;
 }
@@ -3429,7 +3429,7 @@ async function guardarAtleta(id){
   const e=errFilas(await sb.from("atletas").upsert(b,{onConflict:"user_id"}).select("user_id"));
   $("aMsg").innerHTML=e?`<span class="alert">${esc(e)}</span>`:"✓ Guardado.";
 }
-async function setModulo(id,campo,val){const r=await invokeFn("consola-rutina",{action:'set_perfil',cliente:id,campos:{[campo]:val}});const m=$("modMsg");if(m)m.textContent=r.error?("Error: "+r.error.message):("✓ Guardado");}
+async function setModulo(id,campo,val){const r=await invokeFn("consola-rutina",{body:{action:'set_perfil',cliente:id,campos:{[campo]:val}}});const m=$("modMsg");if(m)m.textContent=r.error?("Error: "+r.error.message):("✓ Guardado");}
 // Restablece la contraseña de un cliente SIN depender del correo (que se limita a
 // 2/hora). Usa la función segura entrenador_reset_password (solo entrenador principal).
 async function resetClave(id){
@@ -3570,7 +3570,7 @@ async function guardarObj(id){
   const rirEl=$("e_rir");const rir_objetivo=rirEl&&rirEl.value!==''?Math.max(0,Math.min(4,Math.round(+rirEl.value))):null;
   const r1=await sb.from("objetivos").upsert({user_id:id,tipo,kcal,prot,carb,fat},{onConflict:"user_id"}).select("user_id");
   const r2=await sb.from("planes").upsert({user_id:id,enfoque:enf,fase,rir_objetivo},{onConflict:"user_id"}).select("user_id");
-  const r3=await invokeFn("consola-rutina",{action:'set_altura',cliente:id,altura});
+  const r3=await invokeFn("consola-rutina",{body:{action:'set_altura',cliente:id,altura}});
   const e=errFilas(r1)||errFilas(r2)||(r3.error&&r3.error.message);
   $("saveMsg").innerHTML=e?`<span class="alert">${esc(e)}</span>`:"✓ Guardado.";
   // Refleja la altura en la lista (quita el badge "sin altura" y actualiza el contador).
@@ -4115,7 +4115,7 @@ async function iaAplicar(){
       rutConflicto=true;
     }else{
       const nowIso=new Date().toISOString();
-      const _ia=await invokeFn("consola-rutina",{action:'guardar',cliente:id,dias:RUT.dias,tecnicas:RUT.tecnicas||{}});
+      const _ia=await invokeFn("consola-rutina",{body:{action:'guardar',cliente:id,dias:RUT.dias,tecnicas:RUT.tecnicas||{}}});
       if(_ia.error)throw new Error(_ia.error.message);
       RUT.updated_at=nowIso;
     }
@@ -4184,7 +4184,7 @@ async function plAsignar(pid){
   const nom=(CLIENTES.find(c=>c.user_id===cli)||{}).nombre||cli.slice(0,8);
   if(!confirm('¿Asignar la plantilla "'+(t.nombre||'')+'" a '+nom+'? Reemplaza la rutina actual de ese cliente.'))return;
   if(msg){msg.style.color='';msg.textContent='Asignando…';}
-  const r1=await invokeFn("consola-rutina",{action:'asignar',cliente:cli,dias:t.dias||[],tecnicas:t.tecnicas||{}});
+  const r1=await invokeFn("consola-rutina",{body:{action:'asignar',cliente:cli,dias:t.dias||[],tecnicas:t.tecnicas||{}}});
   if(r1.error){if(msg){msg.style.color='var(--rojo)';msg.textContent=r1.error.message;}return;}
   if(msg){msg.style.color='var(--ok)';msg.innerHTML='✓ Asignada a '+esc(nom)+'.';}
 }
