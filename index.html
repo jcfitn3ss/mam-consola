@@ -1500,7 +1500,7 @@ async function verCliente(id){
     sb.from("sueno").select("horas,fecha").eq("user_id",id).order("fecha",{ascending:false}).limit(14),
     sb.from("plan_comidas").select("*").eq("user_id",id),
     sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura,unidad_peso").eq("user_id",id).maybeSingle(),
+    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura,unidad_peso,respiro_prioritario").eq("user_id",id).maybeSingle(),
     sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
     sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
     sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
@@ -1837,6 +1837,7 @@ async function verCliente(id){
       <tr><td class="c"><input type="checkbox" ${pm.ver_pliegues===true?'checked':''} onchange="setModulo('${id}','ver_pliegues',this.checked)"></td><td>Pliegues (plicómetro)</td><td class="d">7 pliegues + % grasa estimado (automático para atletas)</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.cardio_pautado===true?'checked':''} onchange="setModulo('${id}','cardio_pautado',this.checked)"></td><td>Cardio pautado</td><td class="d">Habilita la pestaña Cardio (registra actividad, ppm y tipo)</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.edicion_bloqueada===false?'checked':''} onchange="setModulo('${id}','edicion_bloqueada',!this.checked)"></td><td>✏️ Permitir editar calorías</td><td class="d">Por DEFECTO el cliente NO puede cambiar sus calorías, macros, plan ni modo (los defines tú). Marca esto solo si quieres darle permiso para ajustarlos él mismo. Igual sigue registrando su comida normal.</td></tr>
+      <tr><td class="c"><input type="checkbox" ${pm.respiro_prioritario===true?'checked':''} onchange="setModulo('${id}','respiro_prioritario',this.checked)"></td><td>🫁 Control de impulsos primero</td><td class="d">Para clientes con atracones: al abrir Comida ven PRIMERO el acceso a "Un respiro" (HALT) antes de registrar. Acompañamiento invisible.</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.recetas_publicas===true?'checked':''} onchange="setModulo('${id}','recetas_publicas',this.checked)"></td><td>🍳 Recetas públicas</td><td class="d">Si se marca, las recetas que cree esta persona quedan PÚBLICAS (nativas de la app) y las ven TODOS los clientes. Ideal para María.</td></tr>
       ${MI_PRINCIPAL?`<tr><td class="c"><input type="checkbox" ${pm.moderador===true?'checked':''} onchange="setModulo('${id}','moderador',this.checked)"></td><td>🛡️ Moderador</td><td class="d">Persona de confianza que puede APROBAR los alimentos recomendados y MODERAR (quitar) recetas públicas — desde la app o la consola. Asígnalo a quienes hacen bien las recetas.</td></tr>`:''}
     </tbody></table>
@@ -3417,7 +3418,7 @@ async function guardarAtleta(id){
   const e=errFilas(await sb.from("atletas").upsert(b,{onConflict:"user_id"}).select("user_id"));
   $("aMsg").innerHTML=e?`<span class="alert">${esc(e)}</span>`:"✓ Guardado.";
 }
-async function setModulo(id,campo,val){const e=errFilas(await sb.from("perfiles").update({[campo]:val}).eq("user_id",id).select("user_id"));const m=$("modMsg");if(m)m.textContent=e?("Error: "+e):("✓ Guardado");}
+async function setModulo(id,campo,val){const r=await invokeFn("consola-rutina",{action:'set_perfil',cliente:id,campos:{[campo]:val}});const m=$("modMsg");if(m)m.textContent=r.error?("Error: "+r.error.message):("✓ Guardado");}
 // Restablece la contraseña de un cliente SIN depender del correo (que se limita a
 // 2/hora). Usa la función segura entrenador_reset_password (solo entrenador principal).
 async function resetClave(id){
