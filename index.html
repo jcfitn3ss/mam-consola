@@ -1489,38 +1489,25 @@ async function verCliente(id){
   // Lunes-domingo de la semana actual (para macros por día / refeeds).
   const luSem=wk;const doSem=(()=>{const d=new Date(luSem+"T00:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);})();
   try{
-  const [obj,susc,pln,ck,jr,cmAll,fts,pes,rut,sue,pc,intk,per,cic,ses,mac,atl,esp,serHist,medsAll,cal,fz,recCli,plg,rns]=await Promise.all([
-    sb.from("objetivos").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("suscripciones").select("estado,tier,prox_cobro,stripe_customer_id").eq("user_id",id).maybeSingle(),
-    sb.from("planes").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("checkins").select("*").eq("user_id",id).order("fecha",{ascending:false}).limit(10),
-    sb.from("journal").select("*").eq("user_id",id).order("fecha",{ascending:false}).limit(5),
-    // PERF: 1 sola consulta de comidas (35 días, todas las columnas) → de aquí se
-    // derivan cm/reg/cm30/regLog abajo. Antes eran 4 consultas a la misma tabla.
-    sb.from("comidas").select("fecha,descripcion,kcal,prot,carb,fat,momento,created_at,foto_url,saciedad,disfrute,ruido,fibra").eq("user_id",id).gte("fecha",hace(35)).order("fecha",{ascending:false}).order("created_at",{ascending:true}).limit(600),
-    sb.from("fotos").select("*").eq("user_id",id).order("fecha",{ascending:true}),
-    sb.from("pesos").select("fecha,peso").eq("user_id",id).order("fecha",{ascending:false}).limit(12),
+  // Datos del cliente por el EDGE (service_role): las policies de lectura del
+  // entrenador en tablas de datos (fotos/medidas/pesos/comidas/series/…) se cayeron
+  // y las secciones salían VACÍAS aunque el cliente sí subiera todo. La rutina va por
+  // su propia acción ('get'). Ambas en paralelo.
+  const [_fx,rut]=await Promise.all([
+    invokeFn("consola-rutina",{body:{action:'ficha',cliente:id,fechas:{hace35:hace(35),d28:d28,hace365:hace(365),luSem:luSem,doSem:doSem}}}),
     invokeFn("consola-rutina",{body:{action:'get',cliente:id}}),
-    sb.from("sueno").select("horas,fecha").eq("user_id",id).order("fecha",{ascending:false}).limit(14),
-    sb.from("plan_comidas").select("*").eq("user_id",id),
-    sb.from("intake").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("perfiles").select("nombre_completo,documento,lugar_expedicion,fecha_nacimiento,contrato_aceptado_en,contrato_version,ticket,presupuesto_adicional,pago_confirmado,frecuencia_llamada,proxima_llamada,notas_seguimiento,sexo,agenda_llamada,nivel,nivel_auto,ver_entreno,ver_comida,ver_pasos,ver_pliegues,cardio_pautado,edicion_bloqueada,acceso_bloqueado,aviso_pago,recetas_publicas,moderador,altura,unidad_peso").eq("user_id",id).maybeSingle(),
-    sb.from("ciclo_menstrual").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("sesiones").select("fecha").eq("user_id",id).gte("fecha",d28).order("fecha",{ascending:false}),
-    sb.from("macros_dia").select("*").eq("user_id",id).gte("fecha",luSem).lte("fecha",doSem),
-    sb.from("atletas").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("especializacion").select("*").eq("user_id",id).maybeSingle(),
-    // PERF: histórico de series ACOTADO a 1 año (antes traía TODO). Alimenta el nivel
-    // sugerido (progresión reciente) y las gráficas de Análisis; 12 meses son de sobra
-    // y evita traer miles de filas de clientes con años de datos.
-    sb.from("series").select("ejercicio_id,peso,reps,rir,rpe,semana,fecha").eq("user_id",id).gte("fecha",hace(365)),
-    sb.from("medidas").select("*").eq("user_id",id).order("fecha",{ascending:true}),
-    sb.from("calendario_atleta").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("mesociclo_fuerza").select("*").eq("user_id",id).maybeSingle(),
-    sb.from("recetas").select("*").eq("owner",id).order("nombre"),
-    sb.from("pliegues").select("*").eq("user_id",id).order("fecha",{ascending:true}),
-    sb.from("reuniones").select("*").eq("user_id",id).order("fecha",{ascending:false}),
   ]);
+  const B=(_fx&&_fx.data)||{};
+  const _fxErr=(_fx&&_fx.error)?_fx.error:null;
+  const wrapA=(x)=>({data:Array.isArray(x)?x:[],error:_fxErr});
+  const wrap1=(x)=>({data:(Array.isArray(x)&&x.length)?x[0]:null,error:_fxErr});
+  const obj=wrap1(B.objetivos),susc=wrap1(B.suscripciones),pln=wrap1(B.planes);
+  const ck=wrapA(B.checkins),jr=wrapA(B.journal),cmAll=wrapA(B.comidas);
+  const fts=wrapA(B.fotos),pes=wrapA(B.pesos),sue=wrapA(B.sueno),pc=wrapA(B.plan_comidas);
+  const intk=wrap1(B.intake),per=wrap1(B.perfil),cic=wrap1(B.ciclo),ses=wrapA(B.sesiones);
+  const mac=wrapA(B.macros_dia),atl=wrap1(B.atletas),esp=wrap1(B.especializacion);
+  const serHist=wrapA(B.series),medsAll=wrapA(B.medidas),cal=wrap1(B.calendario),fz=wrap1(B.fuerza);
+  const recCli=wrapA(B.recetas),plg=wrapA(B.pliegues),rns=wrapA(B.reuniones);
   // Deriva las 4 vistas de comidas de la única consulta (mismo shape {data,error}
   // que antes → el resto del código no cambia).
   const _cmA=(cmAll&&cmAll.data)||[],_cmErr=cmAll&&cmAll.error,_d21=hace(21);
@@ -1533,11 +1520,9 @@ async function verCliente(id){
   const meds={data:((medsAll&&medsAll.data)||[]).slice(-2).reverse(),error:medsAll&&medsAll.error};
   const ser={data:((serHist&&serHist.data)||[]).filter(s=>String(s.semana)===String(wk)),error:serHist&&serHist.error};
   const RECCLI=recCli.data||[]; // recetas propias del cliente (para ver/editar su plan)
-  // %grasa estimado a mano (para quien NO puede registrar pliegues). Consulta AISLADA:
-  // si la columna `grasa_estimada` aún no existe, data queda null y cae a Deurenberg — no rompe.
-  let GRASA_EST=null;try{const _ge=await sb.from("perfiles").select("grasa_estimada").eq("user_id",id).maybeSingle();GRASA_EST=(_ge&&_ge.data&&_ge.data.grasa_estimada!=null)?+_ge.data.grasa_estimada:null;}catch(e){}
-  // Bitácora de decisiones (audit trail). Aislada: si la tabla no existe, DECS=[] y no rompe.
-  let DECS=[];try{const _d=await sb.from("decisiones").select("*").eq("user_id",id).order("created_at",{ascending:false}).limit(20);DECS=(_d&&_d.data)||[];}catch(e){}
+  // %grasa estimado a mano y bitácora de decisiones: vienen en el mismo bundle del edge.
+  const GRASA_EST=(per.data&&per.data.grasa_estimada!=null)?+per.data.grasa_estimada:null;
+  const DECS=Array.isArray(B.decisiones)?B.decisiones:[];
   // MANEJO DE ERRORES: si alguna de las ~26 consultas falló, hay que AVISAR — antes
   // un fallo se veía igual que "sin datos" (ej. "Sin rutina generada" cuando en
   // realidad la consulta falló) y el entrenador planeaba sobre info que no cargó.
