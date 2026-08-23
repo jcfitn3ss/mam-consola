@@ -388,7 +388,21 @@ async function verSalud(){
       <div class="muted" style="font-size:12px;margin:6px 0 8px">${esc(desc)}</div>${cuerpo}
     </details></div>`;
   });
+  // Mantenimiento: restaurar las policies de LECTURA del entrenador (fotos/medidas/
+  // pesos/comidas/series/…) si se cayeron y las secciones salen vacías. Se corre 1 vez.
+  h=`<div class="card"><h2 style="margin-top:0">🔧 Mantenimiento</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Si en las fichas NO salen fotos, medidas o registros de los clientes, restaura los permisos de lectura del entrenador (seguro e idempotente).</div>
+    <button class="sm" onclick="repararLecturaEntrenador(this)">Reparar permisos de lectura</button> <span id="repMsg" class="muted" style="font-size:12px"></span>
+  </div>`+h;
   $("v-salud").innerHTML=h;
+}
+async function repararLecturaEntrenador(btn){
+  const m=$("repMsg");if(m)m.textContent="Reparando…";if(btn)btn.disabled=true;
+  const {data,error}=await invokeFn("migrar-lectura-entrenador",{body:{}});
+  if(btn)btn.disabled=false;
+  if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  const n=(data&&data.hechas&&data.hechas.length)||0;
+  if(m)m.innerHTML=`✓ Listo. ${n} tabla(s) con lectura del entrenador restaurada. Recarga las fichas.`;
 }
 // Limpia TODAS las sesiones abandonadas (vía salud-datos con service_role). Destraba
 // el "no me deja empezar" sin borrar workouts. Reemplaza el SQL manual que antes se pegaba.
