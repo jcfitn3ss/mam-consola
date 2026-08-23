@@ -486,6 +486,15 @@ async function trasLogin(){
   const {data:p}=await sb.from("perfiles").select("rol,es_principal").eq("user_id",MIID).maybeSingle();
   if(!p||p.rol!=="entrenador"){show("login",true);$("loginErr").textContent="Esta cuenta no es de entrenador.";await sb.auth.signOut();return;}
   MI_PRINCIPAL=!!p.es_principal; // entrenador principal: puede asignar clientes a otros entrenadores
+  // AUTO-REPARACIÓN (1 vez por navegador): restaura las policies de LECTURA del
+  // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
+  // Idempotente y silencioso; el botón de "Salud de datos" lo permite correr a mano.
+  try{
+    if(!localStorage.getItem('lectura_reparada_v2')){
+      const _rep=await invokeFn("migrar-lectura-entrenador",{body:{}});
+      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v2','1');
+    }
+  }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
   const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
