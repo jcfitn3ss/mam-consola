@@ -3775,11 +3775,11 @@ async function verAlimentos(){
    <div class="muted" style="margin-bottom:6px">Alimentos que los clientes sugirieron leyendo la etiqueta. Revisa el nombre, los macros por 100 g y la porción. <b>Aprobar</b> lo pasa al catálogo oficial (todos lo verán al buscar); <b>Rechazar</b> lo descarta.</div>
    <div id="abreclist"></div></div>
    <div class="card"><h2 style="margin-top:0">Nuevo alimento</h2>
-   <div class="muted" style="margin-bottom:6px">Valores <b>por 100 g</b>, igual que la guía. El cliente lo verá primero al buscar (etiqueta <b>Oficial MAM</b>). Si dejas las kcal en blanco se calculan solas (P×4 + C×4 + G×9).</div>
-   <div class="row"><div style="flex:2"><label class="lbl">Nombre</label><input id="a_nom" placeholder="Nombre tal cual (ej: Pechuga de pollo)"></div><div style="flex:1"><label class="lbl">Marca (opcional)</label><input id="a_marca" placeholder="—"></div></div>
+   <div class="muted" style="margin-bottom:6px" id="a_hint100">Valores <b>por 100 g</b>, igual que la guía. El cliente lo verá primero al buscar (etiqueta <b>Oficial MAM</b>). Si dejas las kcal en blanco se calculan solas (P×4 + C×4 + G×9).</div>
+   <div class="row"><div style="flex:2"><label class="lbl">Nombre</label><input id="a_nom" placeholder="Nombre tal cual (ej: Pechuga de pollo)" oninput="abUnidadHint()"></div><div style="flex:1"><label class="lbl">Marca (opcional)</label><input id="a_marca" placeholder="—"></div></div>
    <label class="lbl">Categoría</label><select id="a_cat">${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
    <div class="row"><div><label class="lbl">Proteína (g)</label><input id="a_p" type="number" step="0.1" value="0"></div><div><label class="lbl">Carbohidrato (g)</label><input id="a_c" type="number" step="0.1" value="0"></div><div><label class="lbl">Grasa (g)</label><input id="a_f" type="number" step="0.1" value="0"></div><div><label class="lbl">Kcal (opcional)</label><input id="a_k" type="number" step="0.1" placeholder="auto"></div></div>
-   <div class="row"><div><label class="lbl">Porción (g)</label><input id="a_pg" type="number" step="1" placeholder="—"></div><div><label class="lbl">Fibra (g)</label><input id="a_fib" type="number" step="0.1" placeholder="—"></div><div><label class="lbl">Azúcar (g)</label><input id="a_az" type="number" step="0.1" placeholder="—"></div><div><label class="lbl">Sodio (mg)</label><input id="a_sod" type="number" step="1" placeholder="—"></div></div>
+   <div class="row"><div><label class="lbl" id="a_pglbl">Porción (g)</label><input id="a_pg" type="number" step="1" placeholder="—"></div><div><label class="lbl">Fibra (g)</label><input id="a_fib" type="number" step="0.1" placeholder="—"></div><div><label class="lbl">Azúcar (g)</label><input id="a_az" type="number" step="0.1" placeholder="—"></div><div><label class="lbl">Sodio (mg)</label><input id="a_sod" type="number" step="1" placeholder="—"></div></div>
    <button style="margin-top:8px" onclick="addAlimento()">Agregar al catálogo</button> <span id="aMsg" class="muted"></span></div>
    <div class="card"><h2 style="margin-top:0">Catálogo oficial (${AB.length})</h2>
      <input id="a_buscar" placeholder="Buscar…" oninput="renderAB()">
@@ -3880,16 +3880,25 @@ function renderAB(){
   };
   $("ablist").innerHTML=`<table><tr><th>Alimento</th><th>Categoría</th><th>Kcal</th><th>P</th><th>C</th><th>G</th><th></th></tr>${list.map(fila).join("")}</table>`;
 }
+// Los líquidos (leche, jugo, batido…) se miden en ml (1 ml ≈ 1 g). Cambia las
+// etiquetas del formulario a "ml" según el nombre, para que quede claro al crear.
+const AB_RX_LIQUIDO=/\b(leche(?!\s+en\s+polvo)|kumis|jugo|zumo|malteada|batido|smoothie|licuado|gaseosa|refresco|soda|bebida|caldo|yogur\s+beb)/i;
+function abUnidadHint(){
+  const nom=($("a_nom")&&$("a_nom").value)||'';const ml=AB_RX_LIQUIDO.test(nom);
+  const h=$("a_hint100");if(h)h.innerHTML=ml?'Valores <b>por 100 ml</b> (líquido). El cliente lo registrará en <b>ml</b>. Si dejas las kcal en blanco se calculan solas (P×4 + C×4 + G×9).':'Valores <b>por 100 g</b>, igual que la guía. El cliente lo verá primero al buscar (etiqueta <b>Oficial MAM</b>). Si dejas las kcal en blanco se calculan solas (P×4 + C×4 + G×9).';
+  const l=$("a_pglbl");if(l)l.textContent=ml?'Porción (ml)':'Porción (g)';
+}
 async function addAlimento(){
   const nom=$("a_nom").value.trim();if(!nom){$("aMsg").textContent="Falta el nombre.";return;}
   const p=+$("a_p").value||0,c=+$("a_c").value||0,f=+$("a_f").value||0;
   const kIn=$("a_k").value.trim();const k=kIn!==""?(+kIn||0):Math.round(p*4+c*4+f*9);
   const opt=id=>{const v=($(id)?$(id).value:'').trim();return v===''?null:(+v||0);};
   $("aMsg").textContent="Guardando…";
-  const row={nombre:nom,marca:($("a_marca")?$("a_marca").value.trim():'')||null,categoria:$("a_cat").value,p,c,f,k,porcion_g:opt("a_pg"),fib:opt("a_fib"),az:opt("a_az"),sod:opt("a_sod"),activo:true,aprobado:true};
-  const {data,error}=await sb.from("alimentos_base").insert(row).select();
-  if(error){$("aMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
-  AB.push(data[0]);AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));$("aMsg").textContent="✓ Agregado.";["a_nom","a_marca","a_k","a_pg","a_fib","a_az","a_sod"].forEach(id=>{if($(id))$(id).value="";});$("a_p").value=$("a_c").value=$("a_f").value="0";renderAB();
+  const row={nombre:nom,marca:($("a_marca")?$("a_marca").value.trim():'')||null,categoria:$("a_cat").value,p,c,f,k,porcion_g:opt("a_pg"),fib:opt("a_fib"),az:opt("a_az"),sod:opt("a_sod")};
+  // Alta por el edge (service_role): el insert directo topaba RLS (ab_write caída) → "no deja crear".
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'crear_alimento',alimento:row}});
+  if(error||(data&&data.error)){$("aMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  if(data&&data.alimento)AB.push(data.alimento);AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));$("aMsg").textContent="✓ Agregado.";["a_nom","a_marca","a_k","a_pg","a_fib","a_az","a_sod"].forEach(id=>{if($(id))$(id).value="";});$("a_p").value=$("a_c").value=$("a_f").value="0";renderAB();
 }
 // Ocultar/mostrar sin borrar: activo=false lo saca de la búsqueda del cliente (el
 // buscador filtra activo=true) pero lo conserva en el catálogo para reactivarlo luego.
