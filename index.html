@@ -1822,7 +1822,7 @@ async function verCliente(id){
   const susActiva=sm.estado==='activa'&&sm.tier&&sm.tier!=='gratis';
   const susFund=sm.tier==='fundador';
   const susTxt=susFund?'fundador (gratis de por vida)':(sm.estado?`${sm.estado}${sm.tier?' · '+sm.tier:''}`:'sin suscripción');
-  const _em=((TODOS.find(c=>c.user_id===id)||CLIENTES.find(c=>c.user_id===id)||{})._email)||'';
+  const _em=(B&&B.email)||((TODOS.find(c=>c.user_id===id)||CLIENTES.find(c=>c.user_id===id)||{})._email)||'';
   h+=`</div><div class="card"><h2 style="margin-top:0">Acceso y suscripción</h2>
     ${_em?`<div class="fila" style="border:0;padding:0 0 8px"><span class="muted">Correo</span><b style="user-select:text">${esc(_em)} <button class="sm ghost" style="padding:2px 7px;margin-left:6px" onclick="copiarMsg(this,'${esc(_em)}')">Copiar</button></b></div>`:''}
     ${MI_PRINCIPAL?`<div class="muted" style="font-size:11px;margin-bottom:6px">Si el cliente no puede entrar (olvidó su clave, o el correo de recuperación no le llega), cámbiasela aquí y pásasela por WhatsApp. No depende de correos.</div>
