@@ -3719,9 +3719,10 @@ async function guardarEjEdit(id){
   const nom=$("ee_nom").value.trim();if(!nom){$("eeMsg").textContent="Falta el nombre.";return;}
   const patch={nombre:nom,grupo:$("ee_grupo").value,equipo:$("ee_eq").value,rep_min:+$("ee_rmin").value||8,rep_max:+$("ee_rmax").value||12,rir:+$("ee_rir").value||2,video_url:$("ee_vid").value.trim()||null};
   $("eeMsg").textContent="Guardando…";
-  const {data,error}=await sb.from("ejercicios").update(patch).eq("id",id).select();
-  if(error){$("eeMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
-  if(!data||!data.length){$("eeMsg").textContent="Solo puedes editar los ejercicios que creaste tú.";return;}
+  // Edición por el edge (service_role): el update directo topaba RLS (ej_write) y salía
+  // "solo puedes editar los que creaste tú" aunque seas entrenador.
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'editar_ejercicio',id:id,campos:patch}});
+  if(error||(data&&data.error)){$("eeMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
   const e=EJ.find(x=>String(x.id)===String(id));if(e)Object.assign(e,patch);
   EJ.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));EJ_EDIT=null;renderEj();
 }
@@ -3749,8 +3750,8 @@ async function borrarEjercicio(id){
 }
 async function editVid(id){
   const e=EJ.find(x=>String(x.id)===String(id));const url=prompt("Enlace de YouTube para "+cap(e.nombre),e.video_url||"");if(url===null)return;
-  const {error}=await sb.from("ejercicios").update({video_url:url.trim()||null}).eq("id",id);
-  if(error){alert(error.message);return;}e.video_url=url.trim()||null;renderEj();
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'editar_ejercicio',id:id,campos:{video_url:url.trim()||null}}});
+  if(error||(data&&data.error)){alert((data&&data.error)||error.message);return;}e.video_url=url.trim()||null;renderEj();
 }
 
 // PARTE 4b: Alimentos base (catálogo oficial MAM · guía de alimentación)
