@@ -2537,19 +2537,34 @@ function infRenderEditor(){
   if(!d.cierreEntreno&&!Array.isArray(d.resumenFinal)){el.innerHTML='<div class="muted" style="font-size:12px">Genera el informe primero (botón de arriba) para poder editar sus textos.</div>';return;}
   const rf=Array.isArray(d.resumenFinal)?d.resumenFinal:['','',''];
   const arr=a=>Array.isArray(a)?a.join('\n'):'';
-  const ta=(id,label,val,rows)=>`<label class="lbl">${label}</label><textarea id="${id}" rows="${rows||3}" style="width:100%;box-sizing:border-box">${esc(val||'')}</textarea>`;
+  // ta con botón "Rehacer con IA" (regenera SOLO ese campo). idx = índice si el campo
+  // es un arreglo (resumenFinal); null si es texto o arreglo completo (comidaFavor).
+  const ta=(id,label,val,campo,rows,idx)=>`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+    <label class="lbl" style="margin:0">${label}</label>
+    ${campo?`<button class="sm ghost" style="padding:1px 8px;font-size:11px" onclick="rehacerCampo('${campo}','${id}',${idx==null?'null':idx})">🔄 Rehacer con IA</button>`:''}
+    </div><textarea id="${id}" rows="${rows||3}" style="width:100%;box-sizing:border-box">${esc(val||'')}</textarea>`;
   el.innerHTML=`
-    <div class="muted" style="font-size:11px;margin-bottom:6px">Corrige la redacción a tu gusto. Los números y las gráficas NO cambian. Al guardar se re-arma el informe y se actualiza la vista previa.</div>
-    ${ta('ie_ce','Cierre de entrenamiento',d.cierreEntreno)}
-    ${ta('ie_cc','Cierre de comida',d.cierreComida)}
-    ${ta('ie_cm','Cierre de medidas',d.cierreMedidas)}
-    ${ta('ie_rf0','Resumen · lo que hizo bien',rf[0],2)}
-    ${ta('ie_rf1','Resumen · lo que hay que mejorar',rf[1],2)}
-    ${ta('ie_rf2','Resumen · hacia dónde vamos',rf[2],2)}
-    ${ta('ie_pe','Próxima etapa (plan de hábitos)',d.proximaEtapa,4)}
-    ${ta('ie_cf','Comida · a favor (una por línea)',arr(d.comidaFavor))}
-    ${ta('ie_cmj','Comida · a mejorar (una por línea)',arr(d.comidaMejorar))}
+    <div class="muted" style="font-size:11px;margin-bottom:6px">Corrige la redacción a tu gusto, o pulsa <b>🔄 Rehacer con IA</b> para reescribir SOLO ese párrafo. Los números y las gráficas NO cambian. Al guardar se re-arma el informe y se actualiza la vista previa.</div>
+    ${ta('ie_ce','Cierre de entrenamiento',d.cierreEntreno,'cierreEntreno')}
+    ${ta('ie_cc','Cierre de comida',d.cierreComida,'cierreComida')}
+    ${ta('ie_cm','Cierre de medidas',d.cierreMedidas,'cierreMedidas')}
+    ${ta('ie_rf0','Resumen · lo que hizo bien',rf[0],'resumenFinal',2,0)}
+    ${ta('ie_rf1','Resumen · lo que hay que mejorar',rf[1],'resumenFinal',2,1)}
+    ${ta('ie_rf2','Resumen · hacia dónde vamos',rf[2],'resumenFinal',2,2)}
+    ${ta('ie_pe','Próxima etapa (plan de hábitos)',d.proximaEtapa,'proximaEtapa',4)}
+    ${ta('ie_cf','Comida · a favor (una por línea)',arr(d.comidaFavor),'comidaFavor')}
+    ${ta('ie_cmj','Comida · a mejorar (una por línea)',arr(d.comidaMejorar),'comidaMejorar')}
     <div style="margin-top:8px"><button class="sm" onclick="guardarTextosInforme('${SEL||INF_CID||''}')">Guardar cambios de texto</button> <span id="ieMsg" class="muted" style="font-size:12px"></span></div>`;
+}
+async function rehacerCampo(campo,taId,idx){
+  const el=$(taId);if(!el)return;const prev=el.value;el.disabled=true;const ph=el.value;el.value="Rehaciendo con IA… (unos segundos)";
+  const {data,error}=await invokeFn("informe",{body:{action:'regenerar-campo',user_id:(SEL||INF_CID),mes:INF_MES,campo}});
+  el.disabled=false;
+  if(error||(data&&data.error)){el.value=ph;alert((data&&data.error)||error.message);return;}
+  let v=data.valor;
+  if(Array.isArray(v)) v=(idx!=null)?(v[idx]||''):v.join('\n');
+  el.value=(v!=null&&v!=='')?String(v):prev;
+  const m=$("ieMsg");if(m)m.innerHTML="↻ Párrafo reescrito. Revísalo y <b>Guarda</b> si te gusta.";
 }
 async function guardarTextosInforme(id){
   if(!id){id=SEL||INF_CID;}
