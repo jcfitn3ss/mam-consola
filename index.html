@@ -301,7 +301,7 @@ const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Pes
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
 let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],EJU=[],CANON={},RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[],LAZY={};
-let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null;
+let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null,INF_DATOS=null;
 
 const $=id=>document.getElementById(id);
 const show=(id,on)=>$(id).classList.toggle("hide",!on);
@@ -2283,6 +2283,10 @@ async function verCliente(id){
         <div><button class="ghost" onclick="infEnviar('${id}')">✉ Enviar por correo</button></div>
         <div><button class="ghost" onclick="descargarInformePDF()">Ver / descargar PDF</button></div>
       </div>
+      <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+        <button class="sm ghost" onclick="infToggleEditor()">✏️ Editar textos del informe</button>
+        <div id="inf_editor" class="hide" style="margin-top:8px"></div>
+      </div>
       <iframe id="inf_prev" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
     </div></div>`;
 
@@ -2526,6 +2530,38 @@ async function recAddPlan(rid,cli){
 
 // ---------- Informe mensual ----------
 function infPreview(){const f=$("inf_prev");if(f)f.srcdoc=INF_HTML;}
+// ---- EDITAR los textos del informe a mano (corregir la redacción de la IA) ----
+function infToggleEditor(){const el=$("inf_editor");if(!el)return;if(el.classList.contains("hide")){el.classList.remove("hide");infRenderEditor();}else{el.classList.add("hide");}}
+function infRenderEditor(){
+  const el=$("inf_editor");if(!el)return;const d=INF_DATOS||{};
+  if(!d.cierreEntreno&&!Array.isArray(d.resumenFinal)){el.innerHTML='<div class="muted" style="font-size:12px">Genera el informe primero (botón de arriba) para poder editar sus textos.</div>';return;}
+  const rf=Array.isArray(d.resumenFinal)?d.resumenFinal:['','',''];
+  const arr=a=>Array.isArray(a)?a.join('\n'):'';
+  const ta=(id,label,val,rows)=>`<label class="lbl">${label}</label><textarea id="${id}" rows="${rows||3}" style="width:100%;box-sizing:border-box">${esc(val||'')}</textarea>`;
+  el.innerHTML=`
+    <div class="muted" style="font-size:11px;margin-bottom:6px">Corrige la redacción a tu gusto. Los números y las gráficas NO cambian. Al guardar se re-arma el informe y se actualiza la vista previa.</div>
+    ${ta('ie_ce','Cierre de entrenamiento',d.cierreEntreno)}
+    ${ta('ie_cc','Cierre de comida',d.cierreComida)}
+    ${ta('ie_cm','Cierre de medidas',d.cierreMedidas)}
+    ${ta('ie_rf0','Resumen · lo que hizo bien',rf[0],2)}
+    ${ta('ie_rf1','Resumen · lo que hay que mejorar',rf[1],2)}
+    ${ta('ie_rf2','Resumen · hacia dónde vamos',rf[2],2)}
+    ${ta('ie_pe','Próxima etapa (plan de hábitos)',d.proximaEtapa,4)}
+    ${ta('ie_cf','Comida · a favor (una por línea)',arr(d.comidaFavor))}
+    ${ta('ie_cmj','Comida · a mejorar (una por línea)',arr(d.comidaMejorar))}
+    <div style="margin-top:8px"><button class="sm" onclick="guardarTextosInforme('${SEL||INF_CID||''}')">Guardar cambios de texto</button> <span id="ieMsg" class="muted" style="font-size:12px"></span></div>`;
+}
+async function guardarTextosInforme(id){
+  if(!id){id=SEL||INF_CID;}
+  const g=x=>($(x)?$(x).value:'');
+  const lineas=x=>g(x).split('\n').map(s=>s.trim()).filter(Boolean);
+  const campos={cierreEntreno:g('ie_ce'),cierreComida:g('ie_cc'),cierreMedidas:g('ie_cm'),proximaEtapa:g('ie_pe'),resumenFinal:[g('ie_rf0'),g('ie_rf1'),g('ie_rf2')],comidaFavor:lineas('ie_cf'),comidaMejorar:lineas('ie_cmj')};
+  const m=$("ieMsg");if(m)m.textContent="Guardando…";
+  const {data,error}=await invokeFn("informe",{body:{action:'editar',user_id:id,mes:INF_MES,campos}});
+  if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  INF_DATOS=data.datos||INF_DATOS;INF_HTML=data.html||INF_HTML;infPreview();
+  if(m)m.innerHTML="✓ Guardado. Vista previa actualizada."+(data.publicado?" Ya estaba publicado: se actualizó para el cliente.":" Recuerda <b>Publicar</b> para que lo vea el cliente.");
+}
 function renderShots(){const el=$("inf_shots");if(!el)return;el.innerHTML=INF_SHOTS.map((s,i)=>`<div style="width:120px"><img src="${esc(s.url)}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><input data-i="${i}" class="shotNota" placeholder="nota (opcional)" value="${esc(s.nota||'')}" style="font-size:11px;padding:5px"><button class="sm ghost" style="width:100%" onclick="quitarShot(${i})">Quitar</button></div>`).join("");}
 function quitarShot(i){INF_SHOTS.splice(i,1);renderShots();}
 function leerNotas(){document.querySelectorAll(".shotNota").forEach(inp=>{const i=+inp.dataset.i;if(INF_SHOTS[i])INF_SHOTS[i].nota=inp.value;});}
@@ -2576,17 +2612,17 @@ async function generarInforme(id){
   $("infMsg").textContent="Generando informe (datos + IA)…";
   const {data,error}=await invokeFn("informe",{body:{action:"generar",user_id:id}});
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
-  INF_MES=data.mes;INF_HTML=data.html||"";const seg=data.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
+  INF_MES=data.mes;INF_HTML=data.html||"";INF_DATOS=data.datos||null;const seg=data.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
   show("infArea",true);$("inf_seg").value=(Array.isArray(seg.texto)?seg.texto:[]).join("\n");
-  renderShots();infPreview();cargarFotosEditor(id, seg.fotos);$("infMsg").textContent="✓ Generado"+(data.publicado?" (publicado)":" (borrador)");
+  renderShots();infPreview();cargarFotosEditor(id, seg.fotos);const _ie=$("inf_editor");if(_ie&&!_ie.classList.contains("hide"))infRenderEditor();$("infMsg").textContent="✓ Generado"+(data.publicado?" (publicado)":" (borrador)");
 }
 // Auto-carga el informe YA GUARDADO (lectura directa de la tabla, sin gastar IA)
 // para poder Ver / descargar el PDF de una, sin tener que pulsar "Generar".
 async function infCargarGuardado(id){
   try{
-    const {data:fila}=await sb.from("informes").select("mes,html,seguimiento,publicado,generado_en").eq("user_id",id).order("generado_en",{ascending:false}).limit(1).maybeSingle();
+    const {data:fila}=await sb.from("informes").select("mes,html,datos,seguimiento,publicado,generado_en").eq("user_id",id).order("generado_en",{ascending:false}).limit(1).maybeSingle();
     if(!fila||!fila.html)return;
-    INF_MES=fila.mes;INF_HTML=fila.html;const seg=fila.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
+    INF_MES=fila.mes;INF_HTML=fila.html;INF_DATOS=fila.datos||null;const seg=fila.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
     show("infArea",true);const sg=$("inf_seg");if(sg)sg.value=(Array.isArray(seg.texto)?seg.texto:[]).join("\n");
     renderShots();infPreview();cargarFotosEditor(id, seg.fotos);
     const m=$("infMsg");if(m)m.innerHTML=`✓ Informe de ${esc(fila.mes||'')} cargado (${fila.publicado?'publicado':'borrador'}). Puedes <b>Ver / descargar PDF</b> ya, o <b>Generar / actualizar</b> para refrescarlo con los datos de hoy.`;
