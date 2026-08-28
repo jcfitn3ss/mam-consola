@@ -3770,6 +3770,18 @@ function verEjercicios(){
     ${dupHint}
     <div class="row"><div style="flex:1"><label class="lbl">Conservar (queda este)</label><select id="fus_keep">${opsEj()}</select></div><div style="flex:1"><label class="lbl">Fusionar y borrar</label><select id="fus_drop">${opsEj()}</select></div></div>
     <button style="margin-top:8px" onclick="fusionarEj()">Fusionar</button> <span id="fusMsg" class="muted"></span></div>
+   ${(()=>{
+     // Ejercicios SIN tutorial: por nombre único (agrupado), los que NINGÚN duplicado tiene
+     // video. Ayuda a JC a saber cuáles grabar/cargar. Solo lectura; el botón agrega el link.
+     const okv=u=>/^https?:\/\/\S+$/i.test((u||'').trim());
+     const grupos=Object.values(nmap);
+     const conVid=grupos.filter(a=>a.some(e=>okv(e.video_url))).length;
+     const sinVid=grupos.filter(a=>!a.some(e=>okv(e.video_url))).map(a=>a.find(e=>!e.entrenador_id)||a[0]).sort((x,y)=>norm(x.nombre).localeCompare(norm(y.nombre)));
+     return `<div class="card"><h2 style="margin-top:0">🎬 Tutoriales <span class="muted" style="font-size:13px;font-weight:400">· ${conVid} con video · ${sinVid.length} sin video</span></h2>
+       <div class="muted" style="font-size:12px;margin-bottom:8px">Ejercicios (por nombre) que aún NO tienen tutorial. En la app, el botón "Ver tutorial" solo sale si hay link. Toca "+ link" para pegar el YouTube.</div>
+       ${sinVid.length?`<div style="display:flex;flex-direction:column;gap:3px;max-height:340px;overflow:auto">${sinVid.map(e=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--line)"><b style="flex:1;min-width:180px">${esc(cap(e.nombre))}</b><span class="muted" style="font-size:11px">${esc(e.grupo||'')}</span><button class="sm" onclick="editVid('${e.id}')">+ link</button></div>`).join('')}</div>`:`<div style="color:var(--ok);font-size:12px">✅ Todos los ejercicios tienen tutorial.</div>`}
+     </div>`;
+   })()}
    <div class="card"><h2 style="margin-top:0">Biblioteca (${EJ.length})</h2>
      <input id="x_buscar" placeholder="Buscar…" oninput="renderEj()">
      <div id="ejlist"></div></div>`;
@@ -3851,7 +3863,7 @@ async function borrarEjercicio(id){
 async function editVid(id){
   const e=EJ.find(x=>String(x.id)===String(id));const url=prompt("Enlace de YouTube para "+cap(e.nombre),e.video_url||"");if(url===null)return;
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'editar_ejercicio',id:id,campos:{video_url:url.trim()||null}}});
-  if(error||(data&&data.error)){alert((data&&data.error)||error.message);return;}e.video_url=url.trim()||null;renderEj();
+  if(error||(data&&data.error)){alert((data&&data.error)||error.message);return;}e.video_url=url.trim()||null;buildEjUnicos();verEjercicios();
 }
 
 // PARTE 4b: Alimentos base (catálogo oficial MAM · guía de alimentación)
