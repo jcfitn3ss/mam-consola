@@ -3787,17 +3787,18 @@ async function setClasif(id,campo,valor){
 async function addEjercicio(){
   const nom=$("x_nom").value.trim();if(!nom){$("xMsg").textContent="Falta el nombre.";return;}
   $("xMsg").textContent="Guardando…";
-  const {data,error}=await sb.from("ejercicios").insert({entrenador_id:MIID,nombre:nom,grupo:$("x_grupo").value,equipo:$("x_eq").value,rep_min:+$("x_rmin").value||8,rep_max:+$("x_rmax").value||12,rir:+$("x_rir").value||2,video_url:$("x_vid").value.trim()||null}).select();
-  if(error){$("xMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
-  EJ.push(data[0]);EJ.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));$("xMsg").textContent="✓ Agregado.";$("x_nom").value=$("x_vid").value="";renderEj();
+  const ej={nombre:nom,grupo:$("x_grupo").value,equipo:$("x_eq").value,rep_min:+$("x_rmin").value||8,rep_max:+$("x_rmax").value||12,rir:+$("x_rir").value||2,video_url:$("x_vid").value.trim()||null};
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'crear_ejercicio',ejercicio:ej}});
+  if(error||(data&&data.error)){$("xMsg").innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  if(data&&data.ejercicio)EJ.push(data.ejercicio);EJ.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));buildEjUnicos();$("xMsg").textContent="✓ Agregado.";$("x_nom").value=$("x_vid").value="";renderEj();
 }
 async function borrarEjercicio(id){
   const e=EJ.find(x=>String(x.id)===String(id));if(!e)return;
   if(!confirm('¿Borrar "'+cap(e.nombre)+'" de la biblioteca? No se puede deshacer.'))return;
-  const {data,error}=await sb.from("ejercicios").delete().eq("id",id).select();
-  if(error){alert(error.message);return;}
-  if(!data||!data.length){alert('No se pudo borrar: ese ejercicio lo creó otro entrenador (solo puedes borrar los tuyos).');return;}
-  EJ=EJ.filter(x=>String(x.id)!==String(id));renderEj();
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'borrar_ejercicio',id:id}});
+  if(error||(data&&data.error)){alert((data&&data.error)||error.message);return;}
+  if(!data||!data.borrados){alert('No se encontró el ejercicio para borrar.');return;}
+  EJ=EJ.filter(x=>String(x.id)!==String(id));buildEjUnicos();renderEj();
 }
 async function editVid(id){
   const e=EJ.find(x=>String(x.id)===String(id));const url=prompt("Enlace de YouTube para "+cap(e.nombre),e.video_url||"");if(url===null)return;
