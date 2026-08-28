@@ -490,9 +490,9 @@ async function trasLogin(){
   // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
   // Idempotente y silencioso; el botón de "Salud de datos" lo permite correr a mano.
   try{
-    if(!localStorage.getItem('lectura_reparada_v4')){
+    if(!localStorage.getItem('lectura_reparada_v5')){
       const _rep=await invokeFn("migrar-lectura-entrenador",{body:{}});
-      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v4','1');
+      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v5','1');
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
@@ -1818,6 +1818,7 @@ async function verCliente(id){
       <span id="asigMsg" class="muted" style="font-size:12px"></span>`;
   }
   const pm=per.data||{};
+  const cc=pm.cardio_config||{}; // config del cardio pautado (tipo, máquina, ppm, nota…)
   const sm=susc.data||{};
   const susActiva=sm.estado==='activa'&&sm.tier&&sm.tier!=='gratis';
   const susFund=sm.tier==='fundador';
@@ -1847,13 +1848,43 @@ async function verCliente(id){
       <tr><td class="c"><input type="checkbox" ${pm.ver_comida!==false?'checked':''} onchange="setModulo('${id}','ver_comida',this.checked)"></td><td>Pestaña Comida</td><td class="d">Registro de comidas y su plan</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.ver_pasos!==false?'checked':''} onchange="setModulo('${id}','ver_pasos',this.checked)"></td><td>Monitoreo de pasos</td><td class="d">Pasos del día en "Tu mañana"</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.ver_pliegues===true?'checked':''} onchange="setModulo('${id}','ver_pliegues',this.checked)"></td><td>Pliegues (plicómetro)</td><td class="d">7 pliegues + % grasa estimado (automático para atletas)</td></tr>
-      <tr><td class="c"><input type="checkbox" ${pm.cardio_pautado===true?'checked':''} onchange="setModulo('${id}','cardio_pautado',this.checked)"></td><td>Cardio pautado</td><td class="d">Habilita la pestaña Cardio (registra actividad, ppm y tipo)</td></tr>
+      <tr><td class="c"><input type="checkbox" ${pm.cardio_pautado===true?'checked':''} onchange="setModulo('${id}','cardio_pautado',this.checked);document.getElementById('cardioCfg_${id}').style.display=this.checked?'':'none'"></td><td>Cardio pautado</td><td class="d">Habilita la pestaña Cardio (registra actividad, ppm y tipo). Configúralo abajo.</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.edicion_bloqueada===false?'checked':''} onchange="setModulo('${id}','edicion_bloqueada',!this.checked)"></td><td>✏️ Permitir editar calorías</td><td class="d">Por DEFECTO el cliente NO puede cambiar sus calorías, macros, plan ni modo (los defines tú). Marca esto solo si quieres darle permiso para ajustarlos él mismo. Igual sigue registrando su comida normal.</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.respiro_prioritario===true?'checked':''} onchange="setModulo('${id}','respiro_prioritario',this.checked)"></td><td>🫁 Control de impulsos primero</td><td class="d">Para clientes con atracones: al abrir Comida ven PRIMERO el acceso a "Un respiro" (HALT) antes de registrar. Acompañamiento invisible.</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.recetas_publicas===true?'checked':''} onchange="setModulo('${id}','recetas_publicas',this.checked)"></td><td>🍳 Recetas públicas</td><td class="d">Si se marca, las recetas que cree esta persona quedan PÚBLICAS (nativas de la app) y las ven TODOS los clientes. Ideal para María.</td></tr>
       ${MI_PRINCIPAL?`<tr><td class="c"><input type="checkbox" ${pm.moderador===true?'checked':''} onchange="setModulo('${id}','moderador',this.checked)"></td><td>🛡️ Moderador</td><td class="d">Persona de confianza que puede APROBAR los alimentos recomendados y MODERAR (quitar) recetas públicas — desde la app o la consola. Asígnalo a quienes hacen bien las recetas.</td></tr>`:''}
     </tbody></table>
     <span id="modMsg" class="muted" style="font-size:12px"></span>`;
+  // Panel de configuración del cardio pautado. Visible cuando "Cardio pautado" está activo.
+  const cardTipos=['Trote','Caminata','Bici','Elíptica','Escaladora','Remo','Otro'];
+  const cardMomentos=['','Post-entreno','Pre-entreno','En ayunas','Día aparte','Cuando puedas'];
+  h+=`<div id="cardioCfg_${id}" style="${pm.cardio_pautado===true?'':'display:none'};margin-top:12px;border:1px solid var(--rojo);border-radius:10px;padding:14px;background:var(--card2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><b>❤️ Cardio del cliente</b><span class="muted" style="font-size:11px">Solo aparece en la app de este cliente</span></div>
+    <div class="muted" style="font-size:11px;margin-bottom:10px">Define lo que verá pautado. Registrar el cardio siempre es opcional para él.</div>
+    <div class="row">
+      <div style="flex:1"><label class="lbl">Tipo de actividad</label>
+        <select id="cc_tipo_${id}">${cardTipos.map(t=>`<option ${cc.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div style="flex:1"><label class="lbl">Máquina / equipo</label>
+        <input id="cc_maq_${id}" value="${esc(cc.maquina||'')}" placeholder="Caminadora, bici estática…"></div>
+    </div>
+    <div class="row">
+      <div style="flex:1"><label class="lbl">Duración objetivo (min)</label>
+        <input id="cc_min_${id}" type="number" inputmode="numeric" value="${cc.minutos!=null?cc.minutos:''}" placeholder="30"></div>
+      <div style="flex:1"><label class="lbl">Frecuencia / semana</label>
+        <input id="cc_frec_${id}" value="${esc(cc.frecuencia||'')}" placeholder="ej: 3 veces"></div>
+    </div>
+    <div class="row">
+      <div style="flex:1"><label class="lbl">Pulsaciones objetivo · mínimo</label>
+        <input id="cc_ppmin_${id}" type="number" inputmode="numeric" value="${cc.ppmMin!=null?cc.ppmMin:''}" placeholder="130"></div>
+      <div style="flex:1"><label class="lbl">Máximo</label>
+        <input id="cc_ppmax_${id}" type="number" inputmode="numeric" value="${cc.ppmMax!=null?cc.ppmMax:''}" placeholder="145"></div>
+      <div style="flex:1"><label class="lbl">Momento sugerido</label>
+        <select id="cc_mom_${id}">${cardMomentos.map(m=>`<option value="${m}" ${(cc.momento||'')===m?'selected':''}>${m||'—'}</option>`).join('')}</select></div>
+    </div>
+    <label class="lbl">Nota para el cliente (opcional)</label>
+    <textarea id="cc_nota_${id}" placeholder="Ritmo cómodo, que puedas hablar. No fuerces." style="width:100%;min-height:48px;background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:12px;box-sizing:border-box">${esc(cc.nota||'')}</textarea>
+    <div style="margin-top:8px;display:flex;gap:10px;align-items:center"><button onclick="saveCardio('${id}')">Guardar cardio</button><span id="ccMsg_${id}" class="muted" style="font-size:12px"></span></div>
+  </div>`;
   h+=`</div><div class="card"><h2 style="margin-top:0">Nivel y progresión</h2>`;
   const NIVCOL={principiante:'var(--ok)',intermedio:'var(--warn)',avanzado:'var(--rojo)'};
   const nivBadge=(n)=>(n&&n!=='—')?`<span class="pill" style="background:${NIVCOL[n]||'#444'};color:#000;font-weight:700;font-size:13px">${cap(n)}</span>`:`<span class="muted" style="font-size:13px">— sin fijar —</span>`;
@@ -3489,6 +3520,15 @@ async function guardarAtleta(id){
   $("aMsg").innerHTML=e?`<span class="alert">${esc(e)}</span>`:"✓ Guardado.";
 }
 async function setModulo(id,campo,val){const r=await invokeFn("consola-rutina",{body:{action:'set_perfil',cliente:id,campos:{[campo]:val}}});const m=$("modMsg");if(m)m.textContent=r.error?("Error: "+r.error.message):("✓ Guardado");}
+// Guarda la CONFIG del cardio pautado (JSON en perfiles.cardio_config) + asegura el toggle on.
+async function saveCardio(id){
+  const g=s=>{const el=document.getElementById(s+'_'+id);return el?el.value.trim():'';};
+  const n=s=>{const v=g(s);return v!==''&&!isNaN(Number(v))?Math.round(Number(v)):null;};
+  const cfg={tipo:g('cc_tipo')||null,maquina:g('cc_maq')||null,minutos:n('cc_min'),frecuencia:g('cc_frec')||null,momento:g('cc_mom')||null,ppmMin:n('cc_ppmin'),ppmMax:n('cc_ppmax'),nota:g('cc_nota')||null};
+  const msg=document.getElementById('ccMsg_'+id);if(msg)msg.textContent='Guardando…';
+  const r=await invokeFn("consola-rutina",{body:{action:'set_perfil',cliente:id,campos:{cardio_pautado:true,cardio_config:cfg}}});
+  if(msg)msg.textContent=r.error?("Error: "+r.error.message):("✓ Cardio guardado");
+}
 // Restablece la contraseña de un cliente SIN depender del correo (que se limita a
 // 2/hora). Usa la función segura entrenador_reset_password (solo entrenador principal).
 async function resetClave(id){
