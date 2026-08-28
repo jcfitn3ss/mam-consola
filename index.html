@@ -2863,12 +2863,12 @@ const PLAN_COMPUESTOS={
 function planCanon(nombre){return PLAN_SINONIMOS[planNorm(nombre)]||nombre;}
 async function planCargarCatalogo(id){
   const [base,prop]=await Promise.all([
-    sb.from("alimentos_base").select("nombre,marca,k,p,c,f,porcion_g").eq("activo",true).eq("aprobado",true),
+    sb.from("alimentos_base").select("nombre,marca,k,p,c,f,porcion_g,unidad").eq("activo",true).eq("aprobado",true),
     sb.from("alimentos_propios").select("nombre,k,p,c,f").eq("user_id",id)
   ]);
   PLAN_CATMAP=new Map();
-  // pg = gramos por UNIDAD (ej. huevo 50 g). Si lo tiene, el alimento va por unidad.
-  const add=a=>{const n=planNorm(a.nombre);if(n&&!PLAN_CATMAP.has(n))PLAN_CATMAP.set(n,{nombre:a.nombre,marca:a.marca||'',k:+a.k||0,p:+a.p||0,c:+a.c||0,f:+a.f||0,pg:+a.porcion_g||0});};
+  // pg = gramos por UNIDAD (ej. huevo 50 g). uni = unidad guardada ('g'|'ml'|'unidad').
+  const add=a=>{const n=planNorm(a.nombre);if(n&&!PLAN_CATMAP.has(n))PLAN_CATMAP.set(n,{nombre:a.nombre,marca:a.marca||'',k:+a.k||0,p:+a.p||0,c:+a.c||0,f:+a.f||0,pg:+a.porcion_g||0,uni:a.unidad||''});};
   (base.data||[]).forEach(add);(prop.data||[]).forEach(add);
   PLAN_CATNAMES=[...PLAN_CATMAP.values()].map(x=>x.nombre).sort((a,b)=>a.localeCompare(b));
 }
@@ -2932,8 +2932,15 @@ function planCatDe(nombre){
   for(const [k,v] of PLAN_CATMAP){const s=planMatchScore(n,k,qt);if(s>bs){bs=s;best=v;}}
   return bs>=0?best:null;
 }
-// ¿El alimento va por UNIDAD? (tiene porcion_g en el banco, ej. huevo)
-function planEsUnidad(nombre){const c=planCatDe(nombre);return !!(c&&c.pg>0);}
+// Líquido (leche/lácteos líquidos, jugo, bebida…) SALVO "en polvo". → mililitros.
+const RX_LIQ_PLANC=/\b(leche|kumis|jugo|zumo|bebida|malteada|batido|smoothie|licuado|yogur\s+beb|kefir)\b/i;
+function planEsLiquido(nombre){return RX_LIQ_PLANC.test(nombre||"")&&!/en\s+polvo/i.test(nombre||"");}
+function planEsClara(nombre){return /clara/i.test(nombre||"");}
+// ¿El alimento va por UNIDAD? Solo discretos (huevo entero, fruta, pan de molde): tiene
+// porcion_g Y NO es líquido NI clara. Respeta la unidad guardada del catálogo (uni).
+function planEsUnidad(nombre){const c=planCatDe(nombre);if(c&&c.uni==='unidad')return true;if(c&&(c.uni==='ml'||c.uni==='g'))return false;return !!(c&&c.pg>0)&&!planEsLiquido(nombre)&&!planEsClara(nombre);}
+// ¿Se muestra/edita en mililitros? Unidad guardada 'ml', o es líquido por nombre.
+function planEsMl(nombre){const c=planCatDe(nombre);if(c&&c.uni==='ml')return true;if(c&&(c.uni==='g'||c.uni==='unidad'))return false;return planEsLiquido(nombre);}
 // Gramos efectivos de una fila: gramos directos, o unidades × porcion_g.
 function planGramosDe(f){const c=planCatDe(f.nombre);if(+f.gramos>0)return +f.gramos;if(+f.unidades>0&&c&&c.pg>0)return (+f.unidades)*c.pg;return 0;}
 // Macros de un alimento según su gramaje, mirando el catálogo por 100 g.
@@ -3027,15 +3034,15 @@ function planRenderEditor(){
           </span>
         </div>`;
       (c.foods||[]).forEach((f,fi)=>{
-        const esU=planEsUnidad(f.nombre);const cat=planCatDe(f.nombre);
-        const valU=esU?((+f.unidades||(cat&&cat.pg?Math.round((+f.gramos||0)/cat.pg):0))||0):(Math.round(+f.gramos||0));
+        const esU=planEsUnidad(f.nombre);const cat=planCatDe(f.nombre);const esMl=planEsMl(f.nombre);
+        const valU=esU?((+f.unidades||(cat&&cat.pg?Math.round((+f.gramos||0)/cat.pg):0))||0):(Math.round(planGramosDe(f)||+f.gramos||0));
         // Solo un aviso discreto si el alimento NO se encontró (no aporta macros).
         // El resto se edita igual que siempre: el nombre es libre y editable.
         const hint=cat?'':`<span style="color:var(--warn);font-size:10px;white-space:nowrap" title="No está en el catálogo: no aporta macros. Cámbialo por uno del catálogo o revisa el nombre">⚠ sin dato</span>`;
         h+=`<div style="display:flex;gap:6px;align-items:center;margin:3px 0;flex-wrap:wrap">
           <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;min-width:120px;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
           <input type="number" min="0" step="${esU?'1':'1'}" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
-          <span class="muted" style="font-size:11px">${esU?'unid':'g'}</span>
+          <span class="muted" style="font-size:11px">${esU?'unid':(esMl?'ml':'g')}</span>
           <span id="foodk-${di}-${ci}-${fi}" class="muted" style="font-size:11px;width:64px;text-align:right"></span>
           ${hint}
           <button class="sm ghost" onclick="planFoodDel(${di},${ci},${fi})" title="Quitar alimento" style="margin:0">×</button>
@@ -3106,11 +3113,12 @@ function planRecoger(){
       const fs=(c.foods||[]).filter(f=>(f.nombre||"").trim());
       c.alimentos=fs.map(f=>{
         const cat=planCatDe(f.nombre);
-        if(cat&&cat.pg>0){ // por UNIDAD (ej. huevo): guardamos "N unidades"
+        if(planEsUnidad(f.nombre)&&cat&&cat.pg>0){ // discreto (huevo/fruta/pan): "N unidades"
           let u=+f.unidades||0; if(!u&&+f.gramos>0)u=Math.round((+f.gramos)/cat.pg);
           return `${u} ${u===1?'unidad':'unidades'} ${f.nombre.trim()}`;
         }
-        return `${Math.round(+f.gramos||0)} g ${f.nombre.trim()}`;
+        if(planEsMl(f.nombre)) return `${Math.round(+f.gramos||0)} ml ${f.nombre.trim()}`; // leche/líquidos en ml
+        return `${Math.round(+f.gramos||0)} g ${f.nombre.trim()}`; // resto (incl. clara) en gramos
       }).join(" + ");
       const mt=planMealTot(c);c.kcal=Math.round(mt.k);c.prot=Math.round(mt.p);c.carb=Math.round(mt.c);c.fat=Math.round(mt.f);
     });
