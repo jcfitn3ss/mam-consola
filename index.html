@@ -3030,7 +3030,11 @@ const RX_INSTRUCCION=/\b(licu|mezcl|bat[ié]|hornea|coc(?:in|er|é)|hierv|hervir
 function planEsInstruccion(s){return RX_INSTRUCCION.test(s)&&s.split(/\s+/).length>=2;}
 function planSoloAlimento(seg){const partes=seg.split(/\.(?=\s|$)/).map(p=>p.trim()).filter(Boolean);return (partes.find(p=>!planEsInstruccion(p))||"").trim();}
 function planParseFoods(txt){
-  const limpio=(txt||"").replace(/\([^)]*\)/g,' '); // quita "(tomate, pepino)" antes de partir
+  // Limpia CONTAMINACIÓN de estructura que a veces mete la IA: "|" (separador de bloque)
+  // y prefijos de momento ("Desayuno:", "Almuerzo:"…) colados como alimento.
+  const limpio=(txt||"").replace(/\([^)]*\)/g,' ') // quita "(tomate, pepino)" antes de partir
+    .replace(/[|;]+/g,' + ')
+    .replace(/\b(desayuno|media\s*ma(?:ñ|n)ana|almuerzo|comida(?:\s*\d+)?|merienda|tarde|noche|cena|snack|pre[\s-]*entreno|post[\s-]*entreno)\s*:/gi,' ');
   const out=[];
   limpio.split(/\s*\+\s*|\n|;/).map(s=>planSoloAlimento(s.trim())).filter(Boolean).forEach(seg=>{
     let gramos=0,unidades=0;
