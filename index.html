@@ -3032,7 +3032,11 @@ function planSoloAlimento(seg){const partes=seg.split(/\.(?=\s|$)/).map(p=>p.tri
 function planParseFoods(txt){
   // Limpia CONTAMINACIÓN de estructura que a veces mete la IA: "|" (separador de bloque)
   // y prefijos de momento ("Desayuno:", "Almuerzo:"…) colados como alimento.
-  const limpio=(txt||"").replace(/\([^)]*\)/g,' ') // quita "(tomate, pepino)" antes de partir
+  // Inserta "+" entre alimentos pegados (la IA a veces no lo pone: "Huevo 3 unidades Arepa
+  // 30 g Aguacate 20 g") ANTES de quitar paréntesis y partir.
+  const limpio=(txt||"")
+    .replace(/(\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidades?|und?|u)\b(?:\s*\([^)]*\))?)\s+(?=[A-ZÁÉÍÓÚÑ])/g,'$1 + ')
+    .replace(/\([^)]*\)/g,' ') // quita "(tomate, pepino)" antes de partir
     .replace(/[|;]+/g,' + ')
     .replace(/\b(desayuno|media\s*ma(?:ñ|n)ana|almuerzo|comida(?:\s*\d+)?|merienda|tarde|noche|cena|snack|pre[\s-]*entreno|post[\s-]*entreno)\s*:/gi,' ');
   const out=[];
