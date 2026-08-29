@@ -3821,9 +3821,34 @@ function renderEj(){
      <div class="row"><div><label class="lbl">Grupo</label><select id="ee_grupo">${GRUPOS.map(g=>`<option ${g===e.grupo?'selected':''}>${g}</option>`).join("")}</select></div><div><label class="lbl">Equipo</label><select id="ee_eq">${EQUIPOS.map(x=>`<option ${x===(e.equipo||'')?'selected':''}>${x}</option>`).join("")}</select></div></div>
      <div class="row"><div><label class="lbl">Reps min</label><input id="ee_rmin" type="number" value="${e.rep_min??8}"></div><div><label class="lbl">Reps max</label><input id="ee_rmax" type="number" value="${e.rep_max??12}"></div><div><label class="lbl">RIR</label><input id="ee_rir" type="number" value="${e.rir??2}"></div></div>
      <label class="lbl">Enlace de YouTube</label><input id="ee_vid" value="${esc(e.video_url||'')}">
+     <div class="muted" style="font-size:11px;margin:6px 0 3px">…o sube un <b>video propio (mp4/mov)</b>: se reproduce dentro de la app <b>sin ninguna marca de YouTube</b> y con autoplay.</div>
+     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="ee_file" accept="video/mp4,video/quicktime,video/*" style="flex:1;min-width:150px"><button class="sm" onclick="subirVideoEj('${e.id}')">⤴ Subir video</button><span id="eeVidMsg" class="muted" style="font-size:11px"></span></div>
      <div style="margin-top:8px"><button onclick="guardarEjEdit('${e.id}')">Guardar cambios</button> <button class="ghost" onclick="EJ_EDIT=null;renderEj()">Cancelar</button> <span id="eeMsg" class="muted"></span></div>
    </td></tr>`;
   $("ejlist").innerHTML=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Reps · RIR</th><th>Acciones</th></tr>${list.map(e=>`<tr><td>${esc(cap(e.nombre))}</td><td class="muted">${esc(e.grupo||'')}</td><td class="muted">${e.rep_min??'-'}-${e.rep_max??'-'} · RIR ${e.rir??'-'}</td><td><button class="sm ghost" onclick="EJ_EDIT=(EJ_EDIT==='${e.id}'?null:'${e.id}');renderEj()">✏️ Editar</button> <button class="sm ghost" onclick="editVid('${e.id}')">${e.video_url?'🎬':'+ link'}</button> <button class="sm ghost" onclick="borrarEjercicio('${e.id}')" title="Borrar">🗑</button></td></tr>${EJ_EDIT===String(e.id)?editForm(e):''}`).join("")}</table>`;
+}
+// Sube un video PROPIO (mp4/mov) al bucket público videos-ejercicios y lo vincula al
+// ejercicio (video_url). En la app se reproduce con el reproductor nativo (expo-av) →
+// SIN marca de YouTube y con autoplay. La URL pública termina en .mp4/.mov, que es lo
+// que la app usa para elegir el reproductor nativo en vez del de YouTube.
+async function subirVideoEj(id){
+  const inp=$('ee_file'); const f=inp&&inp.files&&inp.files[0]; const msg=$('eeVidMsg');
+  if(!f){if(msg)msg.textContent='Elige un archivo de video primero.';return;}
+  if(f.size>80*1024*1024){if(msg)msg.innerHTML='<span class="alert">Video muy grande (máx ~80 MB). Usa un clip más corto o comprímelo.</span>';return;}
+  if(msg)msg.textContent='Subiendo… no cierres esta ventana.';
+  try{
+    const ext=((f.name.split('.').pop()||'mp4').toLowerCase().replace(/[^a-z0-9]/g,''))||'mp4';
+    const ruta=`${MIID}/${Date.now()}-${Math.round(Math.random()*1e6)}.${ext}`;
+    const {error:upErr}=await sb.storage.from('videos-ejercicios').upload(ruta,f,{upsert:true,contentType:f.type||('video/'+(ext==='mov'?'quicktime':ext))});
+    if(upErr)throw upErr;
+    const url=sb.storage.from('videos-ejercicios').getPublicUrl(ruta).data.publicUrl;
+    const {data,error}=await invokeFn('consola-rutina',{body:{action:'editar_ejercicio',id:id,campos:{video_url:url}}});
+    if(error||(data&&data.error))throw new Error((data&&data.error)||error.message);
+    const e=EJ.find(x=>String(x.id)===String(id));if(e)e.video_url=url;
+    if($('ee_vid'))$('ee_vid').value=url;
+    buildEjUnicos();
+    if(msg)msg.innerHTML='<span style="color:var(--ok)">✓ Video subido y vinculado. Ya sale en la app.</span>';
+  }catch(err){if(msg)msg.innerHTML=`<span class="alert">${esc(err&&err.message||String(err))}</span>`;}
 }
 // Guarda TODOS los campos editables de un ejercicio (solo los que creó este entrenador; RLS).
 async function guardarEjEdit(id){
