@@ -2190,7 +2190,12 @@ async function verCliente(id){
    <input id="rc_nom" placeholder="Nombre (ej: Bowl de pollo y arroz)">
    <div id="rc_ings" style="margin-top:6px"></div>
    <div class="row" style="margin-top:4px"><div><button class="sm ghost" onclick="rcAddRow()">+ Ingrediente</button></div><div><button class="sm" onclick="rcCalcular()">Calcular calorías</button></div><div><span id="rcMsg" class="muted"></span></div></div>
-   <div id="rc_res" style="margin-top:8px"></div>`;
+   <div id="rc_res" style="margin-top:8px"></div>
+   <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px"><h3 style="margin:0 0 4px">📥 Importar recetas en lote</h3>
+     <div class="muted" style="font-size:12px;margin-bottom:6px">Pega varias recetas y se cargan todas de una. Por receta: primera línea el <b>nombre</b> (opcional "— dulce/salado"), y luego líneas <b>Tipo:</b>, <b>Ingredientes:</b>, <b>Preparación:</b>, <b>Macros:</b>. Separa cada receta con una línea en blanco. Si no pones Macros, se calculan de los ingredientes con el banco.</div>
+     <textarea id="imp_recetas" rows="6" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px" placeholder="Bowl de avena y banano — dulce&#10;Tipo: Desayuno&#10;Ingredientes: 80 g de avena; 30 g de proteína; 100 g de banano&#10;Preparación: Mezcla y cocina.&#10;Macros: 380 kcal G7 C48 P30&#10;&#10;Otra receta — salado&#10;Tipo: Almuerzo&#10;Ingredientes: 150 g de pechuga de pollo; 200 g de arroz&#10;Preparación: ..."></textarea>
+     <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
+   </div>`;
   // Journal
   h+=`<h3>Journal reciente (personal)</h3>`;
   h+=J.length?J.map(j=>`<div style="border-left:2px solid var(--line);padding-left:10px;margin:6px 0"><div class="muted" style="font-size:11px">${esc(j.fecha)}</div>${esc(j.texto)}</div>`).join(""):`<div class="muted">Sin entradas.</div>`;
@@ -3319,6 +3324,40 @@ function recetaAdd(i){const a=REGALIM[i];if(a){RECETA.push({...a});recetaRender(
 function recetaQuitar(i){RECETA.splice(i,1);recetaRender();}
 function recetaRender(){const el=$("recBuild");if(!el)return;if(!RECETA.length){el.innerHTML='<div class="muted" style="font-size:12px">Nada agregado aún.</div>';return;}const t=RECETA.reduce((a,x)=>({k:a.k+x.k,p:a.p+x.p,c:a.c+x.c,f:a.f+x.f}),{k:0,p:0,c:0,f:0});el.innerHTML=RECETA.map((x,i)=>`<div class="fila"><span>${esc(x.desc)}</span><span class="muted">${Math.round(x.k)}k P${Math.round(x.p)}/C${Math.round(x.c)}/G${Math.round(x.f)} <button class="sm ghost" onclick="recetaQuitar(${i})">×</button></span></div>`).join("")+`<div class="fila"><b>Total</b><b>${Math.round(t.k)} kcal · P${Math.round(t.p)}/C${Math.round(t.c)}/G${Math.round(t.f)}</b></div>`;}
 async function guardarRecetaInteractiva(){const nom=$("r_nom").value.trim();if(!nom){$("recMsg").textContent="Falta el nombre.";return;}if(!RECETA.length){$("recMsg").textContent="Agrega alimentos.";return;}const t=RECETA.reduce((a,x)=>({k:a.k+x.k,p:a.p+x.p,c:a.c+x.c,f:a.f+x.f}),{k:0,p:0,c:0,f:0});const ing=RECETA.map(x=>x.desc).join(", ");$("recMsg").textContent="Guardando…";const {error}=await sb.from("recetas").insert({owner:MIID,nombre:nom,ingredientes:ing,tipo:"Almuerzo",kcal:Math.round(t.k),prot:Math.round(t.p),carb:Math.round(t.c),fat:Math.round(t.f),comunidad:false});if(error){$("recMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}$("recMsg").textContent="✓ Receta guardada.";RECETA=[];$("r_nom").value="";recetaRender();}
+// Importa VARIAS recetas pegadas (herramienta genérica). Cada bloque (separado por línea en
+// blanco): 1ª línea nombre (opcional "— dulce/salado"); líneas Tipo:/Ingredientes:/Preparación:/Macros:.
+// Si no hay Macros, se calculan de los ingredientes con el banco (planFoodMacros).
+async function importarRecetasLote(){
+  const txt=($("imp_recetas").value||"").trim(); const msg=$("impMsg"); const com=$("imp_com")?$("imp_com").checked:true;
+  if(!txt){if(msg)msg.textContent="Pega al menos una receta.";return;}
+  if(msg)msg.textContent="Procesando…";
+  try{ if(SEL) await planCargarCatalogo(SEL); }catch(_){}
+  const TIPOS={desayuno:"Desayuno",almuerzo:"Almuerzo",cena:"Cena",snack:"Snack",postre:"Snack",merienda:"Snack",bocadillo:"Snack"};
+  const bloques=txt.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
+  const out=[];
+  for(const b of bloques){
+    const ls=b.split(/\n/).map(l=>l.trim()).filter(Boolean); if(!ls.length)continue;
+    let nombre=ls[0].replace(/^#+\s*/,"").replace(/^\d+[\.\)]\s*/,"");
+    let sabor=null; const sm=nombre.match(/[—-]\s*(dulce|salado)\s*$/i); if(sm){sabor=sm[1].toLowerCase();nombre=nombre.replace(/[—-]\s*(dulce|salado)\s*$/i,"").trim();}
+    let tipo="Almuerzo",ing="",pasos="",kcal=0,prot=0,carb=0,fat=0;
+    for(const l of ls.slice(1)){
+      let m;
+      if((m=l.match(/^tipo\s*:\s*(.+)/i))){const k=m[1].trim().toLowerCase();tipo=TIPOS[k]||m[1].trim();continue;}
+      if((m=l.match(/^ingredientes?\s*:\s*(.+)/i))){ing=m[1].trim();continue;}
+      if((m=l.match(/^(?:preparaci[oó]n|pasos?|instrucciones?)\s*:\s*(.+)/i))){pasos=(pasos?pasos+" ":"")+m[1].trim();continue;}
+      if((m=l.match(/^macros?\s*:\s*(.+)/i))){const s=m[1];let g;if((g=s.match(/(\d+(?:[.,]\d+)?)\s*kcal/i)))kcal=Math.round(parseFloat(g[1].replace(",",".")));if((g=s.match(/\bG\s*(\d+(?:[.,]\d+)?)/i)))fat=Math.round(parseFloat(g[1].replace(",",".")));if((g=s.match(/\bC\s*(\d+(?:[.,]\d+)?)/i)))carb=Math.round(parseFloat(g[1].replace(",",".")));if((g=s.match(/\bP\s*(\d+(?:[.,]\d+)?)/i)))prot=Math.round(parseFloat(g[1].replace(",",".")));continue;}
+      pasos=(pasos?pasos+" ":"")+l;
+    }
+    if(!nombre||(!ing&&!pasos))continue;
+    const items=planParseFoods(ing);
+    if(!kcal){let t={k:0,p:0,c:0,f:0};items.forEach(f=>{const mm=planFoodMacros(f);t.k+=mm.k;t.p+=mm.p;t.c+=mm.c;t.f+=mm.f;});kcal=Math.round(t.k);prot=Math.round(t.p);carb=Math.round(t.c);fat=Math.round(t.f);}
+    out.push({owner:MIID,nombre,tipo,ingredientes:ing,pasos,kcal,prot,carb,fat,comunidad:com,ingredientes_json:{sabor,items:items.map(f=>({nombre:f.nombre,gramos:f.gramos||0,unidades:f.unidades||0}))}});
+  }
+  if(!out.length){if(msg)msg.textContent="No reconocí ninguna receta. Revisa el formato.";return;}
+  const {data,error}=await sb.from("recetas").insert(out).select("id");
+  if(error){if(msg)msg.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  if(msg)msg.innerHTML=`<span style="color:var(--ok)">✓ ${data.length} recetas cargadas al recetario.</span>`; $("imp_recetas").value="";
+}
 
 // Catálogo CANÓNICO ÚNICO: la biblioteca trae copias por entrenador y duplicados,
 // así que la consola mostraba cada ejercicio 2-4 veces. Aquí construimos EJU (un
