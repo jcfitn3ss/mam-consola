@@ -3328,7 +3328,9 @@ async function guardarRecetaInteractiva(){const nom=$("r_nom").value.trim();if(!
 // blanco): 1ª línea nombre (opcional "— dulce/salado"); líneas Tipo:/Ingredientes:/Preparación:/Macros:.
 // Si no hay Macros, se calculan de los ingredientes con el banco (planFoodMacros).
 async function importarRecetasLote(){
-  const txt=($("imp_recetas").value||"").trim(); const msg=$("impMsg"); const com=$("imp_com")?$("imp_com").checked:true;
+  const msg=$("impMsg");
+  try{
+  const txt=($("imp_recetas").value||"").trim(); const com=$("imp_com")?$("imp_com").checked:true;
   if(!txt){if(msg)msg.textContent="Pega al menos una receta.";return;}
   if(msg)msg.textContent="Procesando…";
   try{ if(SEL) await planCargarCatalogo(SEL); }catch(_){}
@@ -3366,10 +3368,11 @@ async function importarRecetasLote(){
     if(!kcal){let t={k:0,p:0,c:0,f:0};items.forEach(f=>{const mm=planFoodMacros(f);t.k+=mm.k;t.p+=mm.p;t.c+=mm.c;t.f+=mm.f;});kcal=Math.round(t.k);prot=Math.round(t.p);carb=Math.round(t.c);fat=Math.round(t.f);}
     out.push({owner:MIID,nombre,tipo:b.tipo,ingredientes:ing||src.slice(0,300),pasos:(pasos||"").slice(0,600),kcal,prot,carb,fat,comunidad:com,ingredientes_json:{sabor,items:items.map(f=>({nombre:f.nombre,gramos:f.gramos||0,unidades:f.unidades||0}))}});
   }
-  if(!out.length){if(msg)msg.textContent="No reconocí ninguna receta. Revisa el formato.";return;}
-  const {data,error}=await sb.from("recetas").insert(out).select("id");
-  if(error){if(msg)msg.innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
-  if(msg)msg.innerHTML=`<span style="color:var(--ok)">✓ ${data.length} recetas cargadas al recetario.</span>`; $("imp_recetas").value="";
+  if(!out.length){if(msg)msg.textContent="No reconocí ninguna receta. Revisa el formato (que cada receta empiece con número y punto).";return;}
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'crear_recetas',recetas:out}});
+  if(error||(data&&data.error)){if(msg)msg.innerHTML=`<span class="alert">${esc((data&&data.error)||(error&&error.message)||'Error al cargar')}</span>`;return;}
+  if(msg)msg.innerHTML=`<span style="color:var(--ok)">✓ ${(data&&data.n)||out.length} recetas cargadas al recetario.</span>`; $("imp_recetas").value="";
+  }catch(e){ if(msg)msg.innerHTML=`<span class="alert">Error: ${esc((e&&e.message)||String(e))}</span>`; }
 }
 
 // Catálogo CANÓNICO ÚNICO: la biblioteca trae copias por entrenador y duplicados,
