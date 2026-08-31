@@ -4137,23 +4137,43 @@ async function verAlimentos(){
    <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
    ${RECS.length?`<div style="margin-top:12px;max-height:460px;overflow:auto;border-top:1px solid var(--line);padding-top:8px">${RECS.map(r=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(cap(r.nombre))} <span class="muted" style="font-size:11px">· ${esc(r.tipo||'')} · ${r.kcal||0} kcal</span></span><span style="display:flex;gap:4px;flex:0 0 auto"><button class="sm ghost" onclick="editarRecetaPub('${r.id}')">✏️ Editar</button><button class="sm ghost" onclick="borrarRecetaPub('${r.id}')" title="Borrar">🗑</button></span></div>${REC_EDIT===String(r.id)?recetaEditorHTML(r):''}</div>`).join('')}</div>`:''}
   </div>`;
-  let h=recCard+`<div class="card"><h2 style="margin-top:0">Alimentos recomendados${AB_REC.length?` <span style="color:#c0392b">(${AB_REC.length})</span>`:` (0)`}</h2>
+  // ===== Fragmentos de cada sub-pestaña =====
+  const abrecCard=`<div class="card"><h2 style="margin-top:0">Alimentos recomendados${AB_REC.length?` <span style="color:#c0392b">(${AB_REC.length})</span>`:` (0)`}</h2>
    <div class="muted" style="margin-bottom:6px">Alimentos que los clientes sugirieron leyendo la etiqueta. Revisa el nombre, los macros por 100 g y la porción. <b>Aprobar</b> lo pasa al catálogo oficial (todos lo verán al buscar); <b>Rechazar</b> lo descarta.</div>
-   <div id="abreclist"></div></div>
-   <div class="card"><h2 style="margin-top:0">Nuevo alimento</h2>
+   <div id="abreclist"></div></div>`;
+  const nuevoCard=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">Nuevo alimento</h2><button class="sm ghost" id="nuevoAlimToggle" onclick="toggleNuevoAlim()">＋ Abrir</button></div>
+   <div id="nuevoAlimBox" style="display:none;margin-top:10px">
    <div class="muted" style="margin-bottom:6px" id="a_hint100">Valores <b>por 100 g</b>, igual que la guía. El cliente lo verá primero al buscar (etiqueta <b>Oficial MAM</b>). Si dejas las kcal en blanco se calculan solas (P×4 + C×4 + G×9).</div>
    <div class="row"><div style="flex:2"><label class="lbl">Nombre</label><input id="a_nom" placeholder="Nombre tal cual (ej: Pechuga de pollo)" oninput="abUnidadHint()"></div><div style="flex:1"><label class="lbl">Marca (opcional)</label><input id="a_marca" placeholder="—"></div></div>
    <div class="row"><div><label class="lbl">Categoría</label><select id="a_cat">${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select></div><div><label class="lbl">Se mide en</label><select id="a_unidad" onchange="abUnidadHint(true)"><option value="g">Gramos (g)</option><option value="ml">Mililitros (ml)</option><option value="unidad">Unidad (huevo, fruta…)</option></select></div></div>
    <div class="row"><div><label class="lbl">Proteína (g)</label><input id="a_p" type="number" step="0.1" value="0"></div><div><label class="lbl">Carbohidrato (g)</label><input id="a_c" type="number" step="0.1" value="0"></div><div><label class="lbl">Grasa (g)</label><input id="a_f" type="number" step="0.1" value="0"></div><div><label class="lbl">Kcal (opcional)</label><input id="a_k" type="number" step="0.1" placeholder="auto"></div></div>
    <div class="row"><div><label class="lbl" id="a_pglbl">Porción (g)</label><input id="a_pg" type="number" step="1" placeholder="—"></div><div><label class="lbl">Fibra (g)</label><input id="a_fib" type="number" step="0.1" placeholder="—"></div><div><label class="lbl">Azúcar (g)</label><input id="a_az" type="number" step="0.1" placeholder="—"></div><div><label class="lbl">Sodio (mg)</label><input id="a_sod" type="number" step="1" placeholder="—"></div></div>
-   <button style="margin-top:8px" onclick="addAlimento()">Agregar al catálogo</button> <span id="aMsg" class="muted"></span></div>
-   <div class="card"><h2 style="margin-top:0">Catálogo oficial (${AB.length})</h2>
+   <button style="margin-top:8px" onclick="addAlimento()">Agregar al catálogo</button> <span id="aMsg" class="muted"></span></div></div>`;
+  const catCard=`<div class="card"><h2 style="margin-top:0">Catálogo oficial (${AB.length})</h2>
      <input id="a_buscar" placeholder="Buscar…" oninput="renderAB()">
      <select id="a_fcat" onchange="renderAB()"><option value="">Todas las categorías</option>${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
      <div id="ablist"></div></div>`;
-  $("v-alimentos").innerHTML=h;renderABRec();renderAB();
-  if(REC_EDIT)try{recEditRecalc(REC_EDIT);}catch(_){}
+
+  // ===== Sub-navegación =====
+  const nCat=AB.length,nRec=AB_REC.length,nRecetas=RECS.length;
+  const stab=(t,label,extra='')=>`<button onclick="alTab('${t}')" style="padding:7px 13px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--line);${ALTAB===t?'background:#B51718;color:#fff;border-color:#B51718':'background:var(--card2);color:var(--muted)'}">${label}${extra}</button>`;
+  const pill=n=>n?` <span style="background:rgba(224,184,74,.22);color:#e0b84a;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px">${n}</span>`:'';
+  const nav=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${stab('cat','🥗 Catálogo ('+nCat+')')}${stab('aprobar','⏳ Por aprobar',pill(nRec))}${stab('recetas','🍳 Recetario ('+nRecetas+')')}</div>`;
+
+  let body;
+  if(ALTAB==='aprobar')body=abrecCard;
+  else if(ALTAB==='recetas')body=recCard;
+  else body=nuevoCard+catCard;
+
+  $("v-alimentos").innerHTML=nav+body;
+  if(ALTAB==='aprobar')renderABRec();
+  if(ALTAB==='cat')renderAB();
+  if(ALTAB==='recetas'&&REC_EDIT)try{recEditRecalc(REC_EDIT);}catch(_){}
 }
+// ===== Sub-pestañas de Alimentos (Catálogo / Por aprobar / Recetario) =====
+let ALTAB='cat';
+function alTab(t){ ALTAB=t; verAlimentos(); }
+function toggleNuevoAlim(){ const b=$("nuevoAlimBox"),t=$("nuevoAlimToggle"); if(!b)return; const open=b.style.display==='none'; b.style.display=open?'block':'none'; if(t)t.textContent=open?'× Cerrar':'＋ Abrir'; }
 // ===== Editor de receta por INGREDIENTES (dropdown del banco + suma de macros en vivo) =====
 let REC_EDIT=null;
 function editarRecetaPub(id){ REC_EDIT=(REC_EDIT===String(id)?null:String(id)); verAlimentos(); }
