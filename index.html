@@ -2190,12 +2190,7 @@ async function verCliente(id){
    <input id="rc_nom" placeholder="Nombre (ej: Bowl de pollo y arroz)">
    <div id="rc_ings" style="margin-top:6px"></div>
    <div class="row" style="margin-top:4px"><div><button class="sm ghost" onclick="rcAddRow()">+ Ingrediente</button></div><div><button class="sm" onclick="rcCalcular()">Calcular calorías</button></div><div><span id="rcMsg" class="muted"></span></div></div>
-   <div id="rc_res" style="margin-top:8px"></div>
-   <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px"><h3 style="margin:0 0 4px">📥 Importar recetas en lote</h3>
-     <div class="muted" style="font-size:12px;margin-bottom:6px">Pega varias recetas y se cargan todas de una. Por receta: primera línea el <b>nombre</b> (opcional "— dulce/salado"), y luego líneas <b>Tipo:</b>, <b>Ingredientes:</b>, <b>Preparación:</b>, <b>Macros:</b>. Separa cada receta con una línea en blanco. Si no pones Macros, se calculan de los ingredientes con el banco.</div>
-     <textarea id="imp_recetas" rows="6" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px" placeholder="Bowl de avena y banano — dulce&#10;Tipo: Desayuno&#10;Ingredientes: 80 g de avena; 30 g de proteína; 100 g de banano&#10;Preparación: Mezcla y cocina.&#10;Macros: 380 kcal G7 C48 P30&#10;&#10;Otra receta — salado&#10;Tipo: Almuerzo&#10;Ingredientes: 150 g de pechuga de pollo; 200 g de arroz&#10;Preparación: ..."></textarea>
-     <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
-   </div>`;
+   <div id="rc_res" style="margin-top:8px"></div>`;
   // Journal
   h+=`<h3>Journal reciente (personal)</h3>`;
   h+=J.length?J.map(j=>`<div style="border-left:2px solid var(--line);padding-left:10px;margin:6px 0"><div class="muted" style="font-size:11px">${esc(j.fecha)}</div>${esc(j.texto)}</div>`).join(""):`<div class="muted">Sin entradas.</div>`;
@@ -3333,7 +3328,7 @@ async function importarRecetasLote(){
   const txt=($("imp_recetas").value||"").trim(); const com=$("imp_com")?$("imp_com").checked:true;
   if(!txt){if(msg)msg.textContent="Pega al menos una receta.";return;}
   if(msg)msg.textContent="Procesando…";
-  try{ if(SEL) await planCargarCatalogo(SEL); }catch(_){}
+  try{ await planCargarCatalogo(SEL||MIID); }catch(_){}
   // Detecta encabezados de SECCIÓN (mayúsculas) para asignar el tipo, y cada receta por su
   // numeración "N.". Dentro de cada receta extrae Macros/Ingredientes/Preparación aunque
   // vengan en la misma línea. Así se pega el mensaje TAL CUAL.
@@ -3372,7 +3367,15 @@ async function importarRecetasLote(){
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'crear_recetas',recetas:out}});
   if(error||(data&&data.error)){if(msg)msg.innerHTML=`<span class="alert">${esc((data&&data.error)||(error&&error.message)||'Error al cargar')}</span>`;return;}
   if(msg)msg.innerHTML=`<span style="color:var(--ok)">✓ ${(data&&data.n)||out.length} recetas cargadas al recetario.</span>`; $("imp_recetas").value="";
+  setTimeout(()=>{try{ if(!$("v-alimentos").classList.contains("hide")) verAlimentos(); }catch(_){}} ,900);
   }catch(e){ if(msg)msg.innerHTML=`<span class="alert">Error: ${esc((e&&e.message)||String(e))}</span>`; }
+}
+// Borra una receta del recetario público (lista de la pestaña Alimentos).
+async function borrarRecetaPub(id){
+  if(!confirm("¿Borrar esta receta del recetario público?"))return;
+  const {error}=await sb.from("recetas").delete().eq("id",id);
+  if(error){alert(error.message);return;}
+  verAlimentos();
 }
 
 // Catálogo CANÓNICO ÚNICO: la biblioteca trae copias por entrenador y duplicados,
@@ -4122,7 +4125,18 @@ async function verAlimentos(){
   const nombres={};
   if(ids.length){const {data:ps}=await sb.from("perfiles").select("user_id,nombre").in("user_id",ids);(ps||[]).forEach(p=>nombres[p.user_id]=p.nombre);}
   AB_REC.forEach(a=>a._quien=nombres[a.sugerido_por]||"");
-  let h=`<div class="card"><h2 style="margin-top:0">Alimentos recomendados${AB_REC.length?` <span style="color:#c0392b">(${AB_REC.length})</span>`:` (0)`}</h2>
+  // Recetario público: lo ven todos los clientes y el plan de alimentación puede usarlo.
+  const {data:pubrec}=await sb.from("recetas").select("id,nombre,tipo,kcal,comunidad").eq("comunidad",true).order("nombre");
+  const RECS=pubrec||[];
+  const recCard=`<div class="card"><h2 style="margin-top:0">🍳 Recetario público <span class="muted" style="font-size:13px;font-weight:400">· ${RECS.length} recetas</span></h2>
+   <div class="muted" style="font-size:12px;margin-bottom:8px">Recetas que ven <b>todos los clientes</b> y que el <b>plan de alimentación</b> puede usar como combinaciones. Pega varias y se cargan de una.</div>
+   <h3 style="margin:6px 0 4px">📥 Importar en lote</h3>
+   <div class="muted" style="font-size:12px;margin-bottom:6px">Cada receta empieza con <b>número y punto</b> ("1. Nombre — dulce/salado"). Los títulos en MAYÚSCULA (DESAYUNOS, ALMUERZOS Y CENAS, SNACKS…) fijan el tipo. Incluye <b>Ingredientes:</b> (con gramos), <b>Preparación:</b> y <b>Macros:</b> (si faltan, se calculan del banco).</div>
+   <textarea id="imp_recetas" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px" placeholder="DESAYUNOS&#10;1. Bowl de avena y banano — dulce&#10;Macros: 380 kcal G7 C48 P30 Ingredientes: 80 g de avena; 30 g de proteína; 100 g de banano Preparación: Mezcla y cocina."></textarea>
+   <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
+   ${RECS.length?`<div style="margin-top:12px;max-height:280px;overflow:auto;border-top:1px solid var(--line);padding-top:8px">${RECS.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)"><span>${esc(cap(r.nombre))} <span class="muted" style="font-size:11px">· ${esc(r.tipo||'')} · ${r.kcal||0} kcal</span></span><button class="sm ghost" onclick="borrarRecetaPub('${r.id}')" title="Borrar">🗑</button></div>`).join('')}</div>`:''}
+  </div>`;
+  let h=recCard+`<div class="card"><h2 style="margin-top:0">Alimentos recomendados${AB_REC.length?` <span style="color:#c0392b">(${AB_REC.length})</span>`:` (0)`}</h2>
    <div class="muted" style="margin-bottom:6px">Alimentos que los clientes sugirieron leyendo la etiqueta. Revisa el nombre, los macros por 100 g y la porción. <b>Aprobar</b> lo pasa al catálogo oficial (todos lo verán al buscar); <b>Rechazar</b> lo descarta.</div>
    <div id="abreclist"></div></div>
    <div class="card"><h2 style="margin-top:0">Nuevo alimento</h2>
