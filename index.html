@@ -3037,10 +3037,10 @@ function planParseFoods(txt){
   const limpio=(txt||"")
     .replace(/(\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidades?|und?|u)\b(?:\s*\([^)]*\))?)\s+(?=[A-ZÁÉÍÓÚÑ])/g,'$1 + ')
     .replace(/\([^)]*\)/g,' ') // quita "(tomate, pepino)" antes de partir
-    .replace(/[|;]+/g,' + ')
+    .replace(/[|;·•∙‧・]+/g,' + ')
     .replace(/\b(desayuno|media\s*ma(?:ñ|n)ana|almuerzo|comida(?:\s*\d+)?|merienda|tarde|noche|cena|snack|pre[\s-]*entreno|post[\s-]*entreno)\s*:/gi,' ');
   const out=[];
-  limpio.split(/\s*\+\s*|\n|;/).map(s=>planSoloAlimento(s.trim())).filter(Boolean).forEach(seg=>{
+  limpio.split(/\s*\+\s*|\n|;|·|•|∙/).map(s=>planSoloAlimento(s.trim())).filter(Boolean).forEach(seg=>{
     let gramos=0,unidades=0;
     const mg=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:g|gr|gramos|ml)\b/i);
     if(mg)gramos=Math.round(parseFloat(mg[1].replace(",","."))||0);
@@ -3049,7 +3049,7 @@ function planParseFoods(txt){
     const nombre=seg
       .replace(/\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidad(?:es)?|und?|u)\b/gi,' ')
       .replace(/\b(cocid[oa]s?|crud[oa]s?|al vapor|a la plancha|hervid[oa]s?|asad[oa]s?|magr[oa]s?|libre|deslactosad[oa])\b/gi,' ')
-      .replace(/[()]/g,' ').replace(/\s+/g,' ').trim();
+      .replace(/[()]/g,' ').replace(/\s+/g,' ').replace(/^(?:de|del|con)\s+/i,'').trim();
     // Plato compuesto (sándwich de atún…) → se abre en sus ingredientes.
     // Los alimentos normales se guardan TAL CUAL los escribió el entrenador
     // (no se reescriben): el sinónimo solo se usa al resolver los macros (planCatDe),
@@ -4187,7 +4187,10 @@ function recEditRow(rid,nombre,cantidad){
 }
 function recetaEditorHTML(r){
   const ij=r.ingredientes_json; let items=(ij&&Array.isArray(ij.items))?ij.items:null;
-  if(!items||!items.length){ items=planParseFoods(r.ingredientes||"").map(f=>({nombre:f.nombre,gramos:f.gramos||0,unidades:f.unidades||0})); }
+  // Recetas viejas quedaron con TODOS los ingredientes pegados en una sola fila
+  // (separador "·"/";"/" y " que el parser antiguo no partía) → las re-separamos del texto.
+  const mashed=items&&items.length===1&&/[·•∙;]|\by\b/.test(items[0].nombre||'');
+  if(!items||!items.length||mashed){ items=planParseFoods(r.ingredientes||"").map(f=>({nombre:f.nombre,gramos:f.gramos||0,unidades:f.unidades||0})); }
   const rows=items.map(it=>recEditRow(r.id, it.nombre, (it.unidades>0?it.unidades:it.gramos)||0)).join("");
   const sabor=(ij&&ij.sabor)||""; const TIPOS=["Desayuno","Almuerzo","Cena","Snack"];
   return `<div style="margin-top:8px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px">
