@@ -3373,8 +3373,8 @@ async function importarRecetasLote(){
 // Borra una receta del recetario público (lista de la pestaña Alimentos).
 async function borrarRecetaPub(id){
   if(!confirm("¿Borrar esta receta del recetario público?"))return;
-  const {error}=await sb.from("recetas").delete().eq("id",id);
-  if(error){alert(error.message);return;}
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'borrar_receta',id:id}});
+  if(error||(data&&data.error)){alert((data&&data.error)||error.message);return;}
   verAlimentos();
 }
 
@@ -4126,15 +4126,16 @@ async function verAlimentos(){
   if(ids.length){const {data:ps}=await sb.from("perfiles").select("user_id,nombre").in("user_id",ids);(ps||[]).forEach(p=>nombres[p.user_id]=p.nombre);}
   AB_REC.forEach(a=>a._quien=nombres[a.sugerido_por]||"");
   // Recetario público: lo ven todos los clientes y el plan de alimentación puede usarlo.
-  const {data:pubrec}=await sb.from("recetas").select("id,nombre,tipo,kcal,comunidad").eq("comunidad",true).order("nombre");
-  const RECS=pubrec||[];
+  try{ await planCargarCatalogo(MIID); }catch(_){}
+  const {data:pubrec}=await sb.from("recetas").select("id,nombre,tipo,kcal,prot,carb,fat,comunidad,ingredientes,pasos,ingredientes_json").eq("comunidad",true).order("nombre");
+  const RECS=pubrec||[]; window.RECS=RECS;
   const recCard=`<div class="card"><h2 style="margin-top:0">🍳 Recetario público <span class="muted" style="font-size:13px;font-weight:400">· ${RECS.length} recetas</span></h2>
    <div class="muted" style="font-size:12px;margin-bottom:8px">Recetas que ven <b>todos los clientes</b> y que el <b>plan de alimentación</b> puede usar como combinaciones. Pega varias y se cargan de una.</div>
    <h3 style="margin:6px 0 4px">📥 Importar en lote</h3>
    <div class="muted" style="font-size:12px;margin-bottom:6px">Cada receta empieza con <b>número y punto</b> ("1. Nombre — dulce/salado"). Los títulos en MAYÚSCULA (DESAYUNOS, ALMUERZOS Y CENAS, SNACKS…) fijan el tipo. Incluye <b>Ingredientes:</b> (con gramos), <b>Preparación:</b> y <b>Macros:</b> (si faltan, se calculan del banco).</div>
    <textarea id="imp_recetas" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px" placeholder="DESAYUNOS&#10;1. Bowl de avena y banano — dulce&#10;Macros: 380 kcal G7 C48 P30 Ingredientes: 80 g de avena; 30 g de proteína; 100 g de banano Preparación: Mezcla y cocina."></textarea>
    <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
-   ${RECS.length?`<div style="margin-top:12px;max-height:280px;overflow:auto;border-top:1px solid var(--line);padding-top:8px">${RECS.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)"><span>${esc(cap(r.nombre))} <span class="muted" style="font-size:11px">· ${esc(r.tipo||'')} · ${r.kcal||0} kcal</span></span><button class="sm ghost" onclick="borrarRecetaPub('${r.id}')" title="Borrar">🗑</button></div>`).join('')}</div>`:''}
+   ${RECS.length?`<div style="margin-top:12px;max-height:460px;overflow:auto;border-top:1px solid var(--line);padding-top:8px">${RECS.map(r=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(cap(r.nombre))} <span class="muted" style="font-size:11px">· ${esc(r.tipo||'')} · ${r.kcal||0} kcal</span></span><span style="display:flex;gap:4px;flex:0 0 auto"><button class="sm ghost" onclick="editarRecetaPub('${r.id}')">✏️ Editar</button><button class="sm ghost" onclick="borrarRecetaPub('${r.id}')" title="Borrar">🗑</button></span></div>${REC_EDIT===String(r.id)?recetaEditorHTML(r):''}</div>`).join('')}</div>`:''}
   </div>`;
   let h=recCard+`<div class="card"><h2 style="margin-top:0">Alimentos recomendados${AB_REC.length?` <span style="color:#c0392b">(${AB_REC.length})</span>`:` (0)`}</h2>
    <div class="muted" style="margin-bottom:6px">Alimentos que los clientes sugirieron leyendo la etiqueta. Revisa el nombre, los macros por 100 g y la porción. <b>Aprobar</b> lo pasa al catálogo oficial (todos lo verán al buscar); <b>Rechazar</b> lo descarta.</div>
@@ -4151,6 +4152,43 @@ async function verAlimentos(){
      <select id="a_fcat" onchange="renderAB()"><option value="">Todas las categorías</option>${CATS.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
      <div id="ablist"></div></div>`;
   $("v-alimentos").innerHTML=h;renderABRec();renderAB();
+  if(REC_EDIT)try{recEditRecalc(REC_EDIT);}catch(_){}
+}
+// ===== Editor de receta por INGREDIENTES (cambiar gramos → recalcula calorías) =====
+let REC_EDIT=null;
+function editarRecetaPub(id){ REC_EDIT=(REC_EDIT===String(id)?null:String(id)); verAlimentos(); }
+function recEditRow(rid,nombre,gramos){
+  return `<div class="row rerow" style="gap:6px;margin:3px 0;align-items:center"><input class="re_n" list="planCat" value="${esc(nombre||'')}" placeholder="Ingrediente" style="flex:2;min-width:120px;margin:0" oninput="recEditRecalc('${rid}')"><input class="re_g" type="number" value="${Math.round(gramos||0)}" style="width:70px;margin:0;text-align:right" oninput="recEditRecalc('${rid}')"><span class="muted" style="font-size:11px">g</span><span class="re_k muted" style="font-size:11px;width:56px;text-align:right"></span><button class="sm ghost" onclick="this.closest('.rerow').remove();recEditRecalc('${rid}')" style="margin:0">×</button></div>`;
+}
+function recetaEditorHTML(r){
+  const ij=r.ingredientes_json; let items=(ij&&Array.isArray(ij.items))?ij.items:null;
+  if(!items||!items.length){ items=planParseFoods(r.ingredientes||"").map(f=>({nombre:f.nombre,gramos:f.gramos||0})); }
+  const rows=items.map(it=>recEditRow(r.id,it.nombre,it.gramos||0)).join("");
+  return `<div style="margin-top:8px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px">
+    <div class="muted" style="font-size:11px;margin-bottom:6px">Cambia los gramos de cada ingrediente; las calorías se recalculan con el banco. Un ingrediente sin dato en el banco cuenta 0 — ajústale el nombre a uno del catálogo.</div>
+    <div id="reced_rows_${r.id}">${rows}</div>
+    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center"><button class="sm ghost" onclick="recEditAddRow('${r.id}')">+ Ingrediente</button><span id="reced_tot_${r.id}" class="muted" style="font-size:12px"></span></div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><label style="font-size:12px;color:var(--muted)">Ajustar a <input id="reced_kcal_${r.id}" type="number" style="width:64px;margin:0" placeholder="kcal"> kcal</label><button class="sm ghost" onclick="recEditEscalar('${r.id}')">Escalar</button><button class="sm" onclick="recEditGuardar('${r.id}')">Guardar</button><button class="sm ghost" onclick="REC_EDIT=null;verAlimentos()">Cancelar</button><span id="reced_msg_${r.id}" class="muted" style="font-size:12px"></span></div>
+  </div>`;
+}
+function recEditAddRow(rid){const c=$("reced_rows_"+rid);if(!c)return;const d=document.createElement("div");d.innerHTML=recEditRow(rid,"",0);c.appendChild(d.firstChild);}
+function recEditRecalc(rid){
+  const c=$("reced_rows_"+rid);if(!c)return;let tk=0,tp=0,tc=0,tf=0;
+  c.querySelectorAll(".rerow").forEach(row=>{const n=(row.querySelector(".re_n").value||"").trim();const g=parseFloat(row.querySelector(".re_g").value)||0;const cat=planCatDe(n);let k=0,p=0,cc=0,ff=0;if(cat&&g>0){const rr=g/100;k=cat.k*rr;p=cat.p*rr;cc=cat.c*rr;ff=cat.f*rr;}row.querySelector(".re_k").textContent=Math.round(k)+"k";tk+=k;tp+=p;tc+=cc;tf+=ff;});
+  const t=$("reced_tot_"+rid);if(t)t.innerHTML=`<b>Total: ${Math.round(tk)} kcal</b> · P${Math.round(tp)}/C${Math.round(tc)}/G${Math.round(tf)}`;
+}
+function recEditEscalar(rid){const c=$("reced_rows_"+rid);const target=parseFloat(($("reced_kcal_"+rid)||{}).value);if(!target||target<=0)return;let cur=0;c.querySelectorAll(".rerow").forEach(row=>{const n=(row.querySelector(".re_n").value||"").trim();const g=parseFloat(row.querySelector(".re_g").value)||0;const cat=planCatDe(n);if(cat&&g>0)cur+=cat.k*g/100;});if(cur<=0)return;const f=target/cur;c.querySelectorAll(".rerow").forEach(row=>{const gi=row.querySelector(".re_g");gi.value=Math.max(1,Math.round((parseFloat(gi.value)||0)*f));});recEditRecalc(rid);}
+async function recEditGuardar(rid){
+  const c=$("reced_rows_"+rid);const msg=$("reced_msg_"+rid);const items=[];let tk=0,tp=0,tc=0,tf=0;
+  c.querySelectorAll(".rerow").forEach(row=>{const n=(row.querySelector(".re_n").value||"").trim();const g=parseFloat(row.querySelector(".re_g").value)||0;if(!n)return;items.push({nombre:n,gramos:Math.round(g)});const cat=planCatDe(n);if(cat&&g>0){const rr=g/100;tk+=cat.k*rr;tp+=cat.p*rr;tc+=cat.c*rr;tf+=cat.f*rr;}});
+  if(!items.length){if(msg)msg.textContent="Agrega ingredientes.";return;}
+  const ing=items.map(x=>x.gramos+" g "+x.nombre).join(" + ");
+  const rec=(window.RECS||[]).find(x=>String(x.id)===String(rid))||{};
+  const campos={ingredientes:ing,ingredientes_json:{sabor:(rec.ingredientes_json&&rec.ingredientes_json.sabor)||null,items},kcal:Math.round(tk),prot:Math.round(tp),carb:Math.round(tc),fat:Math.round(tf)};
+  if(msg)msg.textContent="Guardando…";
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'editar_receta',id:rid,campos}});
+  if(error||(data&&data.error)){if(msg)msg.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+  REC_EDIT=null;verAlimentos();
 }
 let AB_REC_EDIT=null; // id del sugerido que se está editando antes de aprobar
 function renderABRec(){
