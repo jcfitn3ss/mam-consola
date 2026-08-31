@@ -4129,7 +4129,7 @@ async function verAlimentos(){
   try{ await planCargarCatalogo(MIID); }catch(_){}
   const {data:pubrec}=await sb.from("recetas").select("id,nombre,tipo,kcal,prot,carb,fat,comunidad,ingredientes,pasos,ingredientes_json").eq("comunidad",true).order("nombre");
   const RECS=pubrec||[]; window.RECS=RECS;
-  const recCard=`<div class="card"><h2 style="margin-top:0">🍳 Recetario público <span class="muted" style="font-size:13px;font-weight:400">· ${RECS.length} recetas</span></h2>
+  const recCard=`<datalist id="recCat">${PLAN_CATNAMES.map(n=>`<option value="${esc(n)}"></option>`).join("")}</datalist><div class="card"><h2 style="margin-top:0">🍳 Recetario público <span class="muted" style="font-size:13px;font-weight:400">· ${RECS.length} recetas</span></h2>
    <div class="muted" style="font-size:12px;margin-bottom:8px">Recetas que ven <b>todos los clientes</b> y que el <b>plan de alimentación</b> puede usar como combinaciones. Pega varias y se cargan de una.</div>
    <h3 style="margin:6px 0 4px">📥 Importar en lote</h3>
    <div class="muted" style="font-size:12px;margin-bottom:6px">Cada receta empieza con <b>número y punto</b> ("1. Nombre — dulce/salado"). Los títulos en MAYÚSCULA (DESAYUNOS, ALMUERZOS Y CENAS, SNACKS…) fijan el tipo. Incluye <b>Ingredientes:</b> (con gramos), <b>Preparación:</b> y <b>Macros:</b> (si faltan, se calculan del banco).</div>
@@ -4154,37 +4154,64 @@ async function verAlimentos(){
   $("v-alimentos").innerHTML=h;renderABRec();renderAB();
   if(REC_EDIT)try{recEditRecalc(REC_EDIT);}catch(_){}
 }
-// ===== Editor de receta por INGREDIENTES (cambiar gramos → recalcula calorías) =====
+// ===== Editor de receta por INGREDIENTES (dropdown del banco + suma de macros en vivo) =====
 let REC_EDIT=null;
 function editarRecetaPub(id){ REC_EDIT=(REC_EDIT===String(id)?null:String(id)); verAlimentos(); }
-function recEditRow(rid,nombre,gramos){
-  return `<div class="row rerow" style="gap:6px;margin:3px 0;align-items:center"><input class="re_n" list="planCat" value="${esc(nombre||'')}" placeholder="Ingrediente" style="flex:2;min-width:120px;margin:0" oninput="recEditRecalc('${rid}')"><input class="re_g" type="number" value="${Math.round(gramos||0)}" style="width:70px;margin:0;text-align:right" oninput="recEditRecalc('${rid}')"><span class="muted" style="font-size:11px">g</span><span class="re_k muted" style="font-size:11px;width:56px;text-align:right"></span><button class="sm ghost" onclick="this.closest('.rerow').remove();recEditRecalc('${rid}')" style="margin:0">×</button></div>`;
+function recUniDe(n){ return planEsUnidad(n)?'unid':(planEsMl(n)?'ml':'g'); }
+function recFoodObj(n,qty){ const f={nombre:n,gramos:0,unidades:0}; if(planEsUnidad(n))f.unidades=qty; else f.gramos=qty; return f; }
+function recEditRow(rid,nombre,cantidad){
+  return `<tr class="rerow"><td style="padding:4px 6px"><input class="re_n" list="recCat" value="${esc(nombre||'')}" placeholder="Buscar alimento…" style="width:100%;min-width:150px;margin:0" oninput="recEditRecalc('${rid}')"></td>`+
+    `<td style="text-align:right;white-space:nowrap;padding:4px 6px"><input class="re_g" type="number" value="${Math.round(cantidad||0)}" style="width:66px;margin:0;text-align:right" oninput="recEditRecalc('${rid}')"> <span class="re_u muted" style="font-size:11px">g</span></td>`+
+    `<td class="re_k" style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;padding:4px 6px"></td><td class="re_p muted" style="text-align:right;font-variant-numeric:tabular-nums"></td><td class="re_c muted" style="text-align:right;font-variant-numeric:tabular-nums"></td><td class="re_f muted" style="text-align:right;font-variant-numeric:tabular-nums"></td>`+
+    `<td style="text-align:center;padding:4px 6px"><button class="sm ghost" onclick="this.closest('.rerow').remove();recEditRecalc('${rid}')" style="margin:0;padding:2px 6px">✕</button></td></tr>`;
 }
 function recetaEditorHTML(r){
   const ij=r.ingredientes_json; let items=(ij&&Array.isArray(ij.items))?ij.items:null;
-  if(!items||!items.length){ items=planParseFoods(r.ingredientes||"").map(f=>({nombre:f.nombre,gramos:f.gramos||0})); }
-  const rows=items.map(it=>recEditRow(r.id,it.nombre,it.gramos||0)).join("");
-  return `<div style="margin-top:8px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px">
-    <div class="muted" style="font-size:11px;margin-bottom:6px">Cambia los gramos de cada ingrediente; las calorías se recalculan con el banco. Un ingrediente sin dato en el banco cuenta 0 — ajústale el nombre a uno del catálogo.</div>
-    <div id="reced_rows_${r.id}">${rows}</div>
-    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center"><button class="sm ghost" onclick="recEditAddRow('${r.id}')">+ Ingrediente</button><span id="reced_tot_${r.id}" class="muted" style="font-size:12px"></span></div>
-    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center"><label style="font-size:12px;color:var(--muted)">Ajustar a <input id="reced_kcal_${r.id}" type="number" style="width:64px;margin:0" placeholder="kcal"> kcal</label><button class="sm ghost" onclick="recEditEscalar('${r.id}')">Escalar</button><button class="sm" onclick="recEditGuardar('${r.id}')">Guardar</button><button class="sm ghost" onclick="REC_EDIT=null;verAlimentos()">Cancelar</button><span id="reced_msg_${r.id}" class="muted" style="font-size:12px"></span></div>
+  if(!items||!items.length){ items=planParseFoods(r.ingredientes||"").map(f=>({nombre:f.nombre,gramos:f.gramos||0,unidades:f.unidades||0})); }
+  const rows=items.map(it=>recEditRow(r.id, it.nombre, (it.unidades>0?it.unidades:it.gramos)||0)).join("");
+  const sabor=(ij&&ij.sabor)||""; const TIPOS=["Desayuno","Almuerzo","Cena","Snack"];
+  return `<div style="margin-top:8px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <input id="reced_nom_${r.id}" value="${esc(r.nombre||'')}" style="flex:1;min-width:160px;margin:0;font-weight:700">
+      <select id="reced_tipo_${r.id}" style="width:auto;margin:0">${TIPOS.map(t=>`<option ${((r.tipo||'')===t)?'selected':''}>${t}</option>`).join("")}</select>
+      <select id="reced_sabor_${r.id}" style="width:auto;margin:0"><option value="">Sabor…</option><option value="dulce" ${sabor==='dulce'?'selected':''}>Dulce</option><option value="salado" ${sabor==='salado'?'selected':''}>Salado</option></select>
+    </div>
+    <div class="muted" style="font-size:11px;margin-bottom:4px">Elige cada alimento del <b>banco</b> (búscalo en el campo) y su cantidad; los macros se suman solos. Si no está en el banco, agrégalo arriba en "Nuevo alimento".</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="font-size:10px;color:var(--muted);text-transform:uppercase"><th style="text-align:left;padding:4px 6px">Alimento</th><th style="text-align:right;padding:4px 6px">Cantidad</th><th style="text-align:right;padding:4px 6px">kcal</th><th style="text-align:right;padding:4px 6px">P</th><th style="text-align:right;padding:4px 6px">C</th><th style="text-align:right;padding:4px 6px">G</th><th></th></tr></thead>
+      <tbody id="reced_rows_${r.id}">${rows}</tbody>
+      <tfoot><tr id="reced_tot_${r.id}" style="font-weight:800;border-top:2px solid var(--line)"><td style="padding:6px">Total</td><td></td><td class="rt_k" style="text-align:right;padding:6px;font-variant-numeric:tabular-nums"></td><td class="rt_p" style="text-align:right;font-variant-numeric:tabular-nums"></td><td class="rt_c" style="text-align:right;font-variant-numeric:tabular-nums"></td><td class="rt_f" style="text-align:right;font-variant-numeric:tabular-nums"></td><td></td></tr></tfoot>
+    </table></div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+      <button class="sm ghost" onclick="recEditAddRow('${r.id}')">+ Agregar alimento</button>
+      <span style="margin-left:auto;font-size:12px;color:var(--muted)">Ajustar a <input id="reced_kcal_${r.id}" type="number" style="width:60px;margin:0" placeholder="kcal"> kcal</span>
+      <button class="sm ghost" onclick="recEditEscalar('${r.id}')">Escalar</button>
+      <button class="sm" onclick="recEditGuardar('${r.id}')">Guardar</button>
+      <button class="sm ghost" onclick="REC_EDIT=null;verAlimentos()">Cancelar</button>
+      <span id="reced_msg_${r.id}" class="muted" style="font-size:12px"></span>
+    </div>
   </div>`;
 }
-function recEditAddRow(rid){const c=$("reced_rows_"+rid);if(!c)return;const d=document.createElement("div");d.innerHTML=recEditRow(rid,"",0);c.appendChild(d.firstChild);}
+function recEditAddRow(rid){const c=$("reced_rows_"+rid);if(!c)return;const t=document.createElement("tbody");t.innerHTML=recEditRow(rid,"",0);c.appendChild(t.firstElementChild);}
 function recEditRecalc(rid){
   const c=$("reced_rows_"+rid);if(!c)return;let tk=0,tp=0,tc=0,tf=0;
-  c.querySelectorAll(".rerow").forEach(row=>{const n=(row.querySelector(".re_n").value||"").trim();const g=parseFloat(row.querySelector(".re_g").value)||0;const cat=planCatDe(n);let k=0,p=0,cc=0,ff=0;if(cat&&g>0){const rr=g/100;k=cat.k*rr;p=cat.p*rr;cc=cat.c*rr;ff=cat.f*rr;}row.querySelector(".re_k").textContent=Math.round(k)+"k";tk+=k;tp+=p;tc+=cc;tf+=ff;});
-  const t=$("reced_tot_"+rid);if(t)t.innerHTML=`<b>Total: ${Math.round(tk)} kcal</b> · P${Math.round(tp)}/C${Math.round(tc)}/G${Math.round(tf)}`;
+  c.querySelectorAll(".rerow").forEach(row=>{
+    const n=(row.querySelector(".re_n").value||"").trim();const q=parseFloat(row.querySelector(".re_g").value)||0;
+    row.querySelector(".re_u").textContent=recUniDe(n);
+    const m=n?planFoodMacros(recFoodObj(n,q)):{k:0,p:0,c:0,f:0,match:false};
+    row.querySelector(".re_k").textContent=Math.round(m.k);row.querySelector(".re_p").textContent=Math.round(m.p);row.querySelector(".re_c").textContent=Math.round(m.c);row.querySelector(".re_f").textContent=Math.round(m.f);
+    row.querySelector(".re_n").style.borderColor=(n&&!m.match)?'var(--warn)':'';
+    tk+=m.k;tp+=m.p;tc+=m.c;tf+=m.f;
+  });
+  const t=$("reced_tot_"+rid);if(t){t.querySelector(".rt_k").textContent=Math.round(tk)+" kcal";t.querySelector(".rt_p").textContent=Math.round(tp);t.querySelector(".rt_c").textContent=Math.round(tc);t.querySelector(".rt_f").textContent=Math.round(tf);}
 }
-function recEditEscalar(rid){const c=$("reced_rows_"+rid);const target=parseFloat(($("reced_kcal_"+rid)||{}).value);if(!target||target<=0)return;let cur=0;c.querySelectorAll(".rerow").forEach(row=>{const n=(row.querySelector(".re_n").value||"").trim();const g=parseFloat(row.querySelector(".re_g").value)||0;const cat=planCatDe(n);if(cat&&g>0)cur+=cat.k*g/100;});if(cur<=0)return;const f=target/cur;c.querySelectorAll(".rerow").forEach(row=>{const gi=row.querySelector(".re_g");gi.value=Math.max(1,Math.round((parseFloat(gi.value)||0)*f));});recEditRecalc(rid);}
+function recEditEscalar(rid){const c=$("reced_rows_"+rid);const el=$("reced_kcal_"+rid);const target=el?parseFloat(el.value):NaN;if(!target||target<=0)return;let cur=0;c.querySelectorAll(".rerow").forEach(row=>{const n=(row.querySelector(".re_n").value||"").trim();const q=parseFloat(row.querySelector(".re_g").value)||0;const m=n?planFoodMacros(recFoodObj(n,q)):{k:0};cur+=m.k;});if(cur<=0)return;const f=target/cur;c.querySelectorAll(".rerow").forEach(row=>{const gi=row.querySelector(".re_g");gi.value=Math.max(1,Math.round((parseFloat(gi.value)||0)*f));});recEditRecalc(rid);}
 async function recEditGuardar(rid){
-  const c=$("reced_rows_"+rid);const msg=$("reced_msg_"+rid);const items=[];let tk=0,tp=0,tc=0,tf=0;
-  c.querySelectorAll(".rerow").forEach(row=>{const n=(row.querySelector(".re_n").value||"").trim();const g=parseFloat(row.querySelector(".re_g").value)||0;if(!n)return;items.push({nombre:n,gramos:Math.round(g)});const cat=planCatDe(n);if(cat&&g>0){const rr=g/100;tk+=cat.k*rr;tp+=cat.p*rr;tc+=cat.c*rr;tf+=cat.f*rr;}});
-  if(!items.length){if(msg)msg.textContent="Agrega ingredientes.";return;}
-  const ing=items.map(x=>x.gramos+" g "+x.nombre).join(" + ");
-  const rec=(window.RECS||[]).find(x=>String(x.id)===String(rid))||{};
-  const campos={ingredientes:ing,ingredientes_json:{sabor:(rec.ingredientes_json&&rec.ingredientes_json.sabor)||null,items},kcal:Math.round(tk),prot:Math.round(tp),carb:Math.round(tc),fat:Math.round(tf)};
+  const c=$("reced_rows_"+rid);const msg=$("reced_msg_"+rid);const items=[];const partes=[];let tk=0,tp=0,tc=0,tf=0;
+  c.querySelectorAll(".rerow").forEach(row=>{const n=(row.querySelector(".re_n").value||"").trim();const q=parseFloat(row.querySelector(".re_g").value)||0;if(!n||q<=0)return;const u=recUniDe(n);const f=recFoodObj(n,q);items.push({nombre:n,gramos:f.gramos,unidades:f.unidades});partes.push(q+" "+(u==='unid'?(q===1?'unidad':'unidades'):u)+" "+n);const m=planFoodMacros(f);tk+=m.k;tp+=m.p;tc+=m.c;tf+=m.f;});
+  if(!items.length){if(msg)msg.textContent="Agrega alimentos.";return;}
+  const nombre=($("reced_nom_"+rid).value||"").trim();const tipo=$("reced_tipo_"+rid).value;const sabor=$("reced_sabor_"+rid).value||null;
+  const campos={nombre,tipo,ingredientes:partes.join(" + "),ingredientes_json:{sabor,items},kcal:Math.round(tk),prot:Math.round(tp),carb:Math.round(tc),fat:Math.round(tf)};
   if(msg)msg.textContent="Guardando…";
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'editar_receta',id:rid,campos}});
   if(error||(data&&data.error)){if(msg)msg.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
