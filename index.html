@@ -3112,7 +3112,8 @@ function planParseFoods(txt){
     const nombre=seg
       .replace(/\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidad(?:es)?|und?|u)\b/gi,' ')
       .replace(/\b(cocid[oa]s?|crud[oa]s?|al vapor|a la plancha|hervid[oa]s?|asad[oa]s?|magr[oa]s?|libre|deslactosad[oa])\b/gi,' ')
-      .replace(/[()]/g,' ').replace(/\s+/g,' ').replace(/^(?:de|del|con)\s+/i,'').trim();
+      .replace(/\b(?:elige|escoge|opci[oó]n(?:es)?|alternativas?|puedes?\s+(?:elegir|escoger|comer))\b[\s:]*(?:de[\s:]+)?/gi,' ')
+      .replace(/[():]/g,' ').replace(/\s+/g,' ').replace(/^(?:de|del|con)\s+/i,'').trim();
     // Plato compuesto (sándwich de atún…) → se abre en sus ingredientes.
     // Los alimentos normales se guardan TAL CUAL los escribió el entrenador
     // (no se reescriben): el sinónimo solo se usa al resolver los macros (planCatDe),
