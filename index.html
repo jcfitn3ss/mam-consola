@@ -169,6 +169,7 @@
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
+      <button id="t-seguimiento" onclick="tab('seguimiento')">📸 Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
@@ -209,6 +210,7 @@
     <div id="v-revision" class="hide"></div>
     <div id="v-riesgo" class="hide"></div>
     <div id="v-recordatorios" class="hide"></div>
+    <div id="v-seguimiento" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
     <div id="v-salud" class="hide"></div>
@@ -334,7 +336,7 @@ async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr"
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","resumen","revision","riesgo","recordatorios","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -1029,6 +1031,64 @@ function waLink(tel,msg){
 function _atKey(){return 'mam_atend_'+hace(0);}
 function atSet(){try{return new Set(JSON.parse(localStorage.getItem(_atKey())||'[]'));}catch(e){return new Set();}}
 function atToggle(uid){const s=atSet();s.has(uid)?s.delete(uid):s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));verRecordatorios();}
+// ============================================================
+// SEGUIMIENTO DE FOTOS Y MEDIDAS (cada 4 semanas)
+// Lista a quién ya se le cumplieron las 4 semanas desde su última foto/medida
+// para recordarle por WhatsApp que las suba y no se le pause el plan.
+// ============================================================
+const SEG_CICLO=28; // días = 4 semanas
+async function verSeguimiento(){
+  $("v-seguimiento").innerHTML='<div class="card">Cargando…</div>';
+  const [lst,fo,me]=await Promise.all([
+    invokeFn("consola-rutina",{body:{action:'lista',cols:'user_id,nombre,telefono,rol,archivado'}}),
+    sb.from("fotos").select("user_id,fecha"),
+    sb.from("medidas").select("user_id,fecha"),
+  ]);
+  if(lst.error){$("v-seguimiento").innerHTML=`<div class="card alert">No se pudo cargar: ${esc(lst.error.message)}</div>`;return;}
+  const roster=((lst.data&&lst.data.clientes)||[]).filter(c=>c.rol!=='entrenador'&&!c.archivado);
+  const ULTFOTO={};(fo.data||[]).forEach(f=>{if(!ULTFOTO[f.user_id]||f.fecha>ULTFOTO[f.user_id])ULTFOTO[f.user_id]=f.fecha;});
+  const ULTMED={};(me.data||[]).forEach(m=>{if(!ULTMED[m.user_id]||m.fecha>ULTMED[m.user_id])ULTMED[m.user_id]=m.fecha;});
+  const dias=f=>f?Math.floor((Date.now()-new Date(f+"T00:00:00").getTime())/864e5):null;
+  const txt=d=>d==null?'nunca':d===0?'hoy':d===1?'ayer':`hace ${d}d`;
+  const filas=roster.map(c=>{
+    const df=dias(ULTFOTO[c.user_id]),dm=dias(ULTMED[c.user_id]);
+    // "Pendiente" el que más días lleva sin subir (o nunca). Vence a las 4 semanas.
+    const peor=Math.max(df==null?9999:df, dm==null?9999:dm);
+    let estado,col;
+    if(peor>=SEG_CICLO){estado='Vencido';col='var(--rojo)';}
+    else if(peor>=SEG_CICLO-4){estado='Por vencer';col='var(--warn)';}
+    else{estado='Al día';col='var(--ok)';}
+    return {c,df,dm,peor,estado,col};
+  }).sort((a,b)=>b.peor-a.peor);
+  const pend=filas.filter(x=>x.estado!=='Al día');
+  const alDia=filas.filter(x=>x.estado==='Al día');
+  const nVenc=filas.filter(x=>x.estado==='Vencido').length, nPorV=filas.filter(x=>x.estado==='Por vencer').length;
+
+  const waMsg=nom=>`Hola ${nom}, ya se cumplieron tus 4 semanas 📸. Súbeme por la app tus FOTOS y MEDIDAS actualizadas (misma pose, luz y hora) para ver tu progreso y que no se te pause el plan. ¡Con eso ajusto tu siguiente bloque! 💪`;
+  const fila=x=>{const nom=(x.c.nombre||'').split(' ')[0]||'';const tel=x.c.telefono||'';const wl=tel?waLink(tel,waMsg(nom)):null;
+    return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 4px;border-bottom:1px solid var(--line)">
+      <b style="min-width:150px">${esc(x.c.nombre||x.c.user_id.slice(0,8))}</b>
+      <span class="pill" style="background:var(--card2)">📸 ${txt(x.df)}</span>
+      <span class="pill" style="background:var(--card2)">📐 ${txt(x.dm)}</span>
+      <span class="pill" style="background:var(--card2);color:${x.col};font-weight:700">${x.estado}</span>
+      <span style="flex:1"></span>
+      ${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px">WhatsApp</a>`:`<span class="muted" style="font-size:11px">sin teléfono</span>`}
+      <button class="sm ghost" onclick="tab('clientes');verCliente('${x.c.user_id}')">Abrir →</button>
+    </div>`;};
+
+  let h=`<div class="card"><h2 style="margin-top:0">📸 Fotos y medidas · cada 4 semanas</h2>
+    <div class="muted" style="font-size:13px;margin-bottom:10px">A cada cliente le toca subir <b>fotos y medidas cada 4 semanas</b> (28 días) para no pausar su plan. Aquí ves quién ya venció o está por vencer; usa el botón <b style="color:#25d366">WhatsApp</b> para recordarle con un mensaje ya listo (editable antes de enviar).</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="pill" style="background:rgba(181,23,24,.16);color:var(--rojo);font-weight:700">Vencidos: ${nVenc}</div>
+      <div class="pill" style="background:rgba(224,184,74,.18);color:var(--warn);font-weight:700">Por vencer: ${nPorV}</div>
+      <div class="pill" style="background:rgba(55,224,166,.16);color:var(--ok);font-weight:700">Al día: ${alDia.length}</div>
+    </div></div>`;
+  h+=`<div class="card"><h2 style="margin-top:0">⏳ Les toca ahora ${pend.length?`<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700">${pend.length}</span>`:''}</h2>`;
+  h+= pend.length? pend.map(fila).join('') : `<div class="muted" style="font-size:13px">Nadie pendiente. Todos subieron fotos y medidas dentro de las últimas 4 semanas. ✓</div>`;
+  h+=`</div>`;
+  if(alDia.length){h+=`<div class="card"><h2 style="margin-top:0">✅ Al día (${alDia.length})</h2>${alDia.map(fila).join('')}</div>`;}
+  $("v-seguimiento").innerHTML=h;
+}
 async function verRecordatorios(){
   const cont=$("v-recordatorios");if(!cont)return;
   cont.innerHTML='<div class="card">Cargando recordatorios del día…</div>';
