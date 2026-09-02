@@ -2357,11 +2357,11 @@ async function verCliente(id){
 
   // Informe mensual (automático + seguimiento del entrenador)
   h+=`<div class="card"><h2 style="margin-top:0">Informe mensual</h2>
-    <div class="muted" style="margin-bottom:6px">Genera el informe automático del mes (datos reales + conclusiones por IA). Para clientes con acompañamiento, añade observaciones de WhatsApp y capturas como evidencia; luego publícalo (le llega notificación a la app). Si no añades seguimiento, el informe sale igual, sin esa sección.</div>
-    <button onclick="generarInforme('${id}')">Generar / actualizar</button> <span id="infMsg" class="muted"></span>
+    <div class="muted" style="margin-bottom:6px"><b>1)</b> Escribe primero tus <b>observaciones</b> del mes (la IA las tendrá en cuenta al redactar). <b>2)</b> Pulsa <b>Generar</b> — el informe sale con datos reales + conclusiones por IA usando tu contexto. <b>3)</b> Luego añade capturas/fotos y publícalo (le llega notificación a la app).</div>
+    <label class="lbl">Observaciones de seguimiento (una por línea) — la IA las usa al generar</label>
+    <textarea id="inf_seg" rows="4" placeholder="Respondió tarde varios días. No avisó antes de 2 salidas. Muy constante con el entreno..."></textarea>
+    <div style="margin-top:8px"><button onclick="generarInforme('${id}')">Generar / actualizar</button> <span id="infMsg" class="muted"></span></div>
     <div id="infArea" class="hide" style="margin-top:10px">
-      <label class="lbl">Observaciones de seguimiento (una por línea)</label>
-      <textarea id="inf_seg" rows="4" placeholder="Respondió tarde varios días. No avisó antes de 2 salidas..."></textarea>
       <label class="lbl">Capturas de WhatsApp (evidencia de cumplimiento)</label>
       <input id="inf_file" type="file" accept="image/*" onchange="subirCaptura('${id}')">
       <div id="inf_shots" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
@@ -2868,7 +2868,10 @@ function fotosPayload(){return INF_FOTOS_SEL.map(r=>({pose:r.pose||'',antes:(r.a
 
 async function generarInforme(id){
   $("infMsg").textContent="Generando informe (datos + IA)…";
-  const {data,error}=await invokeFn("informe",{body:{action:"generar",user_id:id}});
+  // Nuevo flujo: las OBSERVACIONES se escriben ANTES de generar y se mandan al edge para
+  // que la IA redacte con ese contexto (antes solo se guardaban después y no entraban).
+  const _sg=$("inf_seg"); const _texto=_sg?_sg.value.split("\n").map(s=>s.trim()).filter(Boolean):[];
+  const {data,error}=await invokeFn("informe",{body:{action:"generar",user_id:id,seguimiento:{texto:_texto}}});
   if(error||!data||data.error){$("infMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   INF_MES=data.mes;INF_HTML=data.html||"";INF_DATOS=data.datos||null;const seg=data.seguimiento||{};INF_SHOTS=Array.isArray(seg.screenshots)?seg.screenshots:[];
   show("infArea",true);$("inf_seg").value=(Array.isArray(seg.texto)?seg.texto:[]).join("\n");
