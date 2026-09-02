@@ -1039,15 +1039,17 @@ function atToggle(uid){const s=atSet();s.has(uid)?s.delete(uid):s.add(uid);local
 const SEG_CICLO=28; // días = 4 semanas
 async function verSeguimiento(){
   $("v-seguimiento").innerHTML='<div class="card">Cargando…</div>';
-  const [lst,fo,me]=await Promise.all([
+  const [lst,fm]=await Promise.all([
     invokeFn("consola-rutina",{body:{action:'lista',cols:'user_id,nombre,telefono,rol,archivado'}}),
-    sb.from("fotos").select("user_id,fecha"),
-    sb.from("medidas").select("user_id,fecha"),
+    // Fotos/medidas por EDGE (service_role): antes se leían por RLS (sb.from) y muchos
+    // clientes no eran visibles → TODOS salían "vencidos" aunque sí habían subido.
+    invokeFn("consola-rutina",{body:{action:'seguimiento_fm'}}),
   ]);
   if(lst.error){$("v-seguimiento").innerHTML=`<div class="card alert">No se pudo cargar: ${esc(lst.error.message)}</div>`;return;}
   const roster=((lst.data&&lst.data.clientes)||[]).filter(c=>c.rol!=='entrenador'&&!c.archivado);
-  const ULTFOTO={};(fo.data||[]).forEach(f=>{if(!ULTFOTO[f.user_id]||f.fecha>ULTFOTO[f.user_id])ULTFOTO[f.user_id]=f.fecha;});
-  const ULTMED={};(me.data||[]).forEach(m=>{if(!ULTMED[m.user_id]||m.fecha>ULTMED[m.user_id])ULTMED[m.user_id]=m.fecha;});
+  const fmD=(fm&&fm.data)||{};
+  const ULTFOTO={};(fmD.fotos||[]).forEach(f=>{if(f.fecha&&(!ULTFOTO[f.user_id]||f.fecha>ULTFOTO[f.user_id]))ULTFOTO[f.user_id]=f.fecha;});
+  const ULTMED={};(fmD.medidas||[]).forEach(m=>{if(m.fecha&&(!ULTMED[m.user_id]||m.fecha>ULTMED[m.user_id]))ULTMED[m.user_id]=m.fecha;});
   const dias=f=>f?Math.floor((Date.now()-new Date(f+"T00:00:00").getTime())/864e5):null;
   const txt=d=>d==null?'nunca':d===0?'hoy':d===1?'ayer':`hace ${d}d`;
   const filas=roster.map(c=>{
