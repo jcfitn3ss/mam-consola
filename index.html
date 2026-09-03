@@ -168,6 +168,7 @@
   <div id="app" class="hide">
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
+      <button id="t-crm" onclick="tab('crm')">👥 Clientes (CRM)</button>
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
       <button id="t-seguimiento" onclick="tab('seguimiento')">📸 Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
@@ -209,6 +210,7 @@
     <div id="v-resumen" class="hide"></div>
     <div id="v-revision" class="hide"></div>
     <div id="v-riesgo" class="hide"></div>
+    <div id="v-crm" class="hide"></div>
     <div id="v-recordatorios" class="hide"></div>
     <div id="v-seguimiento" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
@@ -336,7 +338,7 @@ async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr"
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -492,9 +494,9 @@ async function trasLogin(){
   // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
   // Idempotente y silencioso; el botón de "Salud de datos" lo permite correr a mano.
   try{
-    if(!localStorage.getItem('lectura_reparada_v7')){
+    if(!localStorage.getItem('lectura_reparada_v8')){
       const _rep=await invokeFn("migrar-lectura-entrenador",{body:{}});
-      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v7','1');
+      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v8','1');
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
@@ -1031,6 +1033,75 @@ function waLink(tel,msg){
 function _atKey(){return 'mam_atend_'+hace(0);}
 function atSet(){try{return new Set(JSON.parse(localStorage.getItem(_atKey())||'[]'));}catch(e){return new Set();}}
 function atToggle(uid){const s=atSet();s.has(uid)?s.delete(uid):s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));verRecordatorios();}
+// ============================================================
+// PANEL DE CLIENTES (CRM): tu hoja interna + datos automáticos de la app.
+// Nombre → abre la ficha del cliente. Campos editables (producto/objetivo/observaciones/
+// renovación/fin de plan) se guardan en crm_clientes. Semáforo de fotos/medidas a 4 semanas.
+// ============================================================
+let CRM_FILTRO='todos';
+const _crmDias=f=>f?Math.floor((Date.now()-new Date(f+"T00:00:00").getTime())/864e5):null;
+function _crmSem(f){const d=_crmDias(f);if(d==null)return{t:'nunca',dot:'#e23b3b'};if(d>=28)return{t:`hace ${d} d`,dot:'#e23b3b'};if(d>=24)return{t:`hace ${d} d`,dot:'#e0b84a'};return{t:d===0?'hoy':d===1?'ayer':`hace ${d} d`,dot:'#37e0a6'};}
+function _crmEstado(c){const s=c.suscripcion;if(!s)return{t:'Sin susc.',col:'var(--muted)'};if(s.estado==='activa'){const enTrial=s.trial_fin&&new Date(s.trial_fin)>new Date();return enTrial?{t:'Prueba',col:'var(--azul)'}:{t:'Activo',col:'var(--ok)'};}return{t:s.estado||'—',col:'var(--rojo2)'};}
+function _crmFecha(f){return f?new Date(f+"T00:00:00").toLocaleDateString('es',{day:'numeric',month:'short',year:'2-digit'}):'—';}
+function _crmDiasA(r){return r?Math.floor((new Date(r+"T00:00:00").getTime()-Date.now())/864e5):null;}
+async function verCRM(){
+  $("v-crm").innerHTML='<div class="card">Cargando…</div>';
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm'}});
+  if(error){$("v-crm").innerHTML=`<div class="card alert">No se pudo cargar: ${esc((error&&error.message)||'error')}. Recarga la consola (Cmd/Ctrl+Shift+R) para crear la tabla del CRM.</div>`;return;}
+  const cli=((data&&data.clientes)||[]); window.CRM=cli;
+  const nTot=cli.length;
+  const nAct=cli.filter(c=>{const e=_crmEstado(c);return e.t==='Activo'||e.t==='Prueba';}).length;
+  const nFotoV=cli.filter(c=>{const d=_crmDias(c.ultima_foto);return d==null||d>=28;}).length;
+  const nRen=cli.filter(c=>{const cm=c.crm||{};const r=cm.renov_plan||cm.fin_plan;const d=_crmDiasA(r);return d!=null&&d>=0&&d<=7;}).length;
+  const pasa=c=>{const e=_crmEstado(c);if(CRM_FILTRO==='activos')return e.t==='Activo'||e.t==='Prueba';if(CRM_FILTRO==='fotos'){const d=_crmDias(c.ultima_foto);return d==null||d>=28;}if(CRM_FILTRO==='renov'){const cm=c.crm||{};const d=_crmDiasA(cm.renov_plan||cm.fin_plan);return d!=null&&d>=0&&d<=7;}return true;};
+  const q=(($("crm_q")&&$("crm_q").value)||'').toLowerCase();
+  let rows=cli.filter(pasa).filter(c=>!q||(c.nombre||'').toLowerCase().includes(q));
+  rows.sort((a,b)=>((_crmDias(b.ultima_foto)==null?9999:_crmDias(b.ultima_foto))-(_crmDias(a.ultima_foto)==null?9999:_crmDias(a.ultima_foto))));
+  const PRODS=['','ASESORÍA','APP','P.MAM.MEDIUM','P.MAM.PREMIUM','MENTORÍA','OTRO'];
+  const kpi=(n,l,col)=>`<div class="card" style="flex:0 0 auto;padding:8px 14px;min-width:92px"><div style="font-size:20px;font-weight:800;color:${col||'var(--txt)'}">${n}</div><div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em">${l}</div></div>`;
+  const chip=(f,l)=>`<span onclick="CRM_FILTRO='${f}';verCRM()" class="pill" style="cursor:pointer;font-weight:700;background:${CRM_FILTRO===f?'#B51718':'var(--card2)'};color:${CRM_FILTRO===f?'#fff':'var(--muted)'}">${l}</span>`;
+  const fila=c=>{const cm=c.crm||{};const s=c.suscripcion||{};const e=_crmEstado(c);const nom=(c.nombre||'').split(' ')[0]||'';const wl=c.telefono?waLink(c.telefono,`Hola ${nom}, `):null;
+    const sf=_crmSem(c.ultima_foto),sm=_crmSem(c.ultima_medida);
+    const objApp=c.objetivo?(c.objetivo.tipo==='def'?'Definición':c.objetivo.tipo==='rec'?'Recomp':c.objetivo.tipo==='vol'?'Volumen':''):'';
+    return `<tr>
+      <td style="white-space:nowrap"><a href="#" onclick="tab('clientes');verCliente('${c.user_id}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:700;text-decoration:none;border-bottom:1px solid var(--line)">${esc(c.nombre||c.user_id.slice(0,8))}</a></td>
+      <td><span class="pill" style="font-weight:800;color:${e.col};background:var(--card2)">${e.t}</span></td>
+      <td><select onchange="crmGuardar('${c.user_id}',{producto:this.value})" style="margin:0;font-size:12px;width:auto">${PRODS.map(p=>`<option value="${p}" ${((cm.producto||'')===p)?'selected':''}>${p||'—'}</option>`).join('')}</select></td>
+      <td class="muted" style="white-space:nowrap;font-size:12px">${_crmFecha(c.inicio)}</td>
+      <td style="white-space:nowrap;font-size:12px">${s.precio!=null?('$'+s.precio):'—'}</td>
+      <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${sf.dot}"></span>${sf.t}</span></td>
+      <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${sm.dot}"></span>${sm.t}</span></td>
+      <td><input type="date" value="${cm.renov_plan||''}" onchange="crmGuardar('${c.user_id}',{renov_plan:this.value})" style="margin:0;font-size:11px;width:130px"></td>
+      <td><input type="date" value="${cm.fin_plan||''}" onchange="crmGuardar('${c.user_id}',{fin_plan:this.value})" style="margin:0;font-size:11px;width:130px"></td>
+      <td><input value="${esc(cm.objetivo||'')}" placeholder="${esc(objApp||'objetivo…')}" onchange="crmGuardar('${c.user_id}',{objetivo:this.value})" style="margin:0;font-size:12px;min-width:180px"></td>
+      <td><input value="${esc(cm.observaciones||'')}" placeholder="notas…" onchange="crmGuardar('${c.user_id}',{observaciones:this.value})" style="margin:0;font-size:12px;min-width:180px"></td>
+      <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:5px 8px;border-radius:7px;font-weight:700;font-size:11px">WhatsApp</a>`:''}</td>
+    </tr>`;};
+  let h=`<div class="card"><h2 style="margin-top:0">👥 Clientes (CRM)</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Todos tus clientes activos, con lo que la app sabe sola (inicio, fotos, medidas, pago) + tus campos editables (producto, objetivo, observaciones, renovación, fin de plan). <b>Toca el nombre</b> para abrir su ficha. Se guarda al salir de cada campo.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${kpi(nTot,'Clientes')}${kpi(nAct,'Activos','var(--ok)')}${kpi(nFotoV,'Fotos vencidas','var(--rojo2)')}${kpi(nRen,'Renov. ≤7 días','var(--warn)')}
+      <span style="flex:1"></span>
+      <input id="crm_q" placeholder="🔎 Buscar…" value="${esc((($("crm_q")&&$("crm_q").value)||''))}" oninput="clearTimeout(window._crmT);window._crmT=setTimeout(verCRM,300)" style="margin:0;width:160px">
+      <button class="sm ghost" onclick="crmCSV()">⬇ CSV</button>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('todos','Todos')}${chip('activos','Activos')}${chip('fotos','Fotos vencidas')}${chip('renov','Por renovar')}</div>
+  </div>
+  <div class="card" style="overflow-x:auto"><table class="data" style="min-width:1180px"><thead><tr>
+    <th>Cliente</th><th>Estado</th><th>Producto</th><th>Inicio</th><th>Pago</th><th>📸 Foto</th><th>📐 Medida</th><th>Renov. plan</th><th>Fin plan</th><th>Objetivo</th><th>Observaciones</th><th></th>
+  </tr></thead><tbody>${rows.map(fila).join('')||'<tr><td colspan="12" class="muted" style="padding:14px">Sin clientes que coincidan.</td></tr>'}</tbody></table></div>`;
+  $("v-crm").innerHTML=h;
+}
+async function crmGuardar(uid,campos){
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm_guardar',user_id:uid,...campos}});
+  if(error||(data&&data.error)){alert('No se pudo guardar: '+((data&&data.error)||(error&&error.message)||''));return;}
+  const c=(window.CRM||[]).find(x=>x.user_id===uid);if(c)c.crm=Object.assign(c.crm||{},campos); // update local, sin re-render (no pierde foco)
+}
+function crmCSV(){
+  const cli=window.CRM||[];const H=['Nombre','Estado','Producto','Inicio','Pago','UltimaFoto','UltimaMedida','RenovPlan','FinPlan','Objetivo','Observaciones'];
+  const rows=cli.map(c=>{const cm=c.crm||{};const s=c.suscripcion||{};const e=_crmEstado(c);return [c.nombre,e.t,(cm.producto||''),(c.inicio||''),(s.precio!=null?s.precio:''),(c.ultima_foto||''),(c.ultima_medida||''),(cm.renov_plan||''),(cm.fin_plan||''),(cm.objetivo||'').replace(/\n/g,' '),(cm.observaciones||'').replace(/\n/g,' ')];});
+  const csv=[H,...rows].map(r=>r.map(x=>`"${String(x==null?'':x).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const b=new Blob(["﻿"+csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='clientes-mam.csv';document.body.appendChild(a);a.click();a.remove();
+}
 // ============================================================
 // SEGUIMIENTO DE FOTOS Y MEDIDAS (cada 4 semanas)
 // Lista a quién ya se le cumplieron las 4 semanas desde su última foto/medida
