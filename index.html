@@ -3183,6 +3183,8 @@ function planParseFoods(txt){
     // veces olvida el "+". Insertamos " + " ANTES de una cantidad+unidad precedida de nombre y
     // seguida de nombre (= empieza otro alimento). No parte la cantidad inicial ni "Huevo 3 u".
     .replace(/([A-Za-zÁÉÍÓÚÑáéíóúñ)])\s+(?=\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|kg|unidades?|und?|u)\b\s+[A-Za-zÁÉÍÓÚÑáéíóúñ])/g,'$1 + ')
+    // Cantidad-DESPUÉS con "tajadas/rebanadas/rodajas" (pan): "Pan integral 1 tajada Mantequilla" = pan + otro → "+" tras la cantidad.
+    .replace(/(\d+(?:[.,]\d+)?\s*(?:tajadas?|rebanadas?|rodajas?)\b)\s+(?=[A-ZÁÉÍÓÚÑ])/g,'$1 + ')
     .replace(/\([^)]*\)/g,' ') // quita "(tomate, pepino)" antes de partir
     .replace(/[|;·•∙‧・]+/g,' + ')
     .replace(/\b(desayuno|media\s*ma(?:ñ|n)ana|almuerzo|comida(?:\s*\d+)?|merienda|tarde|noche|cena|snack|pre[\s-]*entreno|post[\s-]*entreno)\s*:/gi,' ');
@@ -3191,10 +3193,10 @@ function planParseFoods(txt){
     let gramos=0,unidades=0;
     const mg=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:g|gr|gramos|ml)\b/i);
     if(mg)gramos=Math.round(parseFloat(mg[1].replace(",","."))||0);
-    const mu=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:unidad(?:es)?|und?|u)\b/i);
+    const mu=seg.match(/(\d+(?:[.,]\d+)?)\s*(?:unidad(?:es)?|und?|u|tajadas?|rebanadas?|rodajas?)\b/i);
     if(!gramos&&mu)unidades=parseFloat(mu[1].replace(",","."))||0;
     const nombre=seg
-      .replace(/\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidad(?:es)?|und?|u)\b/gi,' ')
+      .replace(/\d+(?:[.,]\d+)?\s*(?:g|gr|gramos|ml|unidad(?:es)?|und?|u|tajadas?|rebanadas?|rodajas?)\b/gi,' ')
       .replace(/\b(cocid[oa]s?|crud[oa]s?|al vapor|a la plancha|hervid[oa]s?|asad[oa]s?|magr[oa]s?|libre|deslactosad[oa])\b/gi,' ')
       .replace(/\b(?:elige|escoge|opci[oó]n(?:es)?|alternativas?|puedes?\s+(?:elegir|escoger|comer))\b[\s:]*(?:de[\s:]+)?/gi,' ')
       .replace(/[():]/g,' ').replace(/\s+/g,' ').replace(/^(?:de|del|con)\s+/i,'').trim();
