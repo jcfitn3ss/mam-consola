@@ -2529,6 +2529,14 @@ async function verCliente(id){
       const M=medsAll.data||[];const m0=M[0],m1=M[M.length-1];
       const medRow=(lbl,k,u)=>{if(!m0)return'';const a=m0[k],b=m1?m1[k]:null;if(a==null&&b==null)return'';const d=(a!=null&&b!=null&&M.length>1)?Math.round((b-a)*10)/10:null;return `<tr><td>${lbl}</td><td>${a!=null?a+' '+u:'—'}</td><td>${b!=null?b+' '+u:'—'}</td><td class="muted">${d==null?'—':(d>0?'+':'')+d+' '+u}</td></tr>`;};
       let cg=`<h3 style="margin-top:0">Calorías (últimos días) vs objetivo</h3>${svgChart(kcalDs,kdates,'kcal',fmtF)}`;
+      // PROMEDIO DE CALORÍAS POR SEMANA: suaviza el ruido diario y, junto al peso, deja ver
+      // a qué RITMO baja/sube el cliente (déficit/superávit real que sostiene por semana).
+      const lunesDe=f=>{const d=new Date(f+"T00:00:00");d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10);};
+      const wk={};kdates.forEach(f=>{const k=lunesDe(f);(wk[k]=wk[k]||{sum:0,dias:0});wk[k].sum+=kByDay[f];wk[k].dias++;});
+      const wkeys=Object.keys(wk).sort();
+      const semDs=[{label:'Prom. diario',color:'#e0b84a',pts:wkeys.map(k=>({x:k,y:Math.round(wk[k].sum/Math.max(1,wk[k].dias)),tip:'Sem '+fmtF(k)+' · '+Math.round(wk[k].sum/Math.max(1,wk[k].dias))+' kcal/día ('+wk[k].dias+' días)'}))}];
+      if(o.kcal)semDs.push({label:'Objetivo',color:'#4c8dff',pts:wkeys.map(k=>({x:k,y:+o.kcal,tip:'Objetivo '+o.kcal}))});
+      cg+=`<h3>Promedio de calorías por semana</h3>${wkeys.length?svgChart(semDs,wkeys,'kcal/día',fmtF):'<div class="muted" style="font-size:12px">Sin comidas registradas aún.</div>'}<div class="muted" style="font-size:11px;margin-top:-2px">Promedio de lo que come al día en cada semana → a qué ritmo baja/sube frente al peso.</div>`;
       cg+=`<h3>Peso</h3>${svgChart(pesoDs,pesAsc.map(p=>p.fecha),U_PESO,fmtF)}`;
       cg+=`<h3>Sueño</h3>${svgChart(sueDs,sueAsc.map(s=>s.fecha),'h',fmtF)}`;
       cg+=`<h3>Medidas — primera vs última</h3>`;
