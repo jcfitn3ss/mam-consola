@@ -494,9 +494,9 @@ async function trasLogin(){
   // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
   // Idempotente y silencioso; el botón de "Salud de datos" lo permite correr a mano.
   try{
-    if(!localStorage.getItem('lectura_reparada_v8')){
+    if(!localStorage.getItem('lectura_reparada_v9')){
       const _rep=await invokeFn("migrar-lectura-entrenador",{body:{}});
-      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v8','1');
+      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v9','1');
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
