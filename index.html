@@ -2113,6 +2113,7 @@ async function verCliente(id){
   // EDITOR objetivo/plan
   h+=`</div><div class="card"><h2 style="margin-top:0">Objetivo, calorías y enfoque</h2>
    <label class="lbl">Objetivo</label><select id="e_tipo">${OBJ.map(([v,l])=>`<option value="${v}" ${o.tipo===v?'selected':''}>${l}</option>`).join("")}</select>
+   <label class="lbl">Modo de conteo habitual <span class="muted" style="font-weight:400">(el cliente puede cambiarlo solo por un día en la app)</span></label><select id="e_modo"><option value="contar" ${(o.modo||'contar')==='contar'?'selected':''}>Contar calorías</option><option value="intuitivo" ${o.modo==='intuitivo'?'selected':''}>Intuitivo</option><option value="plan" ${o.modo==='plan'?'selected':''}>Seguir un plan</option></select>
    <label class="lbl">Fase</label><select id="e_fase">${FASES.map(f=>`<option value="${f}" ${plan.fase===f?'selected':''}>${f?cap(f):'(sin fase)'}</option>`).join("")}</select>
    <label class="lbl">Altura (cm)</label><input id="e_altura" type="number" min="120" max="230" placeholder="Ej. 175" value="${(per.data&&per.data.altura)||''}">
    <label class="lbl">RIR planificado (0-4)</label><input id="e_rir" type="number" min="0" max="4" placeholder="Ej. 2" value="${plan.rir_objetivo!=null?plan.rir_objetivo:''}">
@@ -4038,13 +4039,14 @@ function recalcMd(){
 async function guardarObj(id){
   $("saveMsg").textContent="Guardando…";
   const tipo=$("e_tipo").value,kcal=+$("e_kcal").value||null,prot=+$("e_prot").value||null,carb=+$("e_carb").value||null,fat=+$("e_fat").value||null,fase=$("e_fase").value||null;
+  const modoC=$("e_modo")?($("e_modo").value||null):null; // modo de conteo habitual del cliente
   const enf=[...document.querySelectorAll("#e_enf .chip.on")].map(c=>c.textContent);
   const alturaEl=$("e_altura");const altura=alturaEl&&alturaEl.value?Math.round(+alturaEl.value):null;
   const rirEl=$("e_rir");const rir_objetivo=rirEl&&rirEl.value!==''?Math.max(0,Math.min(4,Math.round(+rirEl.value))):null;
   // Escritura por el edge (service_role): el upsert directo del entrenador a
   // objetivos/planes de OTRO usuario caía en RLS (0 filas, en silencio) → el
   // objetivo/macros no se guardaba y el plan se generaba con el valor viejo.
-  const r=await invokeFn("consola-rutina",{body:{action:'guardar_obj',cliente:id,objetivo:{tipo,kcal,prot,carb,fat},plan:{enfoque:enf,fase,rir_objetivo},altura}});
+  const r=await invokeFn("consola-rutina",{body:{action:'guardar_obj',cliente:id,objetivo:{tipo,kcal,prot,carb,fat,modo:modoC},plan:{enfoque:enf,fase,rir_objetivo},altura}});
   const e=(r.error&&r.error.message)||(r.data&&r.data.error);
   $("saveMsg").innerHTML=e?`<span class="alert">${esc(e)}</span>`:"✓ Guardado.";
   // Refleja la altura en la lista (quita el badge "sin altura" y actualiza el contador).
