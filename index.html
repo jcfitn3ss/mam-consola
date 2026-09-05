@@ -443,6 +443,18 @@ async function verPagos(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${pill('Total '+(t.total||0))}${pill('Activas '+(pe.activa||0),'rgba(95,208,127,.16)')}${pill('Vencidas '+(pe.vencido||0),'rgba(226,59,59,.12)')}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(pt).map(([k,v])=>pill(k+': '+v)).join('')}</div>
   </div>`;
+  // ---- SEGMENTOS DE SERVICIO (Fase 1: etiqueta confiable App vs Mentoría) ----
+  const seg=data.segmentos||{conteo:{},lista:[]};
+  const SM={mentoria:{e:'💼',t:'Mentoría',c:'#5f93e0'},app:{e:'📱',t:'App',c:'var(--ok)'},prueba:{e:'🧪',t:'Prueba',c:'var(--warn)'},cortesia:{e:'🎁',t:'Cortesía',c:'var(--muted)'},vencido:{e:'❌',t:'Vencido',c:'var(--rojo2)'},revisar:{e:'❓',t:'Revisar',c:'var(--rojo)'}};
+  const gruposSeg=['mentoria','app','prueba','cortesia','vencido','revisar'];
+  const segChip=(k)=>`<span class="pill" style="background:var(--card2);font-weight:700">${SM[k].e} ${SM[k].t}: ${seg.conteo[k]||0}</span>`;
+  const segOpts=(cur)=>['','mentoria','app','prueba','cortesia','vencido'].map(v=>`<option value="${v}"${v===cur?' selected':''}>${v?SM[v].e+' '+SM[v].t:'(auto)'}</option>`).join('');
+  const filaSeg=(x)=>`<tr${x.revisar?' style="background:rgba(226,59,59,.06)"':''}><td><b>${esc(x.nombre)}</b>${x.revisar?' <span title="Mentoría sin Stripe o sin clasificar" style="color:var(--rojo)">⚠️</span>':''}${x.override?' <span title="Fijado a mano" class="muted">📌</span>':''}</td><td class="muted" style="font-size:11px">${esc(x.tier||'—')}${x.seg==='mentoria'?(x.stripe?' · Stripe✓':' · <span style="color:var(--rojo)">sin Stripe</span>'):''}</td><td class="muted" style="font-size:11px">${esc(x.prox_cobro||'—')}</td><td><select class="sm" onchange="guardarSegmento('${x.user_id}',this.value)">${segOpts(x.override||'')}</select></td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`;
+  let segH=`<div class="card"><h2 style="margin-top:0">🧭 Segmentos de servicio</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Quién paga <b>Mentoría</b> (reuniones + acompañamiento) vs <b>App</b> (soporte por WhatsApp). La etiqueta se deduce sola de la suscripción; puedes <b>fijarla a mano</b> con el selector para casos raros (ej. mentoría pagada por fuera sin Stripe). ⚠️ = revisar · 📌 = fijado a mano.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${gruposSeg.map(segChip).join('')}</div>`;
+  for(const g of gruposSeg){const ls=(seg.lista||[]).filter(x=>x.seg===g);if(!ls.length)continue;segH+=`<details style="margin-bottom:6px"${(g==='revisar'||g==='mentoria')?' open':''}><summary style="cursor:pointer;font-weight:700;color:${SM[g].c}">${SM[g].e} ${SM[g].t} (${ls.length})</summary><table style="margin-top:4px"><tr><th>Cliente</th><th>Tier</th><th>Próx. cobro</th><th>Fijar</th><th></th></tr>${ls.map(filaSeg).join('')}</table></details>`;}
+  segH+=`</div>`;h+=segH;
   h+=`<div class="card"><h2 style="margin-top:0">Recurrentes (tiers de tienda)</h2>
     <table class="kv"><tbody>
       <tr><th>Activas de tienda (pagan por Apple/Google)</th><td><b>${r.activas_de_tienda||0}</b></td></tr>
@@ -484,6 +496,12 @@ async function verPagos(){
     <div style="border-top:1px solid var(--line);padding-top:8px"><b style="font-size:13px">Diagnóstico</b><ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.6">${(data.diagnostico||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
   $("v-pagos").innerHTML=h;
 }
+// Fija (o quita, con '') el segmento de servicio de un cliente a mano. Manda sobre el derivado.
+async function guardarSegmento(uid,segv){
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm_guardar',user_id:uid,segmento:segv||''}});
+  if(error||(data&&data.error)){alert('No se pudo guardar el segmento: '+((data&&data.error)||error.message));return;}
+  verPagos();
+}
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
@@ -494,9 +512,9 @@ async function trasLogin(){
   // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
   // Idempotente y silencioso; el botón de "Salud de datos" lo permite correr a mano.
   try{
-    if(!localStorage.getItem('lectura_reparada_v9')){
+    if(!localStorage.getItem('lectura_reparada_v10')){
       const _rep=await invokeFn("migrar-lectura-entrenador",{body:{}});
-      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v9','1');
+      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v10','1');
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
