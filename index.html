@@ -531,9 +531,9 @@ async function trasLogin(){
   // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
   // Idempotente y silencioso; el botón de "Salud de datos" lo permite correr a mano.
   try{
-    if(!localStorage.getItem('lectura_reparada_v10')){
+    if(!localStorage.getItem('lectura_reparada_v11')){
       const _rep=await invokeFn("migrar-lectura-entrenador",{body:{}});
-      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v10','1');
+      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v11','1');
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
@@ -2094,6 +2094,7 @@ async function verCliente(id){
     const _P = pln.data || {};
     const _semAct = semanaActual(_P.inicio, _P.semanas);
     const _off = Math.round(+_P.semana_offset || 0);
+    const _sdia = _P.semana_inicio_dia==null?1:(+_P.semana_inicio_dia); // 0=dom..6=sáb; defecto lunes
     h+=`<h3>Semana del mesociclo</h3>
       <div class="muted" style="font-size:12px;margin-bottom:8px">Por calendario hoy es <b>Semana ${_semAct}${_P.semanas?` de ${_P.semanas}`:''}</b> (inicio <b>${_P.inicio?esc(_P.inicio):'—'}</b>). Avanza sola cada 7 días.</div>
       <div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px">
@@ -2111,6 +2112,13 @@ async function verCliente(id){
         <input id="inicioPlan_${id}" type="date" value="${_P.inicio?esc(_P.inicio):''}" style="width:auto;margin:0">
         <button class="sm ghost" onclick="setInicioPlan('${id}')">Guardar inicio</button>
         <span id="semMesoMsg" class="muted" style="font-size:12px"></span>
+      </div>
+      <div class="muted" style="font-size:11px;margin:12px 0 4px">📅 <b>Día en que ARRANCA su semana de entreno</b> (defecto lunes). Cámbialo solo si el cliente entrena en otro ritmo — ej. arranca el <b>domingo</b>. Solo reagrupa el check de "completada"; <b>NO</b> toca la progresión ni el historial.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="semDia_${id}" class="sm" onchange="setSemanaInicioDia('${id}',this.value)">
+          ${[['1','Lunes'],['2','Martes'],['3','Miércoles'],['4','Jueves'],['5','Viernes'],['6','Sábado'],['0','Domingo']].map(([v,l])=>`<option value="${v}"${_sdia==+v?' selected':''}>${l}</option>`).join('')}
+        </select>
+        <span id="semDiaMsg" class="muted" style="font-size:12px"></span>
       </div>`;
   }
 
@@ -3975,6 +3983,15 @@ async function setSemanaOffset(id,off){
   if(e){if(msg)msg.innerHTML='<span class="alert">'+esc(e)+'</span>';return;}
   if(msg)msg.textContent="✓ Progresión "+(off>0?"+"+off:off)+" semanas";
   setTimeout(()=>verCliente(id),650);
+}
+async function setSemanaInicioDia(id,dia){
+  dia=((Math.round(+dia||0))%7+7)%7; // 0=dom..6=sáb
+  const msg=$("semDiaMsg");
+  if(msg)msg.textContent="Guardando…";
+  const e=errFilas(await sb.from("planes").update({semana_inicio_dia:dia,updated_at:new Date().toISOString()}).eq("user_id",id).select("user_id"));
+  if(e){if(msg)msg.innerHTML='<span class="alert">'+esc(e)+'</span>';return;}
+  const nom=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][dia];
+  if(msg)msg.textContent="✓ Semana arranca en "+nom;
 }
 async function setInicioPlan(id){
   const el=$("inicioPlan_"+id);const v=(el&&el.value||"").trim();const msg=$("semMesoMsg");
