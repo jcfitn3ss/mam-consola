@@ -2517,6 +2517,7 @@ async function verCliente(id){
       <div style="flex:0"><label class="lbl">Comidas al día</label><input id="plan_comidas" type="number" min="2" max="7" value="4" style="width:90px"></div>
       <div><button onclick="planGenerar('${id}')">Generar con IA</button></div>
     </div>
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;margin-bottom:6px" title="Cada día del plan usa alimentos distintos (misma estructura). Desmárcalo para dar el MISMO plan todos los días."><input type="checkbox" id="plan_variar" ${(pln.data&&pln.data.variar_dias===false)?'':'checked'} onchange="setVariarDias('${id}',this.checked)"> Variar comidas entre días</label>
     <span id="planMsg" class="muted" style="font-size:12px"></span>
     <div id="plan_editor" style="margin-top:10px"></div>
     <div id="plan_acciones" class="hide" style="margin-top:10px">
@@ -3523,6 +3524,11 @@ async function planAjustar(id){
   PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}
   const o=data.objetivo||{};
   $("planMsg2").innerHTML=`✓ Ajustado a <b>${Math.round(o.kcal||0)} kcal</b> (P${Math.round(o.prot||0)}/C${Math.round(o.carb||0)}/G${Math.round(o.fat||0)}) sin cambiar los alimentos. Aprobado y guardado.`;
+}
+async function setVariarDias(id,val){
+  const m=$("planMsg");if(m)m.textContent=val?"Variará las comidas entre días.":"Mismo plan todos los días.";
+  const e=errFilas(await sb.from("planes").update({variar_dias:!!val,updated_at:new Date().toISOString()}).eq("user_id",id).select("user_id"));
+  if(e&&m)m.innerHTML='<span class="alert">'+esc(e)+'</span>';
 }
 function planExportar(){if(!PLAN_HTML){alert("Primero aprueba/guarda o actualiza la vista previa.");return;}imprimirIframe("plan_prev",PLAN_HTML);}
 async function marcarPlanEnviado(id){
