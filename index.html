@@ -2794,7 +2794,10 @@ function hacerColapsables(){
     const kids=[];let n=h.nextSibling;while(n){kids.push(n);n=n.nextSibling;}
     kids.forEach(k=>cont.appendChild(k));card.appendChild(cont);
     // Reuniones abre expandida (es donde se agenda; JC quiere verla directo).
-    const abierta=abiertos.has(titulo)||card.dataset.tab==='reuniones'; cont.style.display=abierta?"block":"none";
+    // El Plan de alimentación y el Objetivo/macros también abren solos: JC entra a
+    // esas dos constantemente para revisar/ajustar y "no las veía" al estar colapsadas.
+    const abrePorDefecto=card.dataset.tab==='reuniones'||/plan de alimentaci|objetivo y macros|objetivo\/macros|^objetivo|macros/i.test(titulo);
+    const abierta=abiertos.has(titulo)||abrePorDefecto; cont.style.display=abierta?"block":"none";
     h.style.cursor="pointer";h.style.userSelect="none";
     const flecha=document.createElement("span");flecha.style.cssText="float:right;color:var(--muted);font-size:13px";flecha.textContent=abierta?"▾":"▸";h.appendChild(flecha);
     const lazyKey=card.dataset.lazy;
