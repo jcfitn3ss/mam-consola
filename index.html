@@ -3546,6 +3546,22 @@ async function guardarRecetaInteractiva(){const nom=$("r_nom").value.trim();if(!
 // Importa VARIAS recetas pegadas (herramienta genérica). Cada bloque (separado por línea en
 // blanco): 1ª línea nombre (opcional "— dulce/salado"); líneas Tipo:/Ingredientes:/Preparación:/Macros:.
 // Si no hay Macros, se calculan de los ingredientes con el banco (planFoodMacros).
+// Estructura con IA: pega nombres/ideas/recetas sueltas → la IA devuelve recetas con
+// ingredientes en gramos + macros + tipo → se cargan al recetario (usables por el motor).
+async function estructurarRecetasIA(){
+  const msg=$("impMsg"); const txt=($("imp_recetas").value||"").trim(); const com=$("imp_com")?$("imp_com").checked:true;
+  if(!txt){if(msg)msg.textContent="Pega nombres, ideas o recetas (una por línea).";return;}
+  if(msg)msg.textContent="Estructurando con IA… (unos segundos)";
+  const {data,error}=await invokeFn("nutricion-ia",{body:{tipo:'estructurar',descripcion:txt}});
+  if(error||(data&&data.error)||!data){if(msg)msg.innerHTML=`<span class="alert">${esc((data&&data.error)||(error&&error.message)||'error')}</span>`;return;}
+  const es=(data.estructuradas||[]);
+  if(!es.length){if(msg)msg.textContent="La IA no devolvió recetas. Reintenta o ajusta el texto.";return;}
+  const out=es.map(r=>({owner:MIID,nombre:r.nombre,tipo:r.tipo,ingredientes:(r.ingredientes||[]).map(i=>`${i.gramos} g ${i.nombre}`).join(', '),pasos:(r.pasos||[]).join('\n').slice(0,600),kcal:r.kcal,prot:r.prot,carb:r.carb,fat:r.fat,comunidad:com,ingredientes_json:{items:(r.ingredientes||[]).map(i=>({nombre:i.nombre,gramos:i.gramos||0,unidades:0}))}}));
+  const r2=await invokeFn("consola-rutina",{body:{action:'crear_recetas',recetas:out}});
+  if(r2.error||(r2.data&&r2.data.error)){if(msg)msg.innerHTML=`<span class="alert">${esc((r2.data&&r2.data.error)||(r2.error&&r2.error.message)||'error al guardar')}</span>`;return;}
+  if(msg)msg.innerHTML=`<span style="color:var(--ok)">✓ ${(r2.data&&r2.data.n)||out.length} recetas estructuradas y cargadas.</span>`;$("imp_recetas").value="";
+  setTimeout(()=>{try{if(!$("v-alimentos").classList.contains("hide"))verAlimentos();}catch(_){}} ,900);
+}
 async function importarRecetasLote(){
   const msg=$("impMsg");
   try{
@@ -4368,7 +4384,7 @@ async function verAlimentos(){
    <h3 style="margin:6px 0 4px">📥 Importar en lote</h3>
    <div class="muted" style="font-size:12px;margin-bottom:6px">Cada receta empieza con <b>número y punto</b> ("1. Nombre — dulce/salado"). Los títulos en MAYÚSCULA (DESAYUNOS, ALMUERZOS Y CENAS, SNACKS…) fijan el tipo. Incluye <b>Ingredientes:</b> (con gramos), <b>Preparación:</b> y <b>Macros:</b> (si faltan, se calculan del banco).</div>
    <textarea id="imp_recetas" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px" placeholder="DESAYUNOS&#10;1. Bowl de avena y banano — dulce&#10;Macros: 380 kcal G7 C48 P30 Ingredientes: 80 g de avena; 30 g de proteína; 100 g de banano Preparación: Mezcla y cocina."></textarea>
-   <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
+   <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><button class="sm ghost" onclick="estructurarRecetasIA()" title="Pega nombres o recetas sueltas (ej. 'Salmón con arroz y brócoli', 'Bandeja paisa fit') y la IA las estructura con gramos y macros, listas para el plan.">🤖 Estructurar con IA</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
    ${RECS.length?`<div style="margin-top:12px;max-height:460px;overflow:auto;border-top:1px solid var(--line);padding-top:8px">${RECS.map(r=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(cap(r.nombre))} <span class="muted" style="font-size:11px">· ${esc(r.tipo||'')} · ${r.kcal||0} kcal</span></span><span style="display:flex;gap:4px;flex:0 0 auto"><button class="sm ghost" onclick="editarRecetaPub('${r.id}')">✏️ Editar</button><button class="sm ghost" onclick="borrarRecetaPub('${r.id}')" title="Borrar">🗑</button></span></div>${REC_EDIT===String(r.id)?recetaEditorHTML(r):''}</div>`).join('')}</div>`:''}
   </div>`;
   // ===== Fragmentos de cada sub-pestaña =====
