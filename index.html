@@ -173,6 +173,7 @@
       <button id="t-seguimiento" onclick="tab('seguimiento')">📸 Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
+      <button id="t-contactar" onclick="tab('contactar')">📣 Contactar</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
       <div class="menu" id="masMenu">
         <div class="menuGrp">Decisiones</div>
@@ -207,6 +208,7 @@
       </div>
       <div id="detalle"></div>
     </div>
+    <div id="v-contactar" class="hide"></div>
     <div id="v-resumen" class="hide"></div>
     <div id="v-revision" class="hide"></div>
     <div id="v-riesgo" class="hide"></div>
@@ -303,7 +305,8 @@ const TECNICAS=[["normal","Normal"],["biserie","Biserie"],["triserie","Triserie"
 const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bíceps","Tríceps","Core","Pantorrilla","Cuello","Dorsal","Aductores","Abductores"];
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
-let MIID=null,MI_PRINCIPAL=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],EJU=[],CANON={},RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
+let MIID=null,MI_PRINCIPAL=false,MI_SETTER=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],EJU=[],CANON={},RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
+let CONTACTAR_TODOS=false; // false = solo pendientes de esta semana; true = incluye ya contactados
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[],LAZY={};
 let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null,INF_DATOS=null;
 
@@ -338,7 +341,7 @@ async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr"
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{show("v-"+x,x===t);$("t-"+x).classList.toggle("on",x===t);});if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -524,16 +527,27 @@ async function guardarSegmento(uid,segv){
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
-  const {data:p}=await sb.from("perfiles").select("rol,es_principal").eq("user_id",MIID).maybeSingle();
-  if(!p||p.rol!=="entrenador"){show("login",true);$("loginErr").textContent="Esta cuenta no es de entrenador.";await sb.auth.signOut();return;}
-  MI_PRINCIPAL=!!p.es_principal; // entrenador principal: puede asignar clientes a otros entrenadores
+  const {data:p}=await sb.from("perfiles").select("rol,es_principal,es_setter").eq("user_id",MIID).maybeSingle();
+  const _esEnt=p&&p.rol==="entrenador"; const _esSet=p&&!!p.es_setter;
+  if(!_esEnt&&!_esSet){show("login",true);$("loginErr").textContent="Esta cuenta no tiene acceso a la consola.";await sb.auth.signOut();return;}
+  MI_PRINCIPAL=!!(p&&p.es_principal); // entrenador principal: puede asignar clientes a otros entrenadores
+  MI_SETTER=_esSet;
+  // SETTER de ventas (no entrenador): solo ve la cola de contacto. Salta toda la carga
+  // pesada de entrenador (rutinas, biblioteca, RLS) que además no le está permitida.
+  if(_esSet&&!_esEnt){
+    show("login",false);show("app",true);show("logout",true);
+    document.querySelectorAll('.nav button').forEach(b=>{ if(b.id!=='t-contactar') b.classList.add('hide'); });
+    const mm=$("masBtn");if(mm)mm.classList.add('hide');
+    tab('contactar');
+    return;
+  }
   // AUTO-REPARACIÓN (1 vez por navegador): restaura las policies de LECTURA del
   // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
   // Idempotente y silencioso; el botón de "Salud de datos" lo permite correr a mano.
   try{
-    if(!localStorage.getItem('lectura_reparada_v12')){
+    if(!localStorage.getItem('lectura_reparada_v13')){
       const _rep=await invokeFn("migrar-lectura-entrenador",{body:{}});
-      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v12','1');
+      if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v13','1');
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
@@ -1084,6 +1098,68 @@ function _crmSem(f){const d=_crmDias(f);if(d==null)return{t:'nunca',dot:'#e23b3b
 function _crmEstado(c){const s=c.suscripcion;if(!s)return{t:'Sin susc.',col:'var(--muted)'};if(s.estado==='activa'){const enTrial=s.trial_fin&&new Date(s.trial_fin)>new Date();return enTrial?{t:'Prueba',col:'var(--azul)'}:{t:'Activo',col:'var(--ok)'};}return{t:s.estado||'—',col:'var(--rojo2)'};}
 function _crmFecha(f){return f?new Date(f+"T00:00:00").toLocaleDateString('es',{day:'numeric',month:'short',year:'2-digit'}):'—';}
 function _crmDiasA(r){return r?Math.floor((new Date(r+"T00:00:00").getTime()-Date.now())/864e5):null;}
+// ============ COLA DE CONTACTO / VENTAS (setter) ============
+// Lista semanal ordenada de a quién escribir por WhatsApp para vender: pruebas por vencer,
+// pruebas vencidas sin comprar y vencidos. "de una" a WhatsApp + marca contactado.
+const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado'],['agendado','Agendó llamada'],['no_interesado','No interesado'],['ganado','✅ Compró'],['perdido','Perdido']];
+function guionContacto(nom,bucket){
+  const n=nom||'';
+  if(bucket==='prueba') return `Hola ${n}, soy del equipo de Músculo al Máximo 💪 ¿Cómo vas con tu prueba? Si quieres seguir con tu plan, rutina y seguimiento sin perder tu progreso, te ayudo a activarlo hoy. ¿Te cuento cómo?`;
+  if(bucket==='prueba_vencida') return `Hola ${n}, vi que tu prueba de Músculo al Máximo terminó. No quiero que pierdas lo que ya avanzaste. ¿Te gustaría retomar con tu plan y seguimiento? Te dejo el paso a paso.`;
+  return `Hola ${n}, ¿cómo estás? Soy del equipo de Músculo al Máximo. Vi que tu plan quedó en pausa y quiero ayudarte a retomar tus resultados. ¿Lo reactivamos?`;
+}
+async function marcarContacto(uid,estado){
+  const r=await invokeFn('consola-rutina',{body:{action:'marcar_contacto',user_id:uid,estado:estado||'contactado'}});
+  if(r.error){alert('No se pudo marcar: '+(r.error.message||r.error));return;}
+  verContactar();
+}
+function waContactar(uid,tel,msg){ const wl=waLink(tel,msg); if(wl) window.open(wl,'_blank'); marcarContacto(uid,'contactado'); }
+async function verContactar(){
+  const el=$("v-contactar"); el.innerHTML='<div class="card">Cargando cola de contacto…</div>';
+  const r=await invokeFn('consola-rutina',{body:{action:'crm'}});
+  if(r.error){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc(r.error.message||String(r.error))}</div>`;return;}
+  const cli=(r.data&&r.data.clientes)||[];
+  const hoy=new Date(); const dRest=(tf)=>{if(!tf)return null;return Math.ceil((new Date(tf)-hoy)/864e5);};
+  const diasDesde=(ts)=>{if(!ts)return null;return Math.floor((hoy-new Date(ts))/864e5);};
+  // Clasifica cada persona en un bucket de venta.
+  const rows=[];
+  for(const c of cli){
+    const s=c.suscripcion||{}; const est=s.estado; const tier=s.tier;
+    if(['fundador','gratis','cortesia','mentoria'].includes(tier)) continue; // no son venta de app
+    let bucket=null,orden=0,etiqueta='';
+    const dr=dRest(s.trial_fin);
+    if(est==='prueba' && dr!=null && dr>=0){ bucket='prueba'; orden=dr; etiqueta=`Prueba · ${dr}d restantes`; }
+    else if(est==='prueba'){ bucket='prueba_vencida'; orden=100+(dr==null?99:-dr); etiqueta=dr!=null?`Prueba vencida hace ${-dr}d`:'Prueba vencida'; }
+    else if(est==='vencido'){ bucket='vencido'; orden=200; etiqueta='Vencido (sin acceso)'; }
+    else continue; // activa u otros → no entran a la cola de venta
+    const cc=c.crm||{}; const contactadoHace=diasDesde(cc.contacto_ultimo);
+    // Cadencia semanal: oculta a los contactados hace <7 días (salvo "ver todos").
+    if(!CONTACTAR_TODOS && contactadoHace!=null && contactadoHace<7) continue;
+    rows.push({c,bucket,orden,etiqueta,estado:cc.contacto_estado||'',contactadoHace,tel:(c.telefono||'').trim()});
+  }
+  rows.sort((a,b)=>a.orden-b.orden || (a.tel?0:1)-(b.tel?0:1));
+  const grupos=[['prueba','🧪 Prueba por vencer — vender YA','var(--warn)'],['prueba_vencida','⌛ Prueba vencida sin comprar','var(--rojo)'],['vencido','❌ Vencidos — reactivar','var(--rojo2)']];
+  let h=`<div class="card"><h2 style="margin-top:0">📣 Cola de contacto <span class="muted" style="font-size:13px;font-weight:400">· ${rows.length} por escribir</span></h2>`;
+  h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Escribe por WhatsApp de una. Al escribir se marca <b>contactado</b> y sale de la cola por 7 días. Ordenados por urgencia.</div>`;
+  h+=`<label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-bottom:6px"><input type="checkbox" ${CONTACTAR_TODOS?'checked':''} onchange="CONTACTAR_TODOS=this.checked;verContactar()"> Ver también los ya contactados esta semana</label></div>`;
+  let vacio=true;
+  for(const [bk,titulo,col] of grupos){
+    const gr=rows.filter(x=>x.bucket===bk); if(!gr.length) continue; vacio=false;
+    h+=`<div class="card" style="border-left:3px solid ${col}"><h3 style="margin:0 0 8px">${titulo} <span class="pill" style="background:var(--card2)">${gr.length}</span></h3><table><tr><th>Persona</th><th>Estado</th><th>Contacto</th><th></th></tr>`;
+    for(const x of gr){
+      const nom=(x.c.nombre||'').split(' ')[0]||'';
+      const msg=guionContacto(nom,x.bucket);
+      const wl=x.tel?waLink(x.tel,msg):null;
+      const cont=x.contactadoHace==null?'<span class="muted" style="font-size:11px">nunca</span>':`<span class="muted" style="font-size:11px">hace ${x.contactadoHace}d</span>`;
+      const selEst=`<select class="sm" onchange="marcarContacto('${x.c.user_id}',this.value)" style="font-size:11px;padding:3px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===x.estado?' selected':''}>${t}</option>`).join('')+`</select>`;
+      const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none" onclick="waContactar('${x.c.user_id}','${esc(x.tel)}',${JSON.stringify(msg).replace(/"/g,'&quot;')})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
+      h+=`<tr><td><b>${esc(x.c.nombre||'')}</b><div class="muted" style="font-size:11px">${esc(x.etiqueta)}</div></td><td>${selEst}</td><td>${cont}</td><td style="display:flex;gap:6px">${waBtn}</td></tr>`;
+    }
+    h+=`</table></div>`;
+  }
+  if(vacio) h+=`<div class="card"><div class="muted">Nadie pendiente de contactar esta semana. ${!CONTACTAR_TODOS?'Activa "ver también los ya contactados" para ver toda la lista.':''}</div></div>`;
+  el.innerHTML=h;
+}
 async function verCRM(){
   $("v-crm").innerHTML='<div class="card">Cargando…</div>';
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm'}});
