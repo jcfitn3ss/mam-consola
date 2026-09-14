@@ -3453,8 +3453,10 @@ async function planCargarGuardado(id){
   PLAN_DATOS=null;PLAN_HTML=null;
   const msg=$("planMsg");const acc=$("plan_acciones");const f=$("plan_prev");
   if(acc)acc.classList.add("hide");if(f)f.classList.add("hide");
+  // Lee por el EDGE (service_role): RLS bloquea que el entrenador lea la fila del cliente
+  // con sb.from → el plan "desaparecía" al recargar. El edge 'ver' devuelve datos+html.
   let fila=null;
-  try{const r=await sb.from("planes_alimentacion").select("datos,html,generado_en,enviado_en,solicitado_en").eq("user_id",id).maybeSingle();fila=r.data;}catch(e){return;}
+  try{const {data:v}=await invokeFn("plan-alimentacion",{body:{action:"ver",user_id:id}});if(v&&!v.error)fila={datos:v.datos||null,html:v.html||null,generado_en:v.generado_en||null,enviado_en:v.enviado_en||null,solicitado_en:v.solicitado_en||null};}catch(e){return;}
   if(!fila||(!fila.html&&!fila.datos))return; // nada guardado aún
   try{await planCargarCatalogo(id);}catch(e){}
   if(fila.datos){
