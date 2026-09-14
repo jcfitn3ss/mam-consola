@@ -548,7 +548,10 @@ async function guardarSegmento(uid,segv){
 
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
-  const {data:p}=await sb.from("perfiles").select("rol,es_principal,es_setter").eq("user_id",MIID).maybeSingle();
+  // OJO: select("*") — NO nombrar es_setter aquí: esa columna se crea en la migración que
+  // corre DESPUÉS de este gate. Si se selecciona por nombre y aún no existe, el query FALLA
+  // y deja a TODOS sin poder entrar (huevo/gallina). Con "*" toma es_setter si ya existe.
+  const {data:p}=await sb.from("perfiles").select("*").eq("user_id",MIID).maybeSingle();
   const _esEnt=p&&p.rol==="entrenador"; const _esSet=p&&!!p.es_setter;
   if(!_esEnt&&!_esSet){show("login",true);$("loginErr").textContent="Esta cuenta no tiene acceso a la consola.";await sb.auth.signOut();return;}
   MI_PRINCIPAL=!!(p&&p.es_principal); // entrenador principal: puede asignar clientes a otros entrenadores
