@@ -432,6 +432,20 @@ async function guardarNombreSalud(id,inputId,btn){
   if(!e){[CLIENTES,TODOS].forEach(L=>{const c=(L||[]).find(x=>x.user_id===id);if(c){c.nombre=val;c.nombre_completo=val;}});poblarDropCli();}
 }
 // ---- PAGOS Y SUSCRIPCIONES: cruza nuestra DB con RevenueCat (fuente de verdad) ----
+async function reconciliarAhora(btn){
+  const msg=$("reconMsg"),lista=$("reconLista"); if(btn)btn.disabled=true; if(msg)msg.textContent='Reconciliando con RevenueCat…';
+  const {data,error}=await invokeFn("reconciliar-accesos",{body:{modo:'activar'}});
+  if(btn)btn.disabled=false;
+  if(error||(data&&data.error)){if(msg)msg.textContent='No se pudo: '+esc((data&&data.error)||(error&&error.message)||'error');return;}
+  const n=(data&&data.activados)||0, nuevos=(data&&data.nuevos)||[];
+  const hora=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  if(msg)msg.textContent=(n?`✔ ${n} reactivado(s)`:'✔ Todos al día con Apple/Google')+` · ${hora}`;
+  if(lista){
+    const nombre=id=>{const c=(TODOS||[]).find(x=>x.user_id===id);return c?(c.nombre||id.slice(0,8)):id.slice(0,8);};
+    lista.innerHTML=nuevos.length?('<div class="muted" style="font-size:12px;margin-bottom:4px">Reactivados ahora (habían pagado y estaban atascados):</div>'+nuevos.map(id=>`<div style="padding:4px 0;border-bottom:1px solid var(--line)"><b>${esc(nombre(id))}</b></div>`).join('')):'';
+  }
+  try{const {data:subs}=await sb.from("suscripciones").select("user_id,estado,tier");const sm={};(subs||[]).forEach(s=>{sm[s.user_id]=s;});const marcar=c=>{const s=sm[c.user_id]||{};c._susE=s.estado||null;c._susT=s.tier||null;};(CLIENTES||[]).forEach(marcar);(TODOS||[]).forEach(marcar);}catch(e){}
+}
 async function verPagos(){
   $("v-pagos").innerHTML='<div class="card">Verificando pagos con RevenueCat… (puede tardar unos segundos)</div>';
   const {data,error}=await invokeFn("auditoria-pagos",{body:{}});
@@ -446,6 +460,13 @@ async function verPagos(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${pill('Total '+(t.total||0))}${pill('Activas '+(pe.activa||0),'rgba(95,208,127,.16)')}${pill('Vencidas '+(pe.vencido||0),'rgba(226,59,59,.12)')}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(pt).map(([k,v])=>pill(k+': '+v)).join('')}</div>
   </div>`;
+  // 🔐 Salud de accesos: nadie que pagó debe quedar en el paywall. Vista persistente del
+  // reconciliador (RevenueCat→DB). Corre solo al abrir la consola + cron cada 3 h; aquí se
+  // fuerza y se ve a quién reactivó (caso "pagué y no me deja entrar", ej. Valentina).
+  h+=`<div class="card"><h2 style="margin-top:0">🔐 Salud de accesos</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Reconcilia RevenueCat con la base y <b>activa a quien pagó y quedó atascado en el paywall</b>. Corre solo al abrir la consola y cada 3 h automáticamente. Fuérzalo aquí cuando alguien diga "pagué y no me deja entrar".</div>
+    <button class="sm" onclick="reconciliarAhora(this)">Reconciliar ahora</button> <span id="reconMsg" class="muted" style="font-size:12px"></span>
+    <div id="reconLista" style="margin-top:8px"></div></div>`;
   // ---- SEGMENTOS DE SERVICIO (Fase 1: etiqueta confiable App vs Mentoría) ----
   const seg=data.segmentos||{conteo:{},lista:[]};
   const SM={mentoria:{e:'💼',t:'Mentoría',c:'#5f93e0'},app:{e:'📱',t:'App',c:'var(--ok)'},prueba:{e:'🧪',t:'Prueba',c:'var(--warn)'},cortesia:{e:'🎁',t:'Cortesía',c:'var(--muted)'},vencido:{e:'❌',t:'Vencido',c:'var(--rojo2)'},revisar:{e:'❓',t:'Revisar',c:'var(--rojo)'}};
