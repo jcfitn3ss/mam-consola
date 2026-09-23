@@ -173,6 +173,7 @@
       <button id="t-seguimiento" onclick="tab('seguimiento')">📸 Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
+      <button id="t-leads" onclick="tab('leads')">Leads</button>
       <button id="t-contactar" onclick="tab('contactar')">📣 Contactar</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
       <div class="menu" id="masMenu">
@@ -217,6 +218,7 @@
     <div id="v-seguimiento" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
+    <div id="v-leads" class="hide"></div>
     <div id="v-salud" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
@@ -341,7 +343,7 @@ async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr"
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","leads","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="leads")verLeads();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -445,6 +447,44 @@ async function reconciliarAhora(btn){
     lista.innerHTML=nuevos.length?('<div class="muted" style="font-size:12px;margin-bottom:4px">Reactivados ahora (habían pagado y estaban atascados):</div>'+nuevos.map(id=>`<div style="padding:4px 0;border-bottom:1px solid var(--line)"><b>${esc(nombre(id))}</b></div>`).join('')):'';
   }
   try{const {data:subs}=await sb.from("suscripciones").select("user_id,estado,tier");const sm={};(subs||[]).forEach(s=>{sm[s.user_id]=s;});const marcar=c=>{const s=sm[c.user_id]||{};c._susE=s.estado||null;c._susT=s.tier||null;};(CLIENTES||[]).forEach(marcar);(TODOS||[]).forEach(marcar);}catch(e){}
+}
+async function verLeads(){
+  $("v-leads").innerHTML='<div class="card">Cargando leads…</div>';
+  const {data,error}=await invokeFn("crm-leads",{body:{}});
+  if(error||(data&&data.error)){$("v-leads").innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||error.message)}</div>`;return;}
+  const items=(data.items||[]);
+  const cnt={};items.forEach(i=>{cnt[i.plan]=(cnt[i.plan]||0)+1;});
+  const pill=(txt,col)=>`<span class="pill" style="background:${col||'var(--card2)'};font-weight:700">${esc(txt)}</span>`;
+  const orden=['Prueba 7 días','App · prueba 21 días (cupón)','App (pago)','Coach','Mentoría','Cortesía','Fundador','Vencido / sin plan','Activo'];
+  const pills=orden.filter(k=>cnt[k]).map(k=>pill(k+': '+cnt[k])).join('')+Object.keys(cnt).filter(k=>orden.indexOf(k)<0).map(k=>pill(k+': '+cnt[k])).join('');
+  const esObjetivo=i=>['Prueba 7 días','App · prueba 21 días (cupón)','App (pago)','Vencido / sin plan','Activo'].indexOf(i.plan)>=0;
+  const lista=items.filter(esObjetivo).sort((a,b)=>(b.prioridad-a.prioridad)||(String(b.registrado).localeCompare(String(a.registrado))));
+  const row=i=>{
+    const wa=waLink(i.telefono, `Hola ${i.nombre||''}, soy del equipo de Juan Camilo. ¿Cómo vas?`);
+    const pr=Number(i.prioridad||0);
+    const prPill=pr>=3?pill('Prioridad '+pr,'rgba(226,59,59,.16)'):pr>=1?pill('Prioridad '+pr):'';
+    const q=i.compromiso?`<div class="muted" style="font-size:11px;margin-top:3px">Compromiso: <b>${esc(i.compromiso)}</b>${i.quiere_coach?' · Coach: '+esc(i.quiere_coach):''}${i.presupuesto?' · $: '+esc(i.presupuesto):''}${i.freno?' · Freno: '+esc(i.freno):''}</div>`:'<div class="muted" style="font-size:11px;margin-top:3px">Sin cuestionario aún</div>';
+    return `<div class="card" style="padding:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <b>${esc(i.nombre||i.correo)}</b> ${pill(i.plan)} ${prPill}
+          <div class="muted" style="font-size:11px;margin-top:2px">${esc(i.correo)} · ${esc(i.telefono||'sin WhatsApp')}</div>
+          <div class="muted" style="font-size:11px">Activó: ${esc(i.activo)} · Entrenó: ${esc(i.entreno)}${i.regalo?' · '+esc(i.regalo):''}</div>
+          ${q}
+        </div>
+        ${wa?`<a class="sm" href="${wa}" target="_blank" rel="noopener" style="text-decoration:none">WhatsApp</a>`:''}
+      </div>
+    </div>`;
+  };
+  $("v-leads").innerHTML=`
+    <div class="card"><h2 style="margin-top:0">Leads y estado de la app</h2>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">Estado real por usuario: prueba 7 días vs cupón App 21 días, quién pagó Coach/Mentoría, quién activó y entrenó, y las respuestas del cuestionario del día 7. <button class="sm ghost" onclick="verLeads()">↻ Actualizar</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${pills}</div>
+    </div>
+    <div class="card"><h2 style="margin-top:0">Para contactar (${lista.length})</h2>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">Ordenados por prioridad (compromiso + interés en el coach). No incluye a quienes ya pagan Coach/Mentoría.</div>
+      ${lista.map(row).join('')||'<div class="muted">Nada por ahora.</div>'}
+    </div>`;
 }
 async function verPagos(){
   $("v-pagos").innerHTML='<div class="card">Verificando pagos con RevenueCat… (puede tardar unos segundos)</div>';
