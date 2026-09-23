@@ -307,6 +307,7 @@ const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Pes
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
 let MIID=null,MI_PRINCIPAL=false,MI_SETTER=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],EJU=[],CANON={},RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
 let CONTACTAR_TODOS=false; // false = solo pendientes de esta semana; true = incluye ya contactados
+let CU_GRUPO=''; // filtro de grupo del CRM unificado (Contactar)
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[],LAZY={};
 let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null,INF_DATOS=null;
 
@@ -1139,89 +1140,55 @@ async function marcarContacto(uid,estado){
 }
 function waContactar(uid,tel,msg){ const wl=waLink(tel,msg); if(wl) window.open(wl,'_blank'); marcarContacto(uid,'contactado'); }
 async function verContactar(){
-  const el=$("v-contactar"); el.innerHTML='<div class="card">Cargando cola de contacto…</div>';
-  const SHEET_URL='https://docs.google.com/spreadsheets/d/1hCmJ92tf7slUEp6ktiwtFEbJDWdm_DIV/edit';
-  // Dos fuentes: la cola de venta (consola-rutina) + señales de la app (crm-leads).
-  const [r,rl]=await Promise.all([
-    invokeFn('consola-rutina',{body:{action:'crm'}}),
-    invokeFn('crm-leads',{body:{}}),
-  ]);
-  if(r.error){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc(r.error.message||String(r.error))}</div>`;return;}
-  const cli=(r.data&&r.data.clientes)||[];
-  // Señales de la app por user_id: activó, entrenó, cuestionario, prioridad, cupón.
-  const LM={}; (((rl&&rl.data)||{}).items||[]).forEach(i=>{ if(i.id) LM[i.id]=i; });
-  const hoy=new Date(); const dRest=(tf)=>{if(!tf)return null;return Math.ceil((new Date(tf)-hoy)/864e5);};
-  const diasDesde=(ts)=>{if(!ts)return null;return Math.floor((hoy-new Date(ts))/864e5);};
-  const rows=[];
-  for(const c of cli){
-    const s=c.suscripcion||{}; const est=s.estado; const tier=s.tier;
-    if(['fundador','gratis','cortesia','mentoria'].includes(tier)) continue; // no son venta de app
-    let bucket=null,orden=0,etiqueta='';
-    const dr=dRest(s.trial_fin);
-    const esCupon=(tier==='app'||tier==='app_anual');
-    if(est==='prueba' && dr!=null && dr>=0){ bucket='prueba'; orden=dr; etiqueta=esCupon?`App · cupón 21d · ${dr}d restantes`:`Prueba 7d · ${dr}d restantes`; }
-    else if(est==='prueba'){ bucket='prueba_vencida'; orden=100+(dr==null?99:-dr); etiqueta=dr!=null?`${esCupon?'Cupón App':'Prueba'} vencida hace ${-dr}d`:'Prueba vencida'; }
-    else if(est==='vencido'){ bucket='vencido'; orden=200; etiqueta='Vencido (sin acceso)'; }
-    else continue;
-    const cc=c.crm||{}; const contactadoHace=diasDesde(cc.contacto_ultimo);
-    if(!CONTACTAR_TODOS && contactadoHace!=null && contactadoHace<7) continue;
-    const ex=LM[c.user_id]||{};
-    rows.push({c,bucket,orden,etiqueta,estado:cc.contacto_estado||'',contactadoHace,tel:(c.telefono||'').trim(),ex,prioridad:Number(ex.prioridad||0)});
-  }
-  // Orden: primero por prioridad del cuestionario (caliente arriba), luego urgencia del bucket.
-  rows.sort((a,b)=>(b.prioridad-a.prioridad) || (a.orden-b.orden) || ((a.tel?0:1)-(b.tel?0:1)));
-
-  const nPrueba=rows.filter(x=>x.bucket==='prueba').length;
-  const nVenc=rows.filter(x=>x.bucket==='prueba_vencida').length;
-  const nVencido=rows.filter(x=>x.bucket==='vencido').length;
-  const nEntreno=rows.filter(x=>x.ex&&x.ex.entreno==='Sí').length;
+  const el=$("v-contactar"); el.innerHTML='<div class="card">Cargando CRM…</div>';
+  const q=(($("cu_q")&&$("cu_q").value)||'');
+  const {data,error}=await invokeFn('crm-unificado',{body:{grupo:CU_GRUPO,q:q,limit:300}});
+  if(error||(data&&data.error)){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`;return;}
+  const items=data.items||[], counts=data.counts||{}, nc=data.nivelCount||{};
+  const SHEET='https://docs.google.com/spreadsheets/d/1hCmJ92tf7slUEp6ktiwtFEbJDWdm_DIV/edit';
   const chip=(t,c)=>`<span class="pill" style="background:${c||'var(--card2)'};font-weight:700">${esc(t)}</span>`;
-
+  const gchip=(label,val)=>`<button class="sm ${CU_GRUPO===val?'':'ghost'}" style="border-radius:20px" onclick="CU_GRUPO='${val.replace(/'/g,"")}';verContactar()">${esc(label)}${counts[val]!=null?' ('+counts[val]+')':''}</button>`;
   let h=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
-      <div><h2 style="margin:0">Cola de contacto <span class="muted" style="font-size:13px;font-weight:400">· ${rows.length} por escribir</span></h2>
-      <div class="muted" style="font-size:12px;margin-top:4px">Ordenada por prioridad (cuestionario) y urgencia. Al escribir se marca <b>contactado</b> y sale 7 días.</div></div>
-      <a class="sm" href="${SHEET_URL}" target="_blank" rel="noopener" style="text-decoration:none;background:#0f9d58;color:#fff;font-weight:700;border:none">Abrir Google Sheet</a>
+      <div><h2 style="margin:0">Contactar <span class="muted" style="font-size:13px;font-weight:400">· ${data.total_general} personas</span></h2>
+      <div class="muted" style="font-size:12px;margin-top:4px">Todo en un lugar: los que no descargaron, los que tienen el regalo y los que ya están en la app. Ordenado por propensión a comprar (entrenar pesa más).</div></div>
+      <a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Prueba por vencer: '+nPrueba,'rgba(217,162,27,.16)')}${chip('Prueba vencida: '+nVenc,'rgba(226,59,59,.14)')}${chip('Vencidos: '+nVencido,'rgba(226,59,59,.14)')}${chip('Ya entrenaron: '+nEntreno,'rgba(63,184,79,.16)')}</div>
-    <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CONTACTAR_TODOS?'checked':''} onchange="CONTACTAR_TODOS=this.checked;verContactar()"> Ver también los ya contactados esta semana</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
+      ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" onkeydown="if(event.key==='Enter')verContactar()"><button class="sm" onclick="verContactar()">Buscar</button></div>
   </div>`;
-
-  const grupos=[['prueba','Prueba por vencer — vender YA','var(--warn)'],['prueba_vencida','Prueba vencida sin comprar','var(--rojo)'],['vencido','Vencidos — reactivar','var(--rojo2)']];
-  let vacio=true;
-  for(const [bk,titulo,col] of grupos){
-    const gr=rows.filter(x=>x.bucket===bk); if(!gr.length) continue; vacio=false;
-    h+=`<div class="card" style="border-left:3px solid ${col}"><h3 style="margin:0 0 10px">${esc(titulo)} <span class="pill" style="background:var(--card2)">${gr.length}</span></h3>`;
-    for(const x of gr){
-      const nom=(x.c.nombre||'').split(' ')[0]||'';
-      const msg=guionContacto(nom,x.bucket);
-      const wl=x.tel?waLink(x.tel,msg):null;
-      const cont=x.contactadoHace==null?'nunca contactado':`contactado hace ${x.contactadoHace}d`;
-      const ex=x.ex||{};
-      // Señales de la app (verde=hizo, gris=no).
-      const sig=(t,ok)=>`<span class="pill" style="font-size:10px;background:${ok?'rgba(63,184,79,.16)':'var(--card2)'};color:${ok?'var(--ok)':'var(--muted)'}">${esc(t)}</span>`;
-      const senales=`${sig('Activó',ex.activo==='Sí')} ${sig('Entrenó',ex.entreno==='Sí')}${ex.regalo?' '+chip(ex.regalo):''}`;
-      const prPill=x.prioridad>=3?chip('Prioridad '+x.prioridad,'rgba(226,59,59,.18)'):x.prioridad>=1?chip('Prioridad '+x.prioridad):'';
-      const q=ex.compromiso?`<div class="muted" style="font-size:11px;margin-top:4px">Compromiso: <b style="color:var(--txt)">${esc(ex.compromiso)}</b>${ex.quiere_coach?' · Coach: '+esc(ex.quiere_coach):''}${ex.presupuesto?' · $: '+esc(ex.presupuesto):''}${ex.freno?' · Freno: '+esc(ex.freno):''}</div>`:'';
-      const selEst=`<select class="sm" onchange="marcarContacto('${x.c.user_id}',this.value)" style="font-size:11px;padding:4px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===x.estado?' selected':''}>${t}</option>`).join('')+`</select>`;
-      const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:34px" onclick="waContactar('${x.c.user_id}','${esc(x.tel)}',${JSON.stringify(msg).replace(/"/g,'&quot;')})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
-      h+=`<div style="border-top:1px solid var(--line);padding:10px 0">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
-          <div style="flex:1;min-width:180px">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(x.c.nombre||'(sin nombre)')}</b> ${prPill}</div>
-            <div class="muted" style="font-size:11px;margin-top:2px">${esc(x.etiqueta)} · ${esc(cont)}</div>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">${senales}</div>
-            ${q}
-          </div>
-          <div style="display:flex;gap:6px;align-items:center">${selEst}${waBtn}</div>
+  if(!items.length){h+='<div class="card"><div class="muted">Nadie en este filtro.</div></div>';el.innerHTML=h;return;}
+  h+=`<div class="card"><div class="muted" style="font-size:12px;margin-bottom:4px">Mostrando ${items.length} de ${data.total}${data.total>items.length?' — afina con el buscador o un grupo':''}.</div>`;
+  for(const i of items){
+    const primerNom=(i.nombre||'').split(' ')[0]||'';
+    const msg=`Hola ${primerNom}, soy del equipo de Juan Camilo. ¿Cómo vas?`;
+    const wl=i.telefono?waLink(i.telefono,msg):null;
+    const niv=i.nivel==='Caliente'?chip('Caliente','rgba(226,59,59,.18)'):i.nivel==='Templado'?chip('Templado','rgba(217,162,27,.14)'):chip('Frío');
+    const sig=(t,ok)=>`<span class="pill" style="font-size:10px;background:${ok?'rgba(63,184,79,.16)':'var(--card2)'};color:${ok?'var(--ok)':'var(--muted)'}">${esc(t)}</span>`;
+    const senales=i.en_app?`${sig('Activó',i.activo==='Sí')} ${sig('Entrenó',i.entreno==='Sí')}${i.regalo?' '+chip(i.regalo):''}`:chip('No descargó','rgba(226,59,59,.10)');
+    const q2=i.compromiso?`<div class="muted" style="font-size:11px;margin-top:4px">Compromiso: <b style="color:var(--txt)">${esc(i.compromiso)}</b>${i.quiere_coach?' · Coach: '+esc(i.quiere_coach):''}${i.presupuesto?' · $: '+esc(i.presupuesto):''}</div>`:(i.que_pidio?`<div class="muted" style="font-size:11px;margin-top:4px">Pidió: ${esc(i.que_pidio)}</div>`:'');
+    const arg=JSON.stringify({id:i.id,email:i.email,telefono:i.telefono,nombre:i.nombre}).replace(/"/g,'&quot;');
+    const selEst=`<select class="sm" onchange="marcarLead(${arg},this.value)" style="font-size:11px;padding:6px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===i.contacto_estado?' selected':''}>${t}</option>`).join('')+`</select>`;
+    const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:36px" onclick="waLead(${arg})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
+    h+=`<div style="border-top:1px solid var(--line);padding:11px 0">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b> ${niv} ${chip(i.grupo)}</div>
+          <div class="muted" style="font-size:11px;margin-top:2px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${i.pais?' · '+esc(i.pais):''}</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">${senales}</div>
+          ${q2}
         </div>
-      </div>`;
-    }
-    h+=`</div>`;
+        <div style="display:flex;gap:6px;align-items:center">${selEst}${waBtn}</div>
+      </div></div>`;
   }
-  if(vacio) h+=`<div class="card"><div class="muted">Nadie pendiente de contactar esta semana. ${!CONTACTAR_TODOS?'Activa "ver también los ya contactados" para ver toda la lista.':''}</div></div>`;
+  h+='</div>';
   el.innerHTML=h;
 }
+function waLead(o){ const wl=waLink(o.telefono,`Hola ${(o.nombre||'').split(' ')[0]}, soy del equipo de Juan Camilo. ¿Cómo vas?`); if(wl)window.open(wl,'_blank'); marcarLead(o,'contactado'); }
+async function marcarLead(o,estado){ try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado}});}catch(e){} }
 async function verCRM(){
   $("v-crm").innerHTML='<div class="card">Cargando…</div>';
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm'}});
