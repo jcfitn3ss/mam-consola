@@ -1146,7 +1146,7 @@ async function verContactar(){
   const {data,error}=await invokeFn('crm-unificado',{body:{grupo:CU_GRUPO,q:q,sinClientes:CU_SINCLI,limit:300}});
   if(error||(data&&data.error)){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`;return;}
   const items=data.items||[], counts=data.counts||{}, nc=data.nivelCount||{};
-  const SHEET='https://docs.google.com/spreadsheets/d/1hCmJ92tf7slUEp6ktiwtFEbJDWdm_DIV/edit';
+  const SHEET='https://docs.google.com/spreadsheets/d/1XEuiWJyeX1OAeCdhCJIqqtDI2mNmTqqtBg3Z9Gd7grs/edit';
   const chip=(t,c)=>`<span class="pill" style="background:${c||'var(--card2)'};font-weight:700">${esc(t)}</span>`;
   const gchip=(label,val)=>`<button class="sm ${CU_GRUPO===val?'':'ghost'}" style="border-radius:20px" onclick="CU_GRUPO='${val.replace(/'/g,"")}';verContactar()">${esc(label)}${counts[val]!=null?' ('+counts[val]+')':''}</button>`;
   let h=`<div class="card">
