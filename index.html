@@ -173,7 +173,6 @@
       <button id="t-seguimiento" onclick="tab('seguimiento')">📸 Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
-      <button id="t-leads" onclick="tab('leads')">Leads</button>
       <button id="t-contactar" onclick="tab('contactar')">📣 Contactar</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
       <div class="menu" id="masMenu">
@@ -218,7 +217,6 @@
     <div id="v-seguimiento" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
-    <div id="v-leads" class="hide"></div>
     <div id="v-salud" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
@@ -343,7 +341,7 @@ async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr"
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","leads","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="leads")verLeads();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -447,44 +445,6 @@ async function reconciliarAhora(btn){
     lista.innerHTML=nuevos.length?('<div class="muted" style="font-size:12px;margin-bottom:4px">Reactivados ahora (habían pagado y estaban atascados):</div>'+nuevos.map(id=>`<div style="padding:4px 0;border-bottom:1px solid var(--line)"><b>${esc(nombre(id))}</b></div>`).join('')):'';
   }
   try{const {data:subs}=await sb.from("suscripciones").select("user_id,estado,tier");const sm={};(subs||[]).forEach(s=>{sm[s.user_id]=s;});const marcar=c=>{const s=sm[c.user_id]||{};c._susE=s.estado||null;c._susT=s.tier||null;};(CLIENTES||[]).forEach(marcar);(TODOS||[]).forEach(marcar);}catch(e){}
-}
-async function verLeads(){
-  $("v-leads").innerHTML='<div class="card">Cargando leads…</div>';
-  const {data,error}=await invokeFn("crm-leads",{body:{}});
-  if(error||(data&&data.error)){$("v-leads").innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||error.message)}</div>`;return;}
-  const items=(data.items||[]);
-  const cnt={};items.forEach(i=>{cnt[i.plan]=(cnt[i.plan]||0)+1;});
-  const pill=(txt,col)=>`<span class="pill" style="background:${col||'var(--card2)'};font-weight:700">${esc(txt)}</span>`;
-  const orden=['Prueba 7 días','App · prueba 21 días (cupón)','App (pago)','Coach','Mentoría','Cortesía','Fundador','Vencido / sin plan','Activo'];
-  const pills=orden.filter(k=>cnt[k]).map(k=>pill(k+': '+cnt[k])).join('')+Object.keys(cnt).filter(k=>orden.indexOf(k)<0).map(k=>pill(k+': '+cnt[k])).join('');
-  const esObjetivo=i=>['Prueba 7 días','App · prueba 21 días (cupón)','App (pago)','Vencido / sin plan','Activo'].indexOf(i.plan)>=0;
-  const lista=items.filter(esObjetivo).sort((a,b)=>(b.prioridad-a.prioridad)||(String(b.registrado).localeCompare(String(a.registrado))));
-  const row=i=>{
-    const wa=waLink(i.telefono, `Hola ${i.nombre||''}, soy del equipo de Juan Camilo. ¿Cómo vas?`);
-    const pr=Number(i.prioridad||0);
-    const prPill=pr>=3?pill('Prioridad '+pr,'rgba(226,59,59,.16)'):pr>=1?pill('Prioridad '+pr):'';
-    const q=i.compromiso?`<div class="muted" style="font-size:11px;margin-top:3px">Compromiso: <b>${esc(i.compromiso)}</b>${i.quiere_coach?' · Coach: '+esc(i.quiere_coach):''}${i.presupuesto?' · $: '+esc(i.presupuesto):''}${i.freno?' · Freno: '+esc(i.freno):''}</div>`:'<div class="muted" style="font-size:11px;margin-top:3px">Sin cuestionario aún</div>';
-    return `<div class="card" style="padding:10px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div style="flex:1">
-          <b>${esc(i.nombre||i.correo)}</b> ${pill(i.plan)} ${prPill}
-          <div class="muted" style="font-size:11px;margin-top:2px">${esc(i.correo)} · ${esc(i.telefono||'sin WhatsApp')}</div>
-          <div class="muted" style="font-size:11px">Activó: ${esc(i.activo)} · Entrenó: ${esc(i.entreno)}${i.regalo?' · '+esc(i.regalo):''}</div>
-          ${q}
-        </div>
-        ${wa?`<a class="sm" href="${wa}" target="_blank" rel="noopener" style="text-decoration:none">WhatsApp</a>`:''}
-      </div>
-    </div>`;
-  };
-  $("v-leads").innerHTML=`
-    <div class="card"><h2 style="margin-top:0">Leads y estado de la app</h2>
-      <div class="muted" style="font-size:12px;margin-bottom:8px">Estado real por usuario: prueba 7 días vs cupón App 21 días, quién pagó Coach/Mentoría, quién activó y entrenó, y las respuestas del cuestionario del día 7. <button class="sm ghost" onclick="verLeads()">↻ Actualizar</button></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${pills}</div>
-    </div>
-    <div class="card"><h2 style="margin-top:0">Para contactar (${lista.length})</h2>
-      <div class="muted" style="font-size:12px;margin-bottom:8px">Ordenados por prioridad (compromiso + interés en el coach). No incluye a quienes ya pagan Coach/Mentoría.</div>
-      ${lista.map(row).join('')||'<div class="muted">Nada por ahora.</div>'}
-    </div>`;
 }
 async function verPagos(){
   $("v-pagos").innerHTML='<div class="card">Verificando pagos con RevenueCat… (puede tardar unos segundos)</div>';
@@ -1180,46 +1140,84 @@ async function marcarContacto(uid,estado){
 function waContactar(uid,tel,msg){ const wl=waLink(tel,msg); if(wl) window.open(wl,'_blank'); marcarContacto(uid,'contactado'); }
 async function verContactar(){
   const el=$("v-contactar"); el.innerHTML='<div class="card">Cargando cola de contacto…</div>';
-  const r=await invokeFn('consola-rutina',{body:{action:'crm'}});
+  const SHEET_URL='https://docs.google.com/spreadsheets/d/1hCmJ92tf7slUEp6ktiwtFEbJDWdm_DIV/edit';
+  // Dos fuentes: la cola de venta (consola-rutina) + señales de la app (crm-leads).
+  const [r,rl]=await Promise.all([
+    invokeFn('consola-rutina',{body:{action:'crm'}}),
+    invokeFn('crm-leads',{body:{}}),
+  ]);
   if(r.error){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc(r.error.message||String(r.error))}</div>`;return;}
   const cli=(r.data&&r.data.clientes)||[];
+  // Señales de la app por user_id: activó, entrenó, cuestionario, prioridad, cupón.
+  const LM={}; (((rl&&rl.data)||{}).items||[]).forEach(i=>{ if(i.id) LM[i.id]=i; });
   const hoy=new Date(); const dRest=(tf)=>{if(!tf)return null;return Math.ceil((new Date(tf)-hoy)/864e5);};
   const diasDesde=(ts)=>{if(!ts)return null;return Math.floor((hoy-new Date(ts))/864e5);};
-  // Clasifica cada persona en un bucket de venta.
   const rows=[];
   for(const c of cli){
     const s=c.suscripcion||{}; const est=s.estado; const tier=s.tier;
     if(['fundador','gratis','cortesia','mentoria'].includes(tier)) continue; // no son venta de app
     let bucket=null,orden=0,etiqueta='';
     const dr=dRest(s.trial_fin);
-    if(est==='prueba' && dr!=null && dr>=0){ bucket='prueba'; orden=dr; etiqueta=`Prueba · ${dr}d restantes`; }
-    else if(est==='prueba'){ bucket='prueba_vencida'; orden=100+(dr==null?99:-dr); etiqueta=dr!=null?`Prueba vencida hace ${-dr}d`:'Prueba vencida'; }
+    const esCupon=(tier==='app'||tier==='app_anual');
+    if(est==='prueba' && dr!=null && dr>=0){ bucket='prueba'; orden=dr; etiqueta=esCupon?`App · cupón 21d · ${dr}d restantes`:`Prueba 7d · ${dr}d restantes`; }
+    else if(est==='prueba'){ bucket='prueba_vencida'; orden=100+(dr==null?99:-dr); etiqueta=dr!=null?`${esCupon?'Cupón App':'Prueba'} vencida hace ${-dr}d`:'Prueba vencida'; }
     else if(est==='vencido'){ bucket='vencido'; orden=200; etiqueta='Vencido (sin acceso)'; }
-    else continue; // activa u otros → no entran a la cola de venta
+    else continue;
     const cc=c.crm||{}; const contactadoHace=diasDesde(cc.contacto_ultimo);
-    // Cadencia semanal: oculta a los contactados hace <7 días (salvo "ver todos").
     if(!CONTACTAR_TODOS && contactadoHace!=null && contactadoHace<7) continue;
-    rows.push({c,bucket,orden,etiqueta,estado:cc.contacto_estado||'',contactadoHace,tel:(c.telefono||'').trim()});
+    const ex=LM[c.user_id]||{};
+    rows.push({c,bucket,orden,etiqueta,estado:cc.contacto_estado||'',contactadoHace,tel:(c.telefono||'').trim(),ex,prioridad:Number(ex.prioridad||0)});
   }
-  rows.sort((a,b)=>a.orden-b.orden || (a.tel?0:1)-(b.tel?0:1));
-  const grupos=[['prueba','🧪 Prueba por vencer — vender YA','var(--warn)'],['prueba_vencida','⌛ Prueba vencida sin comprar','var(--rojo)'],['vencido','❌ Vencidos — reactivar','var(--rojo2)']];
-  let h=`<div class="card"><h2 style="margin-top:0">📣 Cola de contacto <span class="muted" style="font-size:13px;font-weight:400">· ${rows.length} por escribir</span></h2>`;
-  h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Escribe por WhatsApp de una. Al escribir se marca <b>contactado</b> y sale de la cola por 7 días. Ordenados por urgencia.</div>`;
-  h+=`<label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-bottom:6px"><input type="checkbox" ${CONTACTAR_TODOS?'checked':''} onchange="CONTACTAR_TODOS=this.checked;verContactar()"> Ver también los ya contactados esta semana</label></div>`;
+  // Orden: primero por prioridad del cuestionario (caliente arriba), luego urgencia del bucket.
+  rows.sort((a,b)=>(b.prioridad-a.prioridad) || (a.orden-b.orden) || ((a.tel?0:1)-(b.tel?0:1)));
+
+  const nPrueba=rows.filter(x=>x.bucket==='prueba').length;
+  const nVenc=rows.filter(x=>x.bucket==='prueba_vencida').length;
+  const nVencido=rows.filter(x=>x.bucket==='vencido').length;
+  const nEntreno=rows.filter(x=>x.ex&&x.ex.entreno==='Sí').length;
+  const chip=(t,c)=>`<span class="pill" style="background:${c||'var(--card2)'};font-weight:700">${esc(t)}</span>`;
+
+  let h=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div><h2 style="margin:0">Cola de contacto <span class="muted" style="font-size:13px;font-weight:400">· ${rows.length} por escribir</span></h2>
+      <div class="muted" style="font-size:12px;margin-top:4px">Ordenada por prioridad (cuestionario) y urgencia. Al escribir se marca <b>contactado</b> y sale 7 días.</div></div>
+      <a class="sm" href="${SHEET_URL}" target="_blank" rel="noopener" style="text-decoration:none;background:#0f9d58;color:#fff;font-weight:700;border:none">Abrir Google Sheet</a>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Prueba por vencer: '+nPrueba,'rgba(217,162,27,.16)')}${chip('Prueba vencida: '+nVenc,'rgba(226,59,59,.14)')}${chip('Vencidos: '+nVencido,'rgba(226,59,59,.14)')}${chip('Ya entrenaron: '+nEntreno,'rgba(63,184,79,.16)')}</div>
+    <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CONTACTAR_TODOS?'checked':''} onchange="CONTACTAR_TODOS=this.checked;verContactar()"> Ver también los ya contactados esta semana</label>
+  </div>`;
+
+  const grupos=[['prueba','Prueba por vencer — vender YA','var(--warn)'],['prueba_vencida','Prueba vencida sin comprar','var(--rojo)'],['vencido','Vencidos — reactivar','var(--rojo2)']];
   let vacio=true;
   for(const [bk,titulo,col] of grupos){
     const gr=rows.filter(x=>x.bucket===bk); if(!gr.length) continue; vacio=false;
-    h+=`<div class="card" style="border-left:3px solid ${col}"><h3 style="margin:0 0 8px">${titulo} <span class="pill" style="background:var(--card2)">${gr.length}</span></h3><table><tr><th>Persona</th><th>Estado</th><th>Contacto</th><th></th></tr>`;
+    h+=`<div class="card" style="border-left:3px solid ${col}"><h3 style="margin:0 0 10px">${esc(titulo)} <span class="pill" style="background:var(--card2)">${gr.length}</span></h3>`;
     for(const x of gr){
       const nom=(x.c.nombre||'').split(' ')[0]||'';
       const msg=guionContacto(nom,x.bucket);
       const wl=x.tel?waLink(x.tel,msg):null;
-      const cont=x.contactadoHace==null?'<span class="muted" style="font-size:11px">nunca</span>':`<span class="muted" style="font-size:11px">hace ${x.contactadoHace}d</span>`;
-      const selEst=`<select class="sm" onchange="marcarContacto('${x.c.user_id}',this.value)" style="font-size:11px;padding:3px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===x.estado?' selected':''}>${t}</option>`).join('')+`</select>`;
-      const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none" onclick="waContactar('${x.c.user_id}','${esc(x.tel)}',${JSON.stringify(msg).replace(/"/g,'&quot;')})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
-      h+=`<tr><td><b>${esc(x.c.nombre||'')}</b><div class="muted" style="font-size:11px">${esc(x.etiqueta)}</div></td><td>${selEst}</td><td>${cont}</td><td style="display:flex;gap:6px">${waBtn}</td></tr>`;
+      const cont=x.contactadoHace==null?'nunca contactado':`contactado hace ${x.contactadoHace}d`;
+      const ex=x.ex||{};
+      // Señales de la app (verde=hizo, gris=no).
+      const sig=(t,ok)=>`<span class="pill" style="font-size:10px;background:${ok?'rgba(63,184,79,.16)':'var(--card2)'};color:${ok?'var(--ok)':'var(--muted)'}">${esc(t)}</span>`;
+      const senales=`${sig('Activó',ex.activo==='Sí')} ${sig('Entrenó',ex.entreno==='Sí')}${ex.regalo?' '+chip(ex.regalo):''}`;
+      const prPill=x.prioridad>=3?chip('Prioridad '+x.prioridad,'rgba(226,59,59,.18)'):x.prioridad>=1?chip('Prioridad '+x.prioridad):'';
+      const q=ex.compromiso?`<div class="muted" style="font-size:11px;margin-top:4px">Compromiso: <b style="color:var(--txt)">${esc(ex.compromiso)}</b>${ex.quiere_coach?' · Coach: '+esc(ex.quiere_coach):''}${ex.presupuesto?' · $: '+esc(ex.presupuesto):''}${ex.freno?' · Freno: '+esc(ex.freno):''}</div>`:'';
+      const selEst=`<select class="sm" onchange="marcarContacto('${x.c.user_id}',this.value)" style="font-size:11px;padding:4px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===x.estado?' selected':''}>${t}</option>`).join('')+`</select>`;
+      const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:34px" onclick="waContactar('${x.c.user_id}','${esc(x.tel)}',${JSON.stringify(msg).replace(/"/g,'&quot;')})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
+      h+=`<div style="border-top:1px solid var(--line);padding:10px 0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(x.c.nombre||'(sin nombre)')}</b> ${prPill}</div>
+            <div class="muted" style="font-size:11px;margin-top:2px">${esc(x.etiqueta)} · ${esc(cont)}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">${senales}</div>
+            ${q}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">${selEst}${waBtn}</div>
+        </div>
+      </div>`;
     }
-    h+=`</table></div>`;
+    h+=`</div>`;
   }
   if(vacio) h+=`<div class="card"><div class="muted">Nadie pendiente de contactar esta semana. ${!CONTACTAR_TODOS?'Activa "ver también los ya contactados" para ver toda la lista.':''}</div></div>`;
   el.innerHTML=h;
