@@ -1196,14 +1196,8 @@ async function verContactar(){
           ${q2}
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <select class="sm" title="Marcar en el CRM (pago externo / canceló)" onchange="marcarCRM('${(i.email||'').replace(/'/g,'')}',this.value,this)" style="font-size:11px;padding:6px">
-            <option value="">Marcar…</option>
-            <option value="cliente">Es cliente (pago externo)</option>
-            <option value="cancelado">Canceló</option>
-            <option value="prospecto">Prospecto</option>
-            <option value="">Quitar marca</option>
-          </select>
           ${selEst}${waBtn}${infBtn}
+          <span id="mk_${selId}"><button class="sm ghost" style="font-size:10px;padding:4px 8px;opacity:.65" title="Marcar cliente (pago externo) o cancelado" onclick="abrirMarcar('${(i.email||'').replace(/'/g,'')}','mk_${selId}')">marcar…</button></span>
         </div>
       </div></div>`;
   }
@@ -1215,7 +1209,9 @@ function waLead(o,selId){ const wl=waLink(o.telefono,`Hola ${(o.nombre||'').spli
 // Manda por WhatsApp el link del análisis científico de la rutina de la persona.
 function informeWA(appId,tel,nom){ const link='https://rzonwwqgbckjsqloosyy.supabase.co/functions/v1/informe-rutina?u='+appId; const msg=`Hola ${nom||''}, te preparamos un análisis de tu rutina con nuestro método: qué estás haciendo bien y qué puedes mejorar. Míralo aquí: ${link}`; const wl=tel?waLink(tel,msg):null; if(wl)window.open(wl,'_blank'); else { navigator.clipboard&&navigator.clipboard.writeText(link); window.open(link,'_blank'); } }
 async function marcarLead(o,estado){ try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado}});}catch(e){} }
-async function marcarCRM(email,estado,el){ if(!email){if(el)el.selectedIndex=0;return;} const r=await invokeFn('crm-marcar',{body:{email,estado}}); if(r.error||(r.data&&r.data.error)){alert('No se pudo marcar: '+((r.data&&r.data.error)||r.error.message));return;} verContactar(); }
+// Enlace "marcar…" progresivo: solo al tocarlo muestra las opciones (sin recargar la lista).
+function abrirMarcar(email,contId){ const c=$(contId); if(!c)return; c.innerHTML=`<button class="sm ghost" style="font-size:10px;padding:4px 8px" onclick="marcarCRM('${email}','cliente','${contId}')">Es cliente</button> <button class="sm ghost" style="font-size:10px;padding:4px 8px" onclick="marcarCRM('${email}','cancelado','${contId}')">Canceló</button> <button class="sm ghost" style="font-size:10px;padding:4px 8px;opacity:.6" onclick="marcarCRM('${email}','','${contId}')">quitar</button>`; }
+async function marcarCRM(email,estado,contId){ const c=contId?$(contId):null; const r=await invokeFn('crm-marcar',{body:{email,estado}}); if(r.error||(r.data&&r.data.error)){ if(c)c.innerHTML='<span class="muted" style="font-size:10px">error</span>'; return; } if(c)c.innerHTML=`<span style="font-size:10px;color:var(--ok)">✓ ${estado||'sin marca'}</span>`; }
 async function verCRM(){
   $("v-crm").innerHTML='<div class="card">Cargando…</div>';
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm'}});
