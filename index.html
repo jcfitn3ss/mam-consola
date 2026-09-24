@@ -312,7 +312,7 @@ let CU_SINCLI=true; // Contactar: ocultar clientes (Miguel contacta prospectos, 
 let CU_Q=''; // texto del buscador de Contactar (persiste entre re-renders)
 let CU_FILTRO=''; // filtro especial (ej. 'dijo_no_canjeo')
 let _cuTimer=null;
-function cuBuscar(){ clearTimeout(_cuTimer); _cuTimer=setTimeout(()=>verContactar(),350); } // búsqueda en vivo
+function cuBuscar(){ clearTimeout(_cuTimer); _cuTimer=setTimeout(()=>renderContactar(),120); } // búsqueda en vivo (client-side, instantánea)
 function cuFoco(){ if(!CU_Q)return; const b=document.getElementById('cu_q'); if(b){b.focus(); try{b.setSelectionRange(b.value.length,b.value.length);}catch(e){}} } // mantiene el foco tras re-render
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[],LAZY={};
 let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null,INF_DATOS=null;
@@ -1145,29 +1145,55 @@ async function marcarContacto(uid,estado){
   verContactar();
 }
 function waContactar(uid,tel,msg){ const wl=waLink(tel,msg); if(wl) window.open(wl,'_blank'); marcarContacto(uid,'contactado'); }
-async function verContactar(){
-  const el=$("v-contactar"); el.innerHTML='<div class="card">Cargando CRM…</div>';
+// Carga TODO el CRM UNA vez y lo guarda en memoria del navegador. Después, buscar/
+// filtrar/cambiar de grupo es INSTANTÁNEO (renderContactar, sin volver a llamar al
+// servidor). Antes cada tecla del buscador disparaba una llamada de ~2s = se sentía lento.
+async function verContactar(force){
+  const el=$("v-contactar");
+  if(force||!window.CU_ALL){
+    el.innerHTML='<div class="card">Cargando CRM… (una sola vez)</div>';
+    const {data,error}=await invokeFn('crm-unificado',{body:{all:true}});
+    if(error||(data&&data.error)){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`;return;}
+    window.CU_ALL=data.items||[]; window.CU_META={counts:data.counts||{},nivelCount:data.nivelCount||{},total_general:data.total_general||0,generado:data.generado};
+  }
+  renderContactar();
+}
+// Aplica los filtros/búsqueda EN EL NAVEGADOR (mismo criterio que tenía el servidor).
+function cuFiltrar(){
+  const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
+  if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
+  if(CU_FILTRO==='dijo_no_canjeo') return all.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21');
+  if(CU_FILTRO==='nuevos48'){const lim=Date.now()-48*3600*1000;return all.filter(i=>i.registrado&&new Date(i.registrado).getTime()>=lim);}
+  let l=all;
+  if(CU_SINCLI) l=l.filter(i=>i.grupo!=='Cliente');
+  if(CU_GRUPO) l=l.filter(i=>i.grupo===CU_GRUPO);
+  return l;
+}
+function renderContactar(){
+  const el=$("v-contactar");
+  const meta=window.CU_META||{counts:{},nivelCount:{},total_general:0};
   const q=CU_Q;
-  const {data,error}=await invokeFn('crm-unificado',{body:{grupo:CU_GRUPO,q:q,filtro:CU_FILTRO,sinClientes:CU_SINCLI,limit:300}});
-  if(error||(data&&data.error)){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`;return;}
-  const items=data.items||[], counts=data.counts||{}, nc=data.nivelCount||{};
+  const data={counts:meta.counts,nivelCount:meta.nivelCount,total_general:meta.total_general};
+  const lista=cuFiltrar();
+  const items=lista.slice(0,300); data.total=lista.length;
+  const counts=data.counts||{}, nc=data.nivelCount||{};
   const SHEET='https://docs.google.com/spreadsheets/d/1XEuiWJyeX1OAeCdhCJIqqtDI2mNmTqqtBg3Z9Gd7grs/edit';
   const chip=(t,c)=>`<span class="pill" style="background:${c||'var(--card2)'};font-weight:700">${esc(t)}</span>`;
-  const gchip=(label,val)=>`<button class="sm ${CU_GRUPO===val&&!CU_FILTRO?'':'ghost'}" style="border-radius:20px" onclick="CU_GRUPO='${val.replace(/'/g,"")}';CU_FILTRO='';verContactar()">${esc(label)}${counts[val]!=null?' ('+counts[val]+')':''}</button>`;
+  const gchip=(label,val)=>`<button class="sm ${CU_GRUPO===val&&!CU_FILTRO?'':'ghost'}" style="border-radius:20px" onclick="CU_GRUPO='${val.replace(/'/g,"")}';CU_FILTRO='';renderContactar()">${esc(label)}${counts[val]!=null?' ('+counts[val]+')':''}</button>`;
   let h=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
       <div><h2 style="margin:0">Contactar <span class="muted" style="font-size:13px;font-weight:400">· ${data.total_general} personas</span></h2>
       <div class="muted" style="font-size:12px;margin-top:4px">Todo en un lugar: los que no descargaron, los que tienen el regalo y los que ya están en la app. Ordenado por propensión a comprar (entrenar pesa más).</div></div>
-      <a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a>
+      <div style="display:flex;gap:6px;align-items:center"><button class="sm ghost" onclick="verContactar(true)" title="Volver a traer los datos frescos del servidor">Actualizar</button><a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
       ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
-      <button class="sm ${CU_FILTRO==='nuevos48'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='nuevos48'?'':'nuevos48';CU_GRUPO='';verContactar()">🔥 Nuevos 48h</button>
-      <button class="sm ${CU_FILTRO==='dijo_no_canjeo'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='dijo_no_canjeo'?'':'dijo_no_canjeo';CU_GRUPO='';verContactar()">Dijo sí, no canjeó</button>
+      <button class="sm ${CU_FILTRO==='nuevos48'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='nuevos48'?'':'nuevos48';CU_GRUPO='';renderContactar()">🔥 Nuevos 48h</button>
+      <button class="sm ${CU_FILTRO==='dijo_no_canjeo'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='dijo_no_canjeo'?'':'dijo_no_canjeo';CU_GRUPO='';renderContactar()">Dijo sí, no canjeó</button>
     </div>
-    <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;verContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
-    <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')verContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';verContactar()">Limpiar</button>`:''}</div>
+    <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;renderContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
+    <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')renderContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';renderContactar()">Limpiar</button>`:''}</div>
   </div>`;
   if(!items.length){h+='<div class="card"><div class="muted">Nadie en este filtro.</div></div>';el.innerHTML=h;cuFoco();return;}
   h+=`<div class="card"><div class="muted" style="font-size:12px;margin-bottom:4px">Mostrando ${items.length} de ${data.total}${data.total>items.length?' — afina con el buscador o un grupo':''}.</div>`;
