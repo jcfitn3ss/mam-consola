@@ -1219,7 +1219,7 @@ function renderContactar(){
           <div class="muted" style="font-size:11px;margin-top:2px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${i.pais?' · '+esc(i.pais):''}</div>
           ${i.en_app&&i.registrado?`<div class="muted" style="font-size:11px;margin-top:2px">Inició la prueba: <b style="color:var(--txt)">${fFechaCorta(i.registrado)}</b>${i.fin_prueba?' · vence '+fFechaCorta(i.fin_prueba):''}</div>`:''}
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">${senales}</div>
-          ${i.cuando_escribio?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${esc(i.cuando_escribio)}</b></div>`:''}
+          ${i.lead_creado?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${fFechaCorta(i.lead_creado)}</b>${i.cuando_escribio?' · '+esc(i.cuando_escribio):''}</div>`:(i.cuando_escribio?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${esc(i.cuando_escribio)}</b></div>`:'')}
           ${q2}
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
