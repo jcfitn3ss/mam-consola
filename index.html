@@ -1163,6 +1163,7 @@ async function verContactar(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
       ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
+      <button class="sm ${CU_FILTRO==='nuevos48'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='nuevos48'?'':'nuevos48';CU_GRUPO='';verContactar()">🔥 Nuevos 48h</button>
       <button class="sm ${CU_FILTRO==='dijo_no_canjeo'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='dijo_no_canjeo'?'':'dijo_no_canjeo';CU_GRUPO='';verContactar()">Dijo sí, no canjeó</button>
     </div>
     <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;verContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
