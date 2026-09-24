@@ -1132,7 +1132,7 @@ function _crmDiasA(r){return r?Math.floor((new Date(r+"T00:00:00").getTime()-Dat
 // ============ COLA DE CONTACTO / VENTAS (setter) ============
 // Lista semanal ordenada de a quién escribir por WhatsApp para vender: pruebas por vencer,
 // pruebas vencidas sin comprar y vencidos. "de una" a WhatsApp + marca contactado.
-const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['no_interesado','No interesado'],['ganado','✅ Compró'],['perdido','Perdido']];
+const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['seguimiento','En seguimiento (revisar luego)'],['no_interesado','No interesado'],['ganado','✅ Compró'],['perdido','Perdido']];
 function guionContacto(nom,bucket){
   const n=nom||'';
   if(bucket==='prueba') return `Hola ${n}, soy del equipo de Músculo al Máximo 💪 ¿Cómo vas con tu prueba? Si quieres seguir con tu plan, rutina y seguimiento sin perder tu progreso, te ayudo a activarlo hoy. ¿Te cuento cómo?`;
@@ -1164,11 +1164,19 @@ function cuFiltrar(){
   if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
   if(CU_FILTRO==='dijo_no_canjeo') return all.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21');
   if(CU_FILTRO==='nuevos48'){const lim=Date.now()-48*3600*1000;return all.filter(i=>i.registrado&&new Date(i.registrado).getTime()>=lim);}
+  // Pestaña Seguimiento: los marcados "En seguimiento (revisar luego)". Se ordenan por
+  // el contacto MÁS VIEJO primero = los que ya toca volver a contactar salen arriba.
+  if(CU_FILTRO==='seguimiento') return all.filter(i=>i.contacto_estado==='seguimiento')
+    .sort((a,b)=>(new Date(a.contacto_ultimo||0).getTime())-(new Date(b.contacto_ultimo||0).getTime()));
   let l=all;
+  // Los "en seguimiento" NO aparecen en las listas normales (salen solo en su pestaña).
+  l=l.filter(i=>i.contacto_estado!=='seguimiento');
   if(CU_SINCLI) l=l.filter(i=>i.grupo!=='Cliente');
   if(CU_GRUPO) l=l.filter(i=>i.grupo===CU_GRUPO);
   return l;
 }
+// Días desde el último contacto (para el badge "toca re-contactar").
+function cuDiasDesde(iso){ if(!iso)return null; const d=Math.floor((Date.now()-new Date(iso).getTime())/86400000); return isNaN(d)?null:d; }
 function renderContactar(){
   const el=$("v-contactar");
   const meta=window.CU_META||{counts:{},nivelCount:{},total_general:0};
@@ -1191,6 +1199,7 @@ function renderContactar(){
       ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
       <button class="sm ${CU_FILTRO==='nuevos48'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='nuevos48'?'':'nuevos48';CU_GRUPO='';renderContactar()">🔥 Nuevos 48h</button>
       <button class="sm ${CU_FILTRO==='dijo_no_canjeo'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='dijo_no_canjeo'?'':'dijo_no_canjeo';CU_GRUPO='';renderContactar()">Dijo sí, no canjeó</button>
+      <button class="sm ${CU_FILTRO==='seguimiento'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='seguimiento'?'':'seguimiento';CU_GRUPO='';renderContactar()">Seguimiento${(()=>{const n=(window.CU_ALL||[]).filter(i=>i.contacto_estado==='seguimiento').length;return n?' ('+n+')':'';})()}</button>
     </div>
     <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;renderContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
     <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')renderContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';renderContactar()">Limpiar</button>`:''}</div>
@@ -1219,6 +1228,7 @@ function renderContactar(){
           <div class="muted" style="font-size:11px;margin-top:2px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${i.pais?' · '+esc(i.pais):''}</div>
           ${i.en_app&&i.registrado?`<div class="muted" style="font-size:11px;margin-top:2px">Inició la prueba: <b style="color:var(--txt)">${fFechaCorta(i.registrado)}</b>${i.fin_prueba?' · vence '+fFechaCorta(i.fin_prueba):''}</div>`:''}
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">${senales}</div>
+          ${i.contacto_estado==='seguimiento'?`<div class="muted" style="font-size:11px;margin-top:4px">En seguimiento${(()=>{const d=cuDiasDesde(i.contacto_ultimo);return d!=null?` · último contacto hace ${d} d${d>=21?' <b style=\"color:#D9A21B\">— ya toca re-contactar</b>':''}`:'';})()}</div>`:''}
           ${i.lead_creado?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${fFechaCorta(i.lead_creado)}</b>${i.cuando_escribio?' · '+esc(i.cuando_escribio):''}</div>`:(i.cuando_escribio?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${esc(i.cuando_escribio)}</b></div>`:'')}
           ${q2}
         </div>
@@ -1234,7 +1244,14 @@ function renderContactar(){
 function waLead(o,selId){ const wl=waLink(o.telefono,`Hola ${(o.nombre||'').split(' ')[0]}, soy del equipo de Juan Camilo. ¿Cómo vas?`); if(wl)window.open(wl,'_blank'); const s=selId?$(selId):null; if(!s||!s.value){ if(s)s.value='contactado'; marcarLead(o,'contactado'); } }
 // Manda por WhatsApp el link del análisis científico de la rutina de la persona.
 function informeWA(appId,tel,nom){ const link='https://rzonwwqgbckjsqloosyy.supabase.co/functions/v1/informe-rutina?u='+appId; const msg=`Hola ${nom||''}, te preparamos un análisis de tu rutina con nuestro método: qué estás haciendo bien y qué puedes mejorar. Míralo aquí: ${link}`; const wl=tel?waLink(tel,msg):null; if(wl)window.open(wl,'_blank'); else { navigator.clipboard&&navigator.clipboard.writeText(link); window.open(link,'_blank'); } }
-async function marcarLead(o,estado){ try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado}});}catch(e){} }
+async function marcarLead(o,estado){
+  try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado}});}catch(e){}
+  // Refleja el cambio en la caché local para no tener que recargar: si lo mandas a
+  // "seguimiento", sale de la lista al instante; el resto solo actualiza su estado.
+  const arr=window.CU_ALL||[];
+  const it=arr.find(x=>(o.id&&x.id===o.id)||(o.email&&String(x.email||'').toLowerCase()===String(o.email||'').toLowerCase()));
+  if(it){ it.contacto_estado=estado; it.contacto_ultimo=new Date().toISOString(); if(estado==='seguimiento')renderContactar(); }
+}
 // Enlace "marcar…" progresivo: solo al tocarlo muestra las opciones (sin recargar la lista).
 function abrirMarcar(email,contId){ const c=$(contId); if(!c)return; c.innerHTML=`<button class="sm ghost" style="font-size:10px;padding:4px 8px" onclick="marcarCRM('${email}','cliente','${contId}')">Es cliente</button> <button class="sm ghost" style="font-size:10px;padding:4px 8px" onclick="marcarCRM('${email}','cancelado','${contId}')">Canceló</button> <button class="sm ghost" style="font-size:10px;padding:4px 8px;opacity:.6" onclick="marcarCRM('${email}','','${contId}')">quitar</button>`; }
 async function marcarCRM(email,estado,contId){ const c=contId?$(contId):null; const r=await invokeFn('crm-marcar',{body:{email,estado}}); if(r.error||(r.data&&r.data.error)){ if(c)c.innerHTML='<span class="muted" style="font-size:10px">error</span>'; return; } if(c)c.innerHTML=`<span style="font-size:10px;color:var(--ok)">✓ ${estado||'sin marca'}</span>`; }
