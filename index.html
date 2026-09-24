@@ -1181,6 +1181,7 @@ async function verContactar(){
         <div style="flex:1;min-width:200px">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b> ${niv} ${chip(i.grupo)}</div>
           <div class="muted" style="font-size:11px;margin-top:2px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${i.pais?' · '+esc(i.pais):''}</div>
+          ${i.en_app&&i.registrado?`<div class="muted" style="font-size:11px;margin-top:2px">Inició la prueba: <b style="color:var(--txt)">${fFechaCorta(i.registrado)}</b>${i.fin_prueba?' · vence '+fFechaCorta(i.fin_prueba):''}</div>`:''}
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">${senales}</div>
           ${q2}
         </div>
