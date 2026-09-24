@@ -1182,6 +1182,8 @@ async function verContactar(){
     const selId=`est_${(i.id||i.email||Math.random()).toString().replace(/[^a-zA-Z0-9]/g,'')}`;
     const selEst=`<select id="${selId}" class="sm" onchange="marcarLead(${arg},this.value)" style="font-size:11px;padding:6px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===i.contacto_estado?' selected':''}>${t}</option>`).join('')+`</select>`;
     const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:36px" onclick="waLead(${arg},'${selId}')">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
+    // Botón de informe de rutina (solo si está en la app: tiene rutina que analizar).
+    const infBtn=(i.en_app&&i.app_id)?`<button class="sm ghost" style="min-height:36px" onclick="informeWA('${i.app_id}','${esc(i.telefono||'')}','${esc((i.nombre||'').split(' ')[0])}')" title="Manda por WhatsApp el análisis científico de su rutina">Informe rutina</button>`:'';
     h+=`<div style="border-top:1px solid var(--line);padding:11px 0">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
@@ -1199,7 +1201,7 @@ async function verContactar(){
             <option value="prospecto">Prospecto</option>
             <option value="">Quitar marca</option>
           </select>
-          ${selEst}${waBtn}
+          ${selEst}${waBtn}${infBtn}
         </div>
       </div></div>`;
   }
@@ -1208,6 +1210,8 @@ async function verContactar(){
   cuFoco();
 }
 function waLead(o,selId){ const wl=waLink(o.telefono,`Hola ${(o.nombre||'').split(' ')[0]}, soy del equipo de Juan Camilo. ¿Cómo vas?`); if(wl)window.open(wl,'_blank'); const s=selId?$(selId):null; if(!s||!s.value){ if(s)s.value='contactado'; marcarLead(o,'contactado'); } }
+// Manda por WhatsApp el link del análisis científico de la rutina de la persona.
+function informeWA(appId,tel,nom){ const link='https://rzonwwqgbckjsqloosyy.supabase.co/functions/v1/informe-rutina?u='+appId; const msg=`Hola ${nom||''}, te preparamos un análisis de tu rutina con nuestro método: qué estás haciendo bien y qué puedes mejorar. Míralo aquí: ${link}`; const wl=tel?waLink(tel,msg):null; if(wl)window.open(wl,'_blank'); else { navigator.clipboard&&navigator.clipboard.writeText(link); window.open(link,'_blank'); } }
 async function marcarLead(o,estado){ try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado}});}catch(e){} }
 async function marcarCRM(email,estado,el){ if(!email){if(el)el.selectedIndex=0;return;} const r=await invokeFn('crm-marcar',{body:{email,estado}}); if(r.error||(r.data&&r.data.error)){alert('No se pudo marcar: '+((r.data&&r.data.error)||r.error.message));return;} verContactar(); }
 async function verCRM(){
