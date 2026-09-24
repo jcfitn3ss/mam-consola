@@ -1157,7 +1157,7 @@ async function verContactar(){
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
-      ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
+      ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
     </div>
     <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;verContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
     <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" onkeydown="if(event.key==='Enter')verContactar()"><button class="sm" onclick="verContactar()">Buscar</button></div>
@@ -1185,7 +1185,16 @@ async function verContactar(){
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">${senales}</div>
           ${q2}
         </div>
-        <div style="display:flex;gap:6px;align-items:center">${selEst}${waBtn}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select class="sm" title="Marcar en el CRM (pago externo / canceló)" onchange="marcarCRM('${(i.email||'').replace(/'/g,'')}',this.value,this)" style="font-size:11px;padding:6px">
+            <option value="">Marcar…</option>
+            <option value="cliente">Es cliente (pago externo)</option>
+            <option value="cancelado">Canceló</option>
+            <option value="prospecto">Prospecto</option>
+            <option value="">Quitar marca</option>
+          </select>
+          ${selEst}${waBtn}
+        </div>
       </div></div>`;
   }
   h+='</div>';
@@ -1193,6 +1202,7 @@ async function verContactar(){
 }
 function waLead(o,selId){ const wl=waLink(o.telefono,`Hola ${(o.nombre||'').split(' ')[0]}, soy del equipo de Juan Camilo. ¿Cómo vas?`); if(wl)window.open(wl,'_blank'); const s=selId?$(selId):null; if(!s||!s.value){ if(s)s.value='contactado'; marcarLead(o,'contactado'); } }
 async function marcarLead(o,estado){ try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado}});}catch(e){} }
+async function marcarCRM(email,estado,el){ if(!email){if(el)el.selectedIndex=0;return;} const r=await invokeFn('crm-marcar',{body:{email,estado}}); if(r.error||(r.data&&r.data.error)){alert('No se pudo marcar: '+((r.data&&r.data.error)||r.error.message));return;} verContactar(); }
 async function verCRM(){
   $("v-crm").innerHTML='<div class="card">Cargando…</div>';
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm'}});
