@@ -309,6 +309,11 @@ let MIID=null,MI_PRINCIPAL=false,MI_SETTER=false,CLIENTES=[],TODOS=[],SEL=null,E
 let CONTACTAR_TODOS=false; // false = solo pendientes de esta semana; true = incluye ya contactados
 let CU_GRUPO=''; // filtro de grupo del CRM unificado (Contactar)
 let CU_SINCLI=true; // Contactar: ocultar clientes (Miguel contacta prospectos, no clientes)
+let CU_Q=''; // texto del buscador de Contactar (persiste entre re-renders)
+let CU_FILTRO=''; // filtro especial (ej. 'dijo_no_canjeo')
+let _cuTimer=null;
+function cuBuscar(){ clearTimeout(_cuTimer); _cuTimer=setTimeout(()=>verContactar(),350); } // búsqueda en vivo
+function cuFoco(){ if(!CU_Q)return; const b=document.getElementById('cu_q'); if(b){b.focus(); try{b.setSelectionRange(b.value.length,b.value.length);}catch(e){}} } // mantiene el foco tras re-render
 let INF_MES=null,INF_SHOTS=[],INF_HTML="",ALERTAS=[],TRAINERS=[],PROS_HTML="",RESTS=[],LAZY={};
 let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null,INF_DATOS=null;
 
@@ -1127,7 +1132,7 @@ function _crmDiasA(r){return r?Math.floor((new Date(r+"T00:00:00").getTime()-Dat
 // ============ COLA DE CONTACTO / VENTAS (setter) ============
 // Lista semanal ordenada de a quién escribir por WhatsApp para vender: pruebas por vencer,
 // pruebas vencidas sin comprar y vencidos. "de una" a WhatsApp + marca contactado.
-const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['agendado','Agendó llamada'],['no_interesado','No interesado'],['ganado','✅ Compró'],['perdido','Perdido']];
+const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['no_interesado','No interesado'],['ganado','✅ Compró'],['perdido','Perdido']];
 function guionContacto(nom,bucket){
   const n=nom||'';
   if(bucket==='prueba') return `Hola ${n}, soy del equipo de Músculo al Máximo 💪 ¿Cómo vas con tu prueba? Si quieres seguir con tu plan, rutina y seguimiento sin perder tu progreso, te ayudo a activarlo hoy. ¿Te cuento cómo?`;
@@ -1142,13 +1147,13 @@ async function marcarContacto(uid,estado){
 function waContactar(uid,tel,msg){ const wl=waLink(tel,msg); if(wl) window.open(wl,'_blank'); marcarContacto(uid,'contactado'); }
 async function verContactar(){
   const el=$("v-contactar"); el.innerHTML='<div class="card">Cargando CRM…</div>';
-  const q=(($("cu_q")&&$("cu_q").value)||'');
-  const {data,error}=await invokeFn('crm-unificado',{body:{grupo:CU_GRUPO,q:q,sinClientes:CU_SINCLI,limit:300}});
+  const q=CU_Q;
+  const {data,error}=await invokeFn('crm-unificado',{body:{grupo:CU_GRUPO,q:q,filtro:CU_FILTRO,sinClientes:CU_SINCLI,limit:300}});
   if(error||(data&&data.error)){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`;return;}
   const items=data.items||[], counts=data.counts||{}, nc=data.nivelCount||{};
   const SHEET='https://docs.google.com/spreadsheets/d/1XEuiWJyeX1OAeCdhCJIqqtDI2mNmTqqtBg3Z9Gd7grs/edit';
   const chip=(t,c)=>`<span class="pill" style="background:${c||'var(--card2)'};font-weight:700">${esc(t)}</span>`;
-  const gchip=(label,val)=>`<button class="sm ${CU_GRUPO===val?'':'ghost'}" style="border-radius:20px" onclick="CU_GRUPO='${val.replace(/'/g,"")}';verContactar()">${esc(label)}${counts[val]!=null?' ('+counts[val]+')':''}</button>`;
+  const gchip=(label,val)=>`<button class="sm ${CU_GRUPO===val&&!CU_FILTRO?'':'ghost'}" style="border-radius:20px" onclick="CU_GRUPO='${val.replace(/'/g,"")}';CU_FILTRO='';verContactar()">${esc(label)}${counts[val]!=null?' ('+counts[val]+')':''}</button>`;
   let h=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
       <div><h2 style="margin:0">Contactar <span class="muted" style="font-size:13px;font-weight:400">· ${data.total_general} personas</span></h2>
@@ -1158,11 +1163,12 @@ async function verContactar(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
       ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
+      <button class="sm ${CU_FILTRO==='dijo_no_canjeo'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='dijo_no_canjeo'?'':'dijo_no_canjeo';CU_GRUPO='';verContactar()">Dijo sí, no canjeó</button>
     </div>
     <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;verContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
-    <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" onkeydown="if(event.key==='Enter')verContactar()"><button class="sm" onclick="verContactar()">Buscar</button></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')verContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';verContactar()">Limpiar</button>`:''}</div>
   </div>`;
-  if(!items.length){h+='<div class="card"><div class="muted">Nadie en este filtro.</div></div>';el.innerHTML=h;return;}
+  if(!items.length){h+='<div class="card"><div class="muted">Nadie en este filtro.</div></div>';el.innerHTML=h;cuFoco();return;}
   h+=`<div class="card"><div class="muted" style="font-size:12px;margin-bottom:4px">Mostrando ${items.length} de ${data.total}${data.total>items.length?' — afina con el buscador o un grupo':''}.</div>`;
   for(const i of items){
     const primerNom=(i.nombre||'').split(' ')[0]||'';
@@ -1199,6 +1205,7 @@ async function verContactar(){
   }
   h+='</div>';
   el.innerHTML=h;
+  cuFoco();
 }
 function waLead(o,selId){ const wl=waLink(o.telefono,`Hola ${(o.nombre||'').split(' ')[0]}, soy del equipo de Juan Camilo. ¿Cómo vas?`); if(wl)window.open(wl,'_blank'); const s=selId?$(selId):null; if(!s||!s.value){ if(s)s.value='contactado'; marcarLead(o,'contactado'); } }
 async function marcarLead(o,estado){ try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado}});}catch(e){} }
