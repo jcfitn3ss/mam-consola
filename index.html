@@ -549,7 +549,8 @@ async function verPagos(){
 // Fija (o quita, con '') el segmento de servicio de un cliente a mano. Manda sobre el derivado.
 async function guardarSegmento(uid,segv){
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm_guardar',user_id:uid,segmento:segv||''}});
-  if(error||(data&&data.error)){alert('No se pudo guardar el segmento: '+((data&&data.error)||error.message));return;}
+  if(error||(data&&data.error)){toast('No se pudo guardar el segmento: '+((data&&data.error)||error.message),'warn');return;}
+  toast('Segmento guardado','win');
   verPagos();
 }
 
@@ -1495,8 +1496,9 @@ async function verCRM(){
 }
 async function crmGuardar(uid,campos){
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'crm_guardar',user_id:uid,...campos}});
-  if(error||(data&&data.error)){alert('No se pudo guardar: '+((data&&data.error)||(error&&error.message)||''));return;}
+  if(error||(data&&data.error)){toast('No se pudo guardar: '+((data&&data.error)||(error&&error.message)||''),'warn');return;}
   const c=(window.CRM||[]).find(x=>x.user_id===uid);if(c)c.crm=Object.assign(c.crm||{},campos); // update local, sin re-render (no pierde foco)
+  toast('Guardado','win');
 }
 function crmCSV(){
   const cli=window.CRM||[];const H=['Nombre','Estado','Producto','Inicio','Pago','UltimaFoto','UltimaMedida','RenovPlan','FinPlan','Objetivo','Observaciones'];
@@ -3501,7 +3503,8 @@ async function verRestaurantes(){
 async function addRestaurante(){
   const nombre=$("rn").value.trim();if(!nombre){$("rMsg").textContent="Falta el nombre.";return;}
   const {error}=await sb.from("restaurantes").insert({nombre,ciudad:$("rc").value.trim()||null,direccion:$("rd").value.trim()||null,lat:+$("rlat").value||null,lng:+$("rlng").value||null,descripcion:$("rdesc").value.trim()||null,recomendado:$("rrec").checked,created_by:MIID});
-  if(error){$("rMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
+  if(error){$("rMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;toast('No se pudo agregar','warn');return;}
+  toast('Restaurante agregado','win');
   verRestaurantes();
 }
 function renderRests(){
@@ -3511,8 +3514,8 @@ function renderRests(){
     <button class="sm" style="margin-top:6px" onclick="verPlatos('${r.id}')">Ver / editar platos</button>
     <div id="platos-${r.id}"></div></div>`).join("")||'<div class="muted">Aún no hay restaurantes.</div>';
 }
-async function togRec(id,val){const{error}=await sb.from("restaurantes").update({recomendado:val}).eq("id",id);if(error){alert("Error: "+error.message);return;}verRestaurantes();}
-async function delRest(id){if(!confirm("¿Borrar este restaurante y sus platos?"))return;const{error}=await sb.from("restaurantes").delete().eq("id",id);if(error){alert("Error: "+error.message);return;}verRestaurantes();}
+async function togRec(id,val){const{error}=await sb.from("restaurantes").update({recomendado:val}).eq("id",id);if(error){toast("Error: "+error.message,'warn');return;}toast('Actualizado','win');verRestaurantes();}
+async function delRest(id){if(!confirm("¿Borrar este restaurante y sus platos?"))return;const{error}=await sb.from("restaurantes").delete().eq("id",id);if(error){toast("Error: "+error.message,'warn');return;}toast('Borrado','win');verRestaurantes();}
 async function verPlatos(id){
   const el=$("platos-"+id);if(el.dataset.open){el.dataset.open="";el.innerHTML="";return;}
   el.dataset.open="1";
@@ -3526,12 +3529,13 @@ async function verPlatos(id){
     <button class="sm" onclick="addPlato('${id}')">Agregar plato</button></div>`;
 }
 async function addPlato(id){
-  const n=$("pn-"+id).value.trim();if(!n){alert("Falta el nombre del plato.");return;}
+  const n=$("pn-"+id).value.trim();if(!n){toast("Falta el nombre del plato.",'warn');return;}
   const{error}=await sb.from("restaurante_platos").insert({restaurante_id:id,nombre:n,kcal:+$("pk-"+id).value||0,prot:+$("pp-"+id).value||0,carb:+$("pc-"+id).value||0,fat:+$("pf-"+id).value||0});
-  if(error){alert("Error: "+error.message);return;}
+  if(error){toast("Error: "+error.message,'warn');return;}
+  toast('Plato agregado','win');
   const el=$("platos-"+id);el.dataset.open="";verPlatos(id);
 }
-async function delPlato(pid,id){if(!confirm("¿Quitar este plato?"))return;const{error}=await sb.from("restaurante_platos").delete().eq("id",pid);if(error){alert("Error: "+error.message);return;}const el=$("platos-"+id);el.dataset.open="";verPlatos(id);}
+async function delPlato(pid,id){if(!confirm("¿Quitar este plato?"))return;const{error}=await sb.from("restaurante_platos").delete().eq("id",pid);if(error){toast("Error: "+error.message,'warn');return;}toast('Plato quitado','win');const el=$("platos-"+id);el.dataset.open="";verPlatos(id);}
 
 // ---------- Plan de alimentación ----------
 let PLAN_HTML=null;
