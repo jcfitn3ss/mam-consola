@@ -684,7 +684,7 @@ async function cargarSolicitudes(){
 }
 async function aprobarCupon(uid,ok){
   const {data,error}=await sb.rpc('aprobar_cupon',{p_user:uid,p_aprobar:ok});
-  if(error){alert(error.message);return;}
+  if(error){toast(error.message,'warn');return;}
   if(data==='no_es_tu_cliente'){alert('Ese cliente no está asignado a ti. Reasígnatelo primero en su ficha.');return;}
   await cargarSolicitudes();await cargarPrioridad();
 }
@@ -812,10 +812,10 @@ function renderCampana(){
 }
 function toggleCampana(){const p=$("campanaPanel");if(p)p.classList.toggle("hide");}
 function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("hide");tab('clientes');verCliente(id);window.scrollTo(0,0);}
-async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();renderHoy();}
+async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){toast(error.message,'warn');return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();renderHoy();}
 // Resolver una alerta DESDE la ficha del cliente: la marca resuelta, la quita de la
 // campana y refresca la ficha para que desaparezca de su sección de alertas.
-async function resolverAlertaFicha(aid,cid){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",aid);if(error){alert(error.message);return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(aid));renderCampana();renderHoy();verCliente(cid);}
+async function resolverAlertaFicha(aid,cid){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",aid);if(error){toast(error.message,'warn');return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(aid));renderCampana();renderHoy();verCliente(cid);}
 // ② Franja "Hoy": el triage del día de un vistazo. Cada número lleva a su pestaña.
 // Usa datos ya cargados (alertas, suscripciones, inactividad, altura) + 1 consulta
 // de reuniones sin resumen. Se recalcula al cargar la prioridad y al resolver algo.
@@ -1022,7 +1022,7 @@ async function decGuardar(id){
   if(error){if(m)m.innerHTML=/relation|does not exist|schema|decisiones/i.test(error.message)?'<span style="color:var(--warn)">activa la bitácora pegando el SQL 0050_decisiones</span>':'<span style="color:var(--rojo)">'+esc(error.message)+'</span>';return;}
   verCliente(id);
 }
-async function decBorrar(id,decId){if(!confirm('¿Borrar esta decisión de la bitácora?'))return;const {error}=await sb.from("decisiones").delete().eq("id",decId);if(error){alert(error.message);return;}verCliente(id);}
+async function decBorrar(id,decId){if(!confirm('¿Borrar esta decisión de la bitácora?'))return;const {error}=await sb.from("decisiones").delete().eq("id",decId);if(error){toast(error.message,'warn');return;}verCliente(id);}
 // Registra la recomendación de peso actual en la bitácora, en un clic (cierra el bucle).
 async function segRegistrarDecision(){
   const s=window.SEGP||{};
@@ -1728,7 +1728,7 @@ function poblarDropCli(){
 async function archivarCliente(id){
   if(!confirm("¿Archivar este cliente? Se oculta de la lista (no se borra). Podrás reactivarlo si lo necesitas."))return;
   const e=errFilas(await sb.from("perfiles").update({archivado:true}).eq("user_id",id).select("user_id"));
-  if(e){alert(e);return;}
+  if(e){toast(e,'warn');return;}
   CLIENTES=CLIENTES.filter(c=>c.user_id!==id);TODOS=TODOS.filter(c=>c.user_id!==id);poblarDropCli();
   SEL=null;$("detalle").innerHTML='<div class="muted">Cliente archivado. Elige otro de la lista.</div>';
   renderClientes();
@@ -1873,7 +1873,7 @@ async function guardarNombre(id){
   poblarDropCli();
   setTimeout(()=>verCliente(id),600);
 }
-async function setLlamada(uid,fecha){const e=errFilas(await sb.from("perfiles").update({proxima_llamada:fecha||null}).eq("user_id",uid).select("user_id"));if(e){alert(e);return;}verLlamadas();}
+async function setLlamada(uid,fecha){const e=errFilas(await sb.from("perfiles").update({proxima_llamada:fecha||null}).eq("user_id",uid).select("user_id"));if(e){toast(e,'warn');return;}verLlamadas();}
 // Guarda la frecuencia (cantidad) de llamadas y la próxima, desde la ficha del cliente.
 async function guardarFrecLlamada(id){
   const frec=$("reuFrec")?$("reuFrec").value:null;const prox=$("reuProx")?$("reuProx").value:null;const m=$("reuFrecMsg");
@@ -1913,7 +1913,7 @@ async function agendarSiguientePorFrecuencia(id,fechaBase){
     await sb.from("perfiles").update({proxima_llamada:d.toISOString().slice(0,10)}).eq("user_id",id);
   }catch(e){/* no bloquear el guardado por esto */}
 }
-async function reuBorrar(rid,id){if(!confirm("¿Borrar esta reunión?"))return;const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){alert(e);return;}verCliente(id);}
+async function reuBorrar(rid,id){if(!confirm("¿Borrar esta reunión?"))return;const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){toast(e,'warn');return;}verCliente(id);}
 // Conectar Google (abre el consentimiento de Google en otra pestaña).
 async function agendarReunion(id){
   const dt=$("ag_dt")?$("ag_dt").value:"";const dur=$("ag_dur")?+$("ag_dur").value:45;
@@ -3247,7 +3247,7 @@ async function rcAddPlan(){
 async function borrarComidaPlan(id,cli){
   if(!confirm('¿Quitar esta comida del plan del cliente?'))return;
   const {error}=await sb.from("plan_comidas").delete().eq("id",id);
-  if(error){alert(error.message);return;}
+  if(error){toast(error.message,'warn');return;}
   verCliente(cli);
 }
 // ---- Edición IN-PLACE de cada comida del plan (momento, descripción y macros) ----
@@ -3268,7 +3268,7 @@ async function recAddPlan(rid,cli){
   if(e1||!r){alert(e1?e1.message:'No se encontró la receta.');return;}
   const desc=(r.nombre?r.nombre+': ':'')+(r.ingredientes||'');
   const {error}=await sb.from("plan_comidas").insert({user_id:cli,momento:r.tipo||'Comida',descripcion:desc,kcal:Math.round(r.kcal||0),prot:Math.round(r.prot||0),carb:Math.round(r.carb||0),fat:Math.round(r.fat||0)});
-  if(error){alert(error.message);return;}
+  if(error){toast(error.message,'warn');return;}
   verCliente(cli);
 }
 
@@ -4327,7 +4327,7 @@ async function guardarRutina(id){
 async function toggleAtleta(id,on){
   if(on){
     const {error}=await sb.from("atletas").upsert({user_id:id,pasos_objetivo:8000},{onConflict:"user_id"});
-    if(error){alert(error.message);return;}
+    if(error){toast(error.message,'warn');return;}
     // El calendario COMIENZA al marcar atleta: si no existe, lo inicializa desde HOY (16 semanas).
     const {data:calEx}=await sb.from("calendario_atleta").select("user_id").eq("user_id",id).maybeSingle();
     if(!calEx){
@@ -4339,7 +4339,7 @@ async function toggleAtleta(id,on){
   } else {
     if(!confirm("¿Quitar el estado de atleta de este cliente?")){$("a_es").checked=true;return;}
     const {error}=await sb.from("atletas").delete().eq("user_id",id);
-    if(error){alert(error.message);return;}
+    if(error){toast(error.message,'warn');return;}
     verCliente(id);
   }
 }
@@ -4704,7 +4704,7 @@ async function guardarEjEdit(id){
 async function setClasif(id,campo,valor){
   const patch = campo==='estiramiento' ? {estiramiento: valor==='si'} : {fatiga: valor};
   const {error}=await sb.from("ejercicios").update(patch).eq("id",id);
-  if(error){alert(error.message);return;}
+  if(error){toast(error.message,'warn');return;}
   const e=EJ.find(x=>String(x.id)===String(id));if(e)Object.assign(e,patch);
 }
 async function addEjercicio(){
@@ -5291,7 +5291,7 @@ async function plBorrar(pid){
   const t=PLANT.find(x=>String(x.id)===String(pid));if(!t)return;
   if(!confirm('¿Borrar la plantilla "'+(t.nombre||'')+'"? No afecta a ningún cliente.'))return;
   const {error}=await sb.from("rutinas_plantilla").delete().eq("id",pid);
-  if(error){alert(error.message);return;}
+  if(error){toast(error.message,'warn');return;}
   verPlantillas();
 }
 // Guarda la rutina ACTUAL del cliente abierto como plantilla en la biblioteca.
