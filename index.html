@@ -1162,6 +1162,7 @@ async function verContactar(force){
 function cuFiltrar(){
   const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
   if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
+  if(CU_FILTRO==='hoy') return cuParaHoy(all);
   if(CU_FILTRO==='dijo_no_canjeo') return all.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21');
   if(CU_FILTRO==='nuevos48'){const lim=Date.now()-48*3600*1000;return all.filter(i=>i.registrado&&new Date(i.registrado).getTime()>=lim);}
   // Pestaña Seguimiento: los marcados "En seguimiento (revisar luego)". Se ordenan por
@@ -1177,6 +1178,29 @@ function cuFiltrar(){
 }
 // Días desde el último contacto (para el badge "toca re-contactar").
 function cuDiasDesde(iso){ if(!iso)return null; const d=Math.floor((Date.now()-new Date(iso).getTime())/86400000); return isNaN(d)?null:d; }
+// Seguimiento que YA toca re-contactar (21+ días o sin fecha).
+function cuSegVencido(i){ if(i.contacto_estado!=='seguimiento')return false; const d=cuDiasDesde(i.contacto_ultimo); return d==null||d>=21; }
+// Cola "Para hoy": nuevos 48h + dijo-sí-no-canjeó + seguimiento vencido. Sin clientes.
+function cuParaHoy(all){
+  const lim=Date.now()-48*3600*1000;
+  return (all||[]).filter(i=>i.grupo!=='Cliente'&&(
+    (i.registrado&&new Date(i.registrado).getTime()>=lim) ||
+    (i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21') ||
+    cuSegVencido(i)
+  ));
+}
+// Dato-gatillo: la razón por la que esta persona está en la lista (una línea).
+function cuGatillo(i){
+  const nuevo=i.registrado&&(Date.now()-new Date(i.registrado).getTime()<48*3600*1000);
+  if(nuevo) return {t:'Nuevo · empezó la prueba '+fFechaCorta(i.registrado),c:'#e23b3b'};
+  if(i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21') return {t:'Dijo sí al regalo, aún no canjea',c:'#D9A21B'};
+  if(i.contacto_estado==='seguimiento'){const d=cuDiasDesde(i.contacto_ultimo);return {t:'En seguimiento'+(d!=null?' · hace '+d+' d'+(d>=21?' — ya toca':''):''),c:d!=null&&d>=21?'#D9A21B':'var(--muted)'};}
+  if(i.grupo==='Vencido') return {t:'Canceló'+(i.fin_prueba?' · venció '+fFechaCorta(i.fin_prueba):'')+' · winback',c:'#D9A21B'};
+  if(i.en_app&&i.fin_prueba){const dd=cuDiasDesde(i.fin_prueba);if(dd!=null&&dd<0)return {t:'En prueba · vence en '+(-dd)+' d',c:'#8fb3ff'};}
+  if(!i.en_app) return {t:'No descargó'+(i.lead_creado?' · escribió '+fFechaCorta(i.lead_creado):''),c:'var(--muted)'};
+  if(i.lead_creado) return {t:'Llenó el formulario '+fFechaCorta(i.lead_creado),c:'var(--muted)'};
+  return {t:'',c:'var(--muted)'};
+}
 function renderContactar(){
   const el=$("v-contactar");
   const meta=window.CU_META||{counts:{},nivelCount:{},total_general:0};
@@ -1188,6 +1212,13 @@ function renderContactar(){
   const SHEET='https://docs.google.com/spreadsheets/d/1XEuiWJyeX1OAeCdhCJIqqtDI2mNmTqqtBg3Z9Gd7grs/edit';
   const chip=(t,c)=>`<span class="pill" style="background:${c||'var(--card2)'};font-weight:700">${esc(t)}</span>`;
   const gchip=(label,val)=>`<button class="sm ${CU_GRUPO===val&&!CU_FILTRO?'':'ghost'}" style="border-radius:20px" onclick="CU_GRUPO='${val.replace(/'/g,"")}';CU_FILTRO='';renderContactar()">${esc(label)}${counts[val]!=null?' ('+counts[val]+')':''}</button>`;
+  // Vistas de trabajo (distintas de los grupos): esquinas rectas para diferenciarlas.
+  const wchip=(label,val,n)=>`<button class="sm ${CU_FILTRO===val?'':'ghost'}" style="border-radius:8px" onclick="CU_FILTRO=CU_FILTRO==='${val}'?'':'${val}';CU_GRUPO='';renderContactar()">${esc(label)}${n?' ('+n+')':''}</button>`;
+  const ALL=window.CU_ALL||[];
+  const nHoy=cuParaHoy(ALL).length;
+  const nNuevos=(()=>{const lim=Date.now()-48*3600*1000;return ALL.filter(i=>i.grupo!=='Cliente'&&i.registrado&&new Date(i.registrado).getTime()>=lim).length;})();
+  const nSeg=ALL.filter(i=>i.contacto_estado==='seguimiento').length;
+  const nCanjeo=ALL.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21').length;
   let h=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
       <div><h2 style="margin:0">Contactar <span class="muted" style="font-size:13px;font-weight:400">· ${data.total_general} personas</span></h2>
@@ -1195,13 +1226,19 @@ function renderContactar(){
       <div style="display:flex;gap:6px;align-items:center"><button class="sm ghost" onclick="verContactar(true)" title="Volver a traer los datos frescos del servidor">Actualizar</button><a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
-      ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
-      <button class="sm ${CU_FILTRO==='nuevos48'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='nuevos48'?'':'nuevos48';CU_GRUPO='';renderContactar()">Nuevos 48h</button>
-      <button class="sm ${CU_FILTRO==='dijo_no_canjeo'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='dijo_no_canjeo'?'':'dijo_no_canjeo';CU_GRUPO='';renderContactar()">Dijo sí, no canjeó</button>
-      <button class="sm ${CU_FILTRO==='seguimiento'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='seguimiento'?'':'seguimiento';CU_GRUPO='';renderContactar()">Seguimiento${(()=>{const n=(window.CU_ALL||[]).filter(i=>i.contacto_estado==='seguimiento').length;return n?' ('+n+')':'';})()}</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;background:${CU_FILTRO==='hoy'?'rgba(226,59,59,.10)':'var(--card2)'};border:1px solid ${CU_FILTRO==='hoy'?'var(--rojo)':'var(--line)'};border-radius:12px;padding:12px 14px">
+      <div><div style="font-size:22px;font-weight:800;line-height:1">${nHoy}</div><div class="muted" style="font-size:12px">para contactar hoy · nuevos, regalo sin canjear y seguimiento vencido</div></div>
+      <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:9px;min-height:38px" onclick="CU_FILTRO='hoy';CU_GRUPO='';renderContactar()">Ver cola de hoy</button>
     </div>
-    <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;renderContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px">Vistas de trabajo</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      ${wchip('Para hoy','hoy',nHoy)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Seguimiento','seguimiento',nSeg)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}
+    </div>
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px">Grupos</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
+    </div>
+    <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:12px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;renderContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
     <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')renderContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';renderContactar()">Limpiar</button>`:''}</div>
   </div>`;
   if(!items.length){h+='<div class="card"><div class="muted">Nadie en este filtro.</div></div>';el.innerHTML=h;cuFoco();return;}
@@ -1221,16 +1258,20 @@ function renderContactar(){
     const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:36px" onclick="waLead(${arg},'${selId}')">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
     // Botón de informe de rutina (solo si está en la app: tiene rutina que analizar).
     const infBtn=(i.en_app&&i.app_id)?`<button class="sm ghost" style="min-height:36px" onclick="informeWA('${i.app_id}','${esc(i.telefono||'')}','${esc((i.nombre||'').split(' ')[0])}')" title="Manda por WhatsApp el análisis científico de su rutina">Informe rutina</button>`:'';
+    const g=cuGatillo(i);
+    const formLine=i.lead_creado?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${fFechaCorta(i.lead_creado)}</b>${i.cuando_escribio?' · '+esc(i.cuando_escribio):''}</div>`:(i.cuando_escribio?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${esc(i.cuando_escribio)}</b></div>`:'');
     h+=`<div style="border-top:1px solid var(--line);padding:11px 0">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b> ${niv} ${chip(i.grupo)}</div>
-          <div class="muted" style="font-size:11px;margin-top:2px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${i.pais?' · '+esc(i.pais):''}</div>
-          ${i.en_app&&i.registrado?`<div class="muted" style="font-size:11px;margin-top:2px">Inició la prueba: <b style="color:var(--txt)">${fFechaCorta(i.registrado)}</b>${i.fin_prueba?' · vence '+fFechaCorta(i.fin_prueba):''}</div>`:''}
-          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">${senales}</div>
-          ${i.contacto_estado==='seguimiento'?`<div class="muted" style="font-size:11px;margin-top:4px">En seguimiento${(()=>{const d=cuDiasDesde(i.contacto_ultimo);return d!=null?` · último contacto hace ${d} d${d>=21?' <b style=\"color:#D9A21B\">— ya toca re-contactar</b>':''}`:'';})()}</div>`:''}
-          ${i.lead_creado?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${fFechaCorta(i.lead_creado)}</b>${i.cuando_escribio?' · '+esc(i.cuando_escribio):''}</div>`:(i.cuando_escribio?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${esc(i.cuando_escribio)}</b></div>`:'')}
-          ${q2}
+          ${g.t?`<div style="font-size:12px;margin-top:3px;color:${g.c};font-weight:600">${esc(g.t)}</div>`:''}
+          <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--muted)">ver más</summary>
+            <div class="muted" style="font-size:11px;margin-top:6px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${i.pais?' · '+esc(i.pais):''}</div>
+            ${i.en_app&&i.registrado?`<div class="muted" style="font-size:11px;margin-top:2px">Inició la prueba: <b style="color:var(--txt)">${fFechaCorta(i.registrado)}</b>${i.fin_prueba?' · vence '+fFechaCorta(i.fin_prueba):''}</div>`:''}
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">${senales}</div>
+            ${formLine}
+            ${q2}
+          </details>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           ${selEst}${waBtn}${infBtn}
