@@ -149,7 +149,7 @@
   <header class="appbar">
     <div class="brand"><span class="brandMark">M</span><h1>Músculo al Máximo <span class="brandSub">· Consola</span></h1></div>
     <div style="display:flex;gap:8px;align-items:center">
-      <button id="campana" class="ghost hide" onclick="toggleCampana()">🔔 <span id="nAl" class="pill" style="background:var(--rojo);color:#fff">0</span></button>
+      <button id="campana" class="ghost hide" onclick="toggleCampana()">Avisos <span id="nAl" class="pill" style="background:var(--rojo);color:#fff">0</span></button>
       <button id="logout" class="ghost hide" onclick="logout()">Salir</button>
     </div>
   </header>
@@ -168,18 +168,18 @@
   <div id="app" class="hide">
     <div class="nav">
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
-      <button id="t-crm" onclick="tab('crm')">👥 Clientes (CRM)</button>
+      <button id="t-crm" onclick="tab('crm')">Clientes (CRM)</button>
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
-      <button id="t-seguimiento" onclick="tab('seguimiento')">📸 Fotos y medidas</button>
+      <button id="t-seguimiento" onclick="tab('seguimiento')">Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
-      <button id="t-contactar" onclick="tab('contactar')">📣 Contactar</button>
+      <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
       <div class="menu" id="masMenu">
         <div class="menuGrp">Decisiones</div>
-        <button id="t-resumen" onclick="tab('resumen')">📊 Resumen de gestión</button>
-        <button id="t-revision" onclick="tab('revision')">🧭 Revisión del día</button>
-        <button id="t-riesgo" onclick="tab('riesgo')">⚠️ Riesgo de baja</button>
+        <button id="t-resumen" onclick="tab('resumen')">Resumen de gestión</button>
+        <button id="t-revision" onclick="tab('revision')">Revisión del día</button>
+        <button id="t-riesgo" onclick="tab('riesgo')">Riesgo de baja</button>
         <div class="menuGrp">Biblioteca</div>
         <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
         <button id="t-plantillas" onclick="tab('plantillas')">Rutinas estándar</button>
@@ -237,7 +237,7 @@
   <div class="lbWrap" id="lbWrap"><img id="lbImg" alt="foto de progreso"></div>
   <div class="lbCap" id="lbCap"></div>
 </div>
-<button id="iaFab" class="hide" onclick="iaAbrir()" title="Asistente IA">🤖 IA</button>
+<button id="iaFab" class="hide" onclick="iaAbrir()" title="Asistente IA">IA</button>
 <div id="iaModal">
   <div class="iaBox">
     <header><b>Asistente IA <span id="iaCliente" class="muted" style="font-size:13px;font-weight:400"></span></b><button class="iaClose" onclick="iaCerrar()">×</button></header>
@@ -363,36 +363,36 @@ async function verSalud(){
   const R=data.detalle||{},res=data.resumen||{};
   // Definición de cada hueco: etiqueta, severidad (color), y qué significa.
   const SECC=[
-    ['nunca_han_entrado','🚪 Con acceso pero NUNCA han entrado','var(--rojo)','Tienen la suscripción activa pero jamás iniciaron sesión → no logran entrar (clave/login). Reséntales la clave o pásales el enlace de acceso a su correo.'],
-    ['sesiones_abandonadas','🧟 Sesiones abandonadas (traban el entreno)','var(--rojo)','Sesiones empezadas sin finalizar de días pasados. En builds viejos BLOQUEAN el "empezar" (fue el caso de Daniela). Limpiarlas NO borra los workouts registrados.'],
-    ['sin_altura','📏 Sin altura','var(--rojo)','El plan y las calorías se calculan mal. Se les pide al abrir la app; o cárgala tú en la ficha.'],
-    ['sin_plan','📋 Sin plan','var(--rojo)','No tienen plan generado (a veces por no completar el cuestionario). El entreno puede fallar.'],
-    ['sin_rutina','🏋️ Sin rutina','var(--rojo)','No tienen rutina asignada. Genérala en la ficha (Entrenamiento).'],
-    ['sin_objetivo','🎯 Sin objetivo','var(--warn)','Sin objetivo/calorías definidas. Ponlo en la ficha (Objetivo, calorías y enfoque).'],
-    ['cuestionario_pendiente','📝 Cuestionario pendiente','var(--warn)','Tienen acceso pero no completaron el cuestionario inicial (no están bien configurados).'],
-    ['nombre_sin_apellidos','👤 Nombre sin 2 apellidos','var(--warn)','Falta nombre completo. Corrígelo en la ficha → Contrato e ingreso.'],
-    ['inactivos_14d','😴 Inactivos (14+ días)','#e0b84a','No entrenan hace 2+ semanas. Riesgo de que se caigan; contáctalos.'],
-    ['sin_registrar_comida_14d','🍽️ Sin registrar comida (14+ días)','var(--muted)','No registran comida. Normal en muchos; míralo solo si te interesa su nutrición.'],
+    ['nunca_han_entrado','Con acceso pero NUNCA han entrado','var(--rojo)','Tienen la suscripción activa pero jamás iniciaron sesión → no logran entrar (clave/login). Reséntales la clave o pásales el enlace de acceso a su correo.'],
+    ['sesiones_abandonadas','Sesiones abandonadas (traban el entreno)','var(--rojo)','Sesiones empezadas sin finalizar de días pasados. En builds viejos BLOQUEAN el "empezar" (fue el caso de Daniela). Limpiarlas NO borra los workouts registrados.'],
+    ['sin_altura','Sin altura','var(--rojo)','El plan y las calorías se calculan mal. Se les pide al abrir la app; o cárgala tú en la ficha.'],
+    ['sin_plan','Sin plan','var(--rojo)','No tienen plan generado (a veces por no completar el cuestionario). El entreno puede fallar.'],
+    ['sin_rutina','Sin rutina','var(--rojo)','No tienen rutina asignada. Genérala en la ficha (Entrenamiento).'],
+    ['sin_objetivo','Sin objetivo','var(--warn)','Sin objetivo/calorías definidas. Ponlo en la ficha (Objetivo, calorías y enfoque).'],
+    ['cuestionario_pendiente','Cuestionario pendiente','var(--warn)','Tienen acceso pero no completaron el cuestionario inicial (no están bien configurados).'],
+    ['nombre_sin_apellidos','Nombre sin 2 apellidos','var(--warn)','Falta nombre completo. Corrígelo en la ficha → Contrato e ingreso.'],
+    ['inactivos_14d','Inactivos (14+ días)','#e0b84a','No entrenan hace 2+ semanas. Riesgo de que se caigan; contáctalos.'],
+    ['sin_registrar_comida_14d','Sin registrar comida (14+ días)','var(--muted)','No registran comida. Normal en muchos; míralo solo si te interesa su nutrición.'],
   ];
-  let h=`<div class="card"><h2 style="margin-top:0">🩺 Salud de datos <span class="muted" style="font-size:13px;font-weight:400">· ${data.clientes_con_acceso||0} clientes con acceso</span></h2>
-    <div class="muted" style="font-size:12px;margin-bottom:8px">Huecos que hacen que la app no funcione bien. Se actualiza cada vez que abres esta pestaña. <button class="sm ghost" onclick="verSalud()">↻ Actualizar</button></div>
+  let h=`<div class="card"><h2 style="margin-top:0">Salud de datos <span class="muted" style="font-size:13px;font-weight:400">· ${data.clientes_con_acceso||0} clientes con acceso</span></h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Huecos que hacen que la app no funcione bien. Se actualiza cada vez que abres esta pestaña. <button class="sm ghost" onclick="verSalud()">Actualizar</button></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${SECC.map(([k,l,c])=>`<span class="pill" style="background:${(res[k]||0)?'var(--card2)':'rgba(95,208,127,.12)'};font-weight:700;color:${(res[k]||0)?c:'var(--ok)'}">${l.replace(/^[^ ]+ /,'')}: ${res[k]||0}</span>`).join('')}</div></div>`;
   SECC.forEach(([k,l,c,desc])=>{
     const arr=R[k]||[];
     let cuerpo;
-    if(!arr.length){cuerpo=`<div style="color:var(--ok);font-size:12px">✅ Ninguno.</div>`;}
+    if(!arr.length){cuerpo=`<div style="color:var(--ok);font-size:12px">Ninguno.</div>`;}
     else if(k==='nombre_sin_apellidos'){
       // Editor en LOTE: input por persona (prellenado) + guardar. Nombre + 2 apellidos.
       cuerpo=`<div style="display:flex;flex-direction:column;gap:6px">`+arr.map((x,i)=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="sn_${i}" data-nocaps value="${esc(x.nombre_completo||x.nombre||'')}" placeholder="Nombre y dos apellidos" style="margin:0;flex:1;min-width:200px"><button class="sm" onclick="guardarNombreSalud('${x.user_id}','sn_${i}',this)">Guardar</button><span class="salMsg" style="font-size:11px"></span></div>`).join('')+`</div>`;
     } else if(k==='inactivos_14d'){
       cuerpo=`<div style="display:flex;flex-direction:column;gap:6px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.dias_sin_entrenar!=null?x.dias_sin_entrenar+' días sin entrenar':'nunca ha entrenado'}</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
-      <div class="muted" style="font-size:11px;margin-top:8px">Mensaje sugerido para reactivar (cópialo): <span style="color:var(--txt)">"Hola {nombre}, te vi flojito con los entrenos esta semana 👀. Cuéntame qué pasó y retomamos hoy mismo — no perdamos el ritmo que ya llevabas. 💪"</span></div>`;
+      <div class="muted" style="font-size:11px;margin-top:8px">Mensaje sugerido para reactivar (cópialo): <span style="color:var(--txt)">"Hola {nombre}, te vi flojito con los entrenos esta semana. Cuéntame qué pasó y retomamos hoy mismo — no perdamos el ritmo que ya llevabas."</span></div>`;
     } else if(k==='nunca_han_entrado'){
-      cuerpo=`<div style="display:flex;flex-direction:column;gap:4px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b>${x.email?`<span class="muted" style="font-size:12px;user-select:text">✉ ${esc(x.email)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="resetClave('${x.user_id}')">🔑 Resetear clave</button><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
+      cuerpo=`<div style="display:flex;flex-direction:column;gap:4px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b>${x.email?`<span class="muted" style="font-size:12px;user-select:text">${esc(x.email)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="resetClave('${x.user_id}')">Resetear clave</button><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
       <div class="muted" style="font-size:11px;margin-top:8px">Alternativa sin clave: diles que en la app usen "Entrar sin clave (enlace al correo)" con ese mismo correo.</div>`;
     } else if(k==='sesiones_abandonadas'){
       const totAband=arr.reduce((a,x)=>a+(+x.n||0),0);
-      cuerpo=`<button class="sm danger" onclick="limpiarSesionesAbandonadas(this)" style="margin-bottom:8px">🧹 Limpiar TODAS las abandonadas (${totAband})</button> <span id="limpSesMsg" class="muted" style="font-size:12px"></span>
+      cuerpo=`<button class="sm danger" onclick="limpiarSesionesAbandonadas(this)" style="margin-bottom:8px">Limpiar TODAS las abandonadas (${totAband})</button> <span id="limpSesMsg" class="muted" style="font-size:12px"></span>
       <div class="muted" style="font-size:11px;margin:2px 0 6px">Destraba a todos de una. No toca las series/workouts ni las sesiones de hoy.</div>
       <div style="display:flex;flex-direction:column;gap:2px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.n} atascada(s)</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>`;
     } else {
@@ -404,7 +404,7 @@ async function verSalud(){
   });
   // Mantenimiento: restaurar las policies de LECTURA del entrenador (fotos/medidas/
   // pesos/comidas/series/…) si se cayeron y las secciones salen vacías. Se corre 1 vez.
-  h=`<div class="card"><h2 style="margin-top:0">🔧 Mantenimiento</h2>
+  h=`<div class="card"><h2 style="margin-top:0">Mantenimiento</h2>
     <div class="muted" style="font-size:12px;margin-bottom:6px">Si en las fichas NO salen fotos, medidas o registros de los clientes, restaura los permisos de lectura del entrenador (seguro e idempotente).</div>
     <button class="sm" onclick="repararLecturaEntrenador(this)">Reparar permisos de lectura</button> <span id="repMsg" class="muted" style="font-size:12px"></span>
   </div>`+h;
@@ -425,7 +425,7 @@ async function limpiarSesionesAbandonadas(btn){
   if(btn){btn.disabled=true;btn.textContent='Limpiando…';}
   const {data,error}=await invokeFn("salud-datos",{body:{limpiar_sesiones:true}});
   const m=$("limpSesMsg");
-  if(error||(data&&data.error)){if(m){m.style.color='var(--rojo)';m.textContent=(data&&data.error)||(error&&error.message)||'Error';}if(btn){btn.disabled=false;btn.textContent='🧹 Reintentar limpieza';}return;}
+  if(error||(data&&data.error)){if(m){m.style.color='var(--rojo)';m.textContent=(data&&data.error)||(error&&error.message)||'Error';}if(btn){btn.disabled=false;btn.textContent='Reintentar limpieza';}return;}
   if(m){m.style.color='var(--ok)';m.textContent='✓ '+((data&&data.limpiadas)||0)+' sesión(es) limpiada(s).';}
   setTimeout(()=>verSalud(),900);
 }
@@ -462,27 +462,27 @@ async function verPagos(){
   const pill=(txt,col)=>`<span class="pill" style="background:${col||'var(--card2)'};font-weight:700">${txt}</span>`;
   const salud=(m.se_renuevan>0&&(m.contradicen||0)===0&&(r.store_cobro_vencido||0)===0);
   let h=`<div class="card" style="border:1px solid ${salud?'var(--ok)':'var(--warn)'}">
-    <h2 style="margin-top:0">💳 Pagos y suscripciones ${salud?'<span style="color:var(--ok);font-size:13px">· ✅ funcionando</span>':'<span style="color:var(--warn);font-size:13px">· revisar</span>'}</h2>
-    <div class="muted" style="font-size:12px;margin-bottom:8px">Cruce en vivo con RevenueCat (verificador de los pagos de Apple/Google). Generado ${esc((data.generado||'').replace('T',' ').slice(0,16))}. <button class="sm ghost" onclick="verPagos()">↻ Volver a verificar</button></div>
+    <h2 style="margin-top:0">Pagos y suscripciones ${salud?'<span style="color:var(--ok);font-size:13px">· funcionando</span>':'<span style="color:var(--warn);font-size:13px">· revisar</span>'}</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Cruce en vivo con RevenueCat (verificador de los pagos de Apple/Google). Generado ${esc((data.generado||'').replace('T',' ').slice(0,16))}. <button class="sm ghost" onclick="verPagos()">Volver a verificar</button></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${pill('Total '+(t.total||0))}${pill('Activas '+(pe.activa||0),'rgba(95,208,127,.16)')}${pill('Vencidas '+(pe.vencido||0),'rgba(226,59,59,.12)')}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(pt).map(([k,v])=>pill(k+': '+v)).join('')}</div>
   </div>`;
-  // 🔐 Salud de accesos: nadie que pagó debe quedar en el paywall. Vista persistente del
+  // Salud de accesos: nadie que pagó debe quedar en el paywall. Vista persistente del
   // reconciliador (RevenueCat→DB). Corre solo al abrir la consola + cron cada 3 h; aquí se
   // fuerza y se ve a quién reactivó (caso "pagué y no me deja entrar", ej. Valentina).
-  h+=`<div class="card"><h2 style="margin-top:0">🔐 Salud de accesos</h2>
+  h+=`<div class="card"><h2 style="margin-top:0">Salud de accesos</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Reconcilia RevenueCat con la base y <b>activa a quien pagó y quedó atascado en el paywall</b>. Corre solo al abrir la consola y cada 3 h automáticamente. Fuérzalo aquí cuando alguien diga "pagué y no me deja entrar".</div>
     <button class="sm" onclick="reconciliarAhora(this)">Reconciliar ahora</button> <span id="reconMsg" class="muted" style="font-size:12px"></span>
     <div id="reconLista" style="margin-top:8px"></div></div>`;
   // ---- SEGMENTOS DE SERVICIO (Fase 1: etiqueta confiable App vs Mentoría) ----
   const seg=data.segmentos||{conteo:{},lista:[]};
-  const SM={mentoria:{e:'💼',t:'Mentoría',c:'#5f93e0'},app:{e:'📱',t:'App',c:'var(--ok)'},prueba:{e:'🧪',t:'Prueba',c:'var(--warn)'},cortesia:{e:'🎁',t:'Cortesía',c:'var(--muted)'},vencido:{e:'❌',t:'Vencido',c:'var(--rojo2)'},revisar:{e:'❓',t:'Revisar',c:'var(--rojo)'}};
+  const SM={mentoria:{e:'',t:'Mentoría',c:'#5f93e0'},app:{e:'',t:'App',c:'var(--ok)'},prueba:{e:'',t:'Prueba',c:'var(--warn)'},cortesia:{e:'',t:'Cortesía',c:'var(--muted)'},vencido:{e:'',t:'Vencido',c:'var(--rojo2)'},revisar:{e:'',t:'Revisar',c:'var(--rojo)'}};
   const gruposSeg=['mentoria','app','prueba','cortesia','vencido','revisar'];
   const segChip=(k)=>`<span class="pill" style="background:var(--card2);font-weight:700">${SM[k].e} ${SM[k].t}: ${seg.conteo[k]||0}</span>`;
   const segOpts=(cur)=>['','mentoria','app','prueba','cortesia','vencido'].map(v=>`<option value="${v}"${v===cur?' selected':''}>${v?SM[v].e+' '+SM[v].t:'(auto)'}</option>`).join('');
-  const filaSeg=(x)=>`<tr${x.revisar?' style="background:rgba(226,59,59,.06)"':''}><td><b>${esc(x.nombre)}</b>${x.revisar?' <span title="Mentoría sin Stripe o sin clasificar" style="color:var(--rojo)">⚠️</span>':''}${x.override?' <span title="Fijado a mano" class="muted">📌</span>':''}</td><td class="muted" style="font-size:11px">${esc(x.tier||'—')}${x.seg==='mentoria'?(x.stripe?(' · Stripe: '+esc(x.stripe_estado||'✓')):' · <span style="color:var(--rojo)">sin Stripe</span>'):''}</td><td class="muted" style="font-size:11px">${esc(x.prox_cobro||'—')}</td><td><select class="sm" onchange="guardarSegmento('${x.user_id}',this.value)">${segOpts(x.override||'')}</select></td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`;
-  let segH=`<div class="card"><h2 style="margin-top:0">🧭 Segmentos de servicio</h2>
-    <div class="muted" style="font-size:12px;margin-bottom:8px">Quién paga <b>Mentoría</b> (reuniones + acompañamiento) vs <b>App</b> (soporte por WhatsApp). La etiqueta se deduce sola de la suscripción; puedes <b>fijarla a mano</b> con el selector para casos raros (ej. mentoría pagada por fuera sin Stripe). ⚠️ = revisar · 📌 = fijado a mano.</div>
+  const filaSeg=(x)=>`<tr${x.revisar?' style="background:rgba(226,59,59,.06)"':''}><td><b>${esc(x.nombre)}</b>${x.revisar?' <span title="Mentoría sin Stripe o sin clasificar" style="color:var(--rojo)">revisar</span>':''}${x.override?' <span title="Fijado a mano" class="muted">fijado</span>':''}</td><td class="muted" style="font-size:11px">${esc(x.tier||'—')}${x.seg==='mentoria'?(x.stripe?(' · Stripe: '+esc(x.stripe_estado||'✓')):' · <span style="color:var(--rojo)">sin Stripe</span>'):''}</td><td class="muted" style="font-size:11px">${esc(x.prox_cobro||'—')}</td><td><select class="sm" onchange="guardarSegmento('${x.user_id}',this.value)">${segOpts(x.override||'')}</select></td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`;
+  let segH=`<div class="card"><h2 style="margin-top:0">Segmentos de servicio</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Quién paga <b>Mentoría</b> (reuniones + acompañamiento) vs <b>App</b> (soporte por WhatsApp). La etiqueta se deduce sola de la suscripción; puedes <b>fijarla a mano</b> con el selector para casos raros (ej. mentoría pagada por fuera sin Stripe). "revisar" = requiere revisión · "fijado" = etiqueta puesta a mano.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${gruposSeg.map(segChip).join('')}</div>`;
   const mrr=seg.mrr||{};
   const fmtUSD=(n)=>n==null?'—':'$'+Number(n).toLocaleString('en-US');
@@ -490,15 +490,15 @@ async function verPagos(){
     <div><div class="muted" style="font-size:11px">MRR Mentoría ${mrr.mentoria_stripe_ok?'<span style="color:var(--ok)">(Stripe, real)</span>':'<span style="color:var(--warn)">(sin Stripe)</span>'}</div><div style="font-weight:800;font-size:18px;color:#5f93e0">${fmtUSD(mrr.mentoria)}<span class="muted" style="font-size:11px;font-weight:400">/mes</span></div></div>
     <div><div class="muted" style="font-size:11px">MRR App (estimado)</div><div style="font-weight:800;font-size:18px;color:var(--ok)">${fmtUSD(mrr.app_estimado)}<span class="muted" style="font-size:11px;font-weight:400">/mes</span></div></div>
     <div><div class="muted" style="font-size:11px">Total aprox.</div><div style="font-weight:800;font-size:18px">${fmtUSD((mrr.mentoria||0)+(mrr.app_estimado||0))}<span class="muted" style="font-size:11px;font-weight:400">/mes</span></div></div>
-    ${mrr.stripe_error?`<div style="color:var(--warn);font-size:11px;align-self:center">⚠️ Stripe: ${esc(mrr.stripe_error)}</div>`:''}</div>
+    ${mrr.stripe_error?`<div style="color:var(--warn);font-size:11px;align-self:center">Stripe: ${esc(mrr.stripe_error)}</div>`:''}</div>
     <div class="muted" style="font-size:10.5px;margin-bottom:8px">App estimado con precios de referencia (publico $32.99, anual ~$32/mes, programa $15). Mentoría = importe real de Stripe.</div>`;
   for(const g of gruposSeg){const ls=(seg.lista||[]).filter(x=>x.seg===g);if(!ls.length)continue;segH+=`<details style="margin-bottom:6px"${(g==='revisar'||g==='mentoria')?' open':''}><summary style="cursor:pointer;font-weight:700;color:${SM[g].c}">${SM[g].e} ${SM[g].t} (${ls.length})</summary><table style="margin-top:4px"><tr><th>Cliente</th><th>Tier</th><th>Próx. cobro</th><th>Fijar</th><th></th></tr>${ls.map(filaSeg).join('')}</table></details>`;}
   segH+=`</div>`;h+=segH;
   // ---- FASE 3: Prueba 7 días → a convertir (vender la app) ----
   const pruebas=(seg.lista||[]).filter(x=>x.seg==='prueba');
   const diasRest=(tf)=>{if(!tf)return null;const d=Math.ceil((new Date(tf)-new Date())/864e5);return d;};
-  const guionVenta=(nom)=>`Hola ${nom}, ¿cómo vas con la prueba de Músculo al Máximo? Cuéntame qué te ha parecido. Si quieres seguir con tu plan, rutina y seguimiento sin interrupción, actívala aquí y no pierdes tu progreso 💪`;
-  let prH=`<div class="card" style="border:1px solid ${pruebas.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">🧪 Prueba 7 días — a convertir ${pruebas.length?`<span class="pill" style="background:rgba(224,184,74,.18);color:var(--warn);font-weight:700">${pruebas.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ninguno</span>'}</h2>`;
+  const guionVenta=(nom)=>`Hola ${nom}, ¿cómo vas con la prueba de Músculo al Máximo? Cuéntame qué te ha parecido. Si quieres seguir con tu plan, rutina y seguimiento sin interrupción, actívala aquí y no pierdes tu progreso`;
+  let prH=`<div class="card" style="border:1px solid ${pruebas.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Prueba 7 días — a convertir ${pruebas.length?`<span class="pill" style="background:rgba(224,184,74,.18);color:var(--warn);font-weight:700">${pruebas.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ninguno</span>'}</h2>`;
   if(pruebas.length){
     prH+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Estas personas están en prueba. La idea es <b>venderles la app</b> antes de que venza. Ordenadas por menos días restantes.</div>`;
     const conD=pruebas.map(x=>({...x,_d:diasRest(x.trial_fin)})).sort((a,b)=>(a._d==null?999:a._d)-(b._d==null?999:b._d));
@@ -510,7 +510,7 @@ async function verPagos(){
       <tr><th>Activas de tienda (pagan por Apple/Google)</th><td><b>${r.activas_de_tienda||0}</b></td></tr>
       <tr><th>Con próximo cobro agendado</th><td>${r.con_proximo_cobro||0}</td></tr>
       <tr><th>Cobran en los próximos 7 días</th><td>${r.cobran_en_7_dias||0}</td></tr>
-      <tr><th>⚠️ Activas de tienda con cobro VENCIDO</th><td style="color:${(r.store_cobro_vencido||0)?'var(--rojo)':'var(--ok)'};font-weight:700">${r.store_cobro_vencido||0}</td></tr>
+      <tr><th>Activas de tienda con cobro VENCIDO</th><td style="color:${(r.store_cobro_vencido||0)?'var(--rojo)':'var(--ok)'};font-weight:700">${r.store_cobro_vencido||0}</td></tr>
       <tr><th>Activas de tienda sin fecha de cobro</th><td>${r.store_sin_fecha_cobro||0}</td></tr>
       <tr><th>Activas NO de tienda (fundador/gratis/mentoría, por diseño)</th><td>${r.activas_no_tienda||0}</td></tr>
     </tbody></table></div>`;
@@ -519,15 +519,15 @@ async function verPagos(){
   const listaR=(titulo,arr,col)=>{if(!arr||!arr.length)return '';return `<details style="margin-bottom:6px"><summary style="cursor:pointer;font-weight:700;color:${col||'var(--txt)'}">${titulo} (${arr.length})</summary><table style="margin-top:4px"><tr><th>Cliente</th><th>Tier</th><th>Próx. cobro / motivo</th></tr>${arr.map(x=>`<tr><td>${esc(x.nombre||'')}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted" style="font-size:11px">${esc(x.motivo||x.prox_cobro||'—')}</td></tr>`).join('')}</table></details>`;};
   h+=`<div class="card"><h2 style="margin-top:0">Recurrencia por cliente (${rr.total_clientes||0} clientes)</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Quién tiene suscripción recurrente activa (Apple/Google les cobra solo) y quién no.</div>
-    ${listaR('✅ Recurrente automática (Apple/Google les cobra solo)',ros.recurrente_activa,'var(--ok)')}
-    ${listaR('⚠️ Activa pero NO se auto-renueva (se va a caer)',ros.activa_no_recurrente,'var(--warn)')}
-    ${listaR('🖐️ Pago MANUAL por fuera (mentoría/familia · NO auto-recurrente)',ros.manual_externo,'var(--warn)')}
-    ${listaR('🎁 Cortesía (fundador/gratis · no paga)',ros.cortesia)}
-    ${listaR('❌ Vencida (sin acceso)',ros.vencida,'var(--rojo)')}
-    ${listaR('❓ Sin fila de suscripción',ros.sin_suscripcion,'var(--rojo)')}
+    ${listaR('Recurrente automática (Apple/Google les cobra solo)',ros.recurrente_activa,'var(--ok)')}
+    ${listaR('Activa pero NO se auto-renueva (se va a caer)',ros.activa_no_recurrente,'var(--warn)')}
+    ${listaR('Pago MANUAL por fuera (mentoría/familia · NO auto-recurrente)',ros.manual_externo,'var(--warn)')}
+    ${listaR('Cortesía (fundador/gratis · no paga)',ros.cortesia)}
+    ${listaR('Vencida (sin acceso)',ros.vencida,'var(--rojo)')}
+    ${listaR('Sin fila de suscripción',ros.sin_suscripcion,'var(--rojo)')}
   </div>`;
   const at=data.atencion||[];
-  h+=`<div class="card" style="border:1px solid ${at.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Requieren atención (pagos no al día) ${at.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${at.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ✅ ninguno</span>'}</h2>`;
+  h+=`<div class="card" style="border:1px solid ${at.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Requieren atención (pagos no al día) ${at.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${at.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ninguno</span>'}</h2>`;
   if(at.length){
     h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Clientes de tienda con suscripción vencida o cobro pendiente. Contáctalos para regularizar. (Fundador/gratis/mentoría no salen: no pagan por Apple.)</div>`;
     h+=`<table><tr><th>Cliente</th><th>Motivo</th><th>Tier</th><th>Próx. cobro</th><th></th></tr>`+at.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td style="color:var(--warn)">${esc(x.motivo)}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted">${esc(x.prox_cobro||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`).join('')+`</table>`;
@@ -535,11 +535,11 @@ async function verPagos(){
   h+=`</div>`;
   const nr=m.no_renuevan||[];
   h+=`<div class="card" style="border:1px solid ${nr.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Recurrencia verificada 100% con RevenueCat</h2>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pill('Verificadas '+(m.verificados||0))}${pill('✅ Se renuevan '+(m.se_renuevan||0),'rgba(95,208,127,.16)')}${pill('Problema de cobro '+(m.con_problema_de_cobro||0),(m.con_problema_de_cobro||0)?'rgba(226,59,59,.12)':'var(--card2)')}${pill('Contradicen '+(m.contradicen||0),(m.contradicen||0)?'rgba(226,59,59,.12)':'var(--card2)')}</div>`;
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pill('Verificadas '+(m.verificados||0))}${pill('Se renuevan '+(m.se_renuevan||0),'rgba(95,208,127,.16)')}${pill('Problema de cobro '+(m.con_problema_de_cobro||0),(m.con_problema_de_cobro||0)?'rgba(226,59,59,.12)':'var(--card2)')}${pill('Contradicen '+(m.contradicen||0),(m.contradicen||0)?'rgba(226,59,59,.12)':'var(--card2)')}</div>`;
   if(nr.length){
     h+=`<div class="muted" style="font-size:12px;margin-bottom:6px"><b style="color:var(--warn)">Estas NO se van a cobrar el próximo mes</b> (auto-renovación apagada por el cliente, o problema de cobro). Contáctalos para que la reactiven en su tienda — <b>ni la app ni nosotros podemos forzar la auto-renovación de Apple/Google</b>, solo el cliente.</div>`;
     h+=`<table><tr><th>Cliente</th><th>Motivo</th><th>Tier</th><th>Caduca</th><th></th></tr>`+nr.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td style="color:var(--warn)">${esc(x.motivo)}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted">${esc(x.expira||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`).join('')+`</table>`;
-  } else h+=`<div style="color:var(--ok);font-size:12px">✅ Todas las suscripciones activas de tienda se auto-renuevan sin fallas.</div>`;
+  } else h+=`<div style="color:var(--ok);font-size:12px">Todas las suscripciones activas de tienda se auto-renuevan sin fallas.</div>`;
   h+=`</div>`;
   h+=`<div class="card"><h2 style="margin-top:0">Detalle de verificación</h2>
     <div class="muted" style="font-size:11px;margin-bottom:6px">Cada suscripción activa de tienda contra RevenueCat.</div>
@@ -625,7 +625,7 @@ async function trasLogin(){
 // Auto-detección de pagos: al abrir la consola cruzamos a TODOS los clientes con
 // RevenueCat (Apple/Google) en segundo plano y activamos SOLO a quien pagó (esta
 // vía NUNCA quita acceso). Así la consola refleja el estado real sin tocar nada.
-// 🧹 Prevención "que no le pase a nadie más": al entrar a la consola, limpia en 2º
+// Prevención "que no le pase a nadie más": al entrar a la consola, limpia en 2º
 // plano las sesiones ABANDONADAS (iniciadas sin finalizar de días pasados) que traban
 // el "no me deja registrar" en builds viejos. Seguro: no toca workouts ni las de hoy.
 // Vía salud-datos (service_role). Si limpió alguna, avisa con una notita.
@@ -637,7 +637,7 @@ async function autoLimpiarSesiones(){
     if(n>0){
       const pill=document.createElement('div');
       pill.style.cssText='position:fixed;left:14px;bottom:14px;z-index:9999;background:var(--card);border:1px solid var(--ok);color:var(--txt);padding:9px 12px;border-radius:10px;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,.35);max-width:300px';
-      pill.textContent='🧹 Destrabé '+n+' sesión(es) atascada(s) que impedían registrar entrenos.';
+      pill.textContent='Destrabé '+n+' sesión(es) atascada(s) que impedían registrar entrenos.';
       document.body.appendChild(pill);
       setTimeout(()=>{pill.style.transition='opacity .6s';pill.style.opacity='0';setTimeout(()=>pill.remove(),700);},5000);
     }
@@ -651,7 +651,7 @@ async function autoSyncPagos(){
   document.body.appendChild(pill);
   const cerrar=()=>{pill.style.transition='opacity .6s';pill.style.opacity='0';setTimeout(()=>pill.remove(),700);};
   // ⑥ En error NO se cierra sola: se queda con Reintentar/Cerrar para que no se te pase.
-  const fallo=()=>{pill.style.borderColor='var(--rojo)';pill.innerHTML=`<div style="color:var(--rojo);font-weight:700;margin-bottom:6px">⚠️ No se pudieron sincronizar los pagos.</div><div style="display:flex;gap:6px"><button class="sm" onclick="autoSyncPagos()">Reintentar</button><button class="sm ghost" onclick="var p=document.getElementById('syncPill');if(p)p.remove()">Cerrar</button></div>`;};
+  const fallo=()=>{pill.style.borderColor='var(--rojo)';pill.innerHTML=`<div style="color:var(--rojo);font-weight:700;margin-bottom:6px">No se pudieron sincronizar los pagos.</div><div style="display:flex;gap:6px"><button class="sm" onclick="autoSyncPagos()">Reintentar</button><button class="sm ghost" onclick="var p=document.getElementById('syncPill');if(p)p.remove()">Cerrar</button></div>`;};
   try{
     const {data,error}=await invokeFn("reconciliar-accesos",{body:{modo:'activar'}});
     if(error||(data&&data.error)){fallo();return;}
@@ -724,7 +724,7 @@ async function cargarPrioridad(){
     // No terminó el registro inicial (sin objetivo = no completó onboarding): no
     // puede recibir plan. Lo subimos a "Atención" para perseguirlo.
     c._sinObj=!obj[u];
-    if(c._sinObj){sc+=4;r.push("⚠ no terminó su registro");}
+    if(c._sinObj){sc+=4;r.push("no terminó su registro");}
     const na=cnt[u]||0;if(na){sc+=3*na;r.push(na+" alerta"+(na>1?"s":""));}
     const h=sl[u]||[];const sp=h.length?h.reduce((a,x)=>a+x,0)/h.length:null;if(sp!=null&&sp<7){sc+=3;r.push("Duerme "+sp.toFixed(1)+"h");}
     const k=lc[u];if(k){if((k.dart||0)>=6){sc+=3;r.push("Dolor "+k.dart);}if((k.fatiga||0)>=7){sc+=2;r.push("Fatiga "+k.fatiga);}if(k.energia!=null&&k.energia<=3){sc+=2;r.push("Energía "+k.energia);}}
@@ -748,7 +748,7 @@ async function cargarPrioridad(){
     }
     c._sc=sc;c._r=r;c._obj=OBJL[obj[u]]||"";c._mes=null;
     if(ini[u]){const dd=Math.floor((Date.now()-new Date(ini[u]).getTime())/864e5);if(dd>=30)c._mes=Math.floor(dd/30);}
-    // 🧭 Próxima acción: la decisión más importante de este cliente, de un vistazo.
+    // Próxima acción: la decisión más importante de este cliente, de un vistazo.
     let ac=null,acol='var(--ok)';
     if(c._sinObj){ac='Completar registro (sin objetivo)';acol='var(--rojo)';}
     else if(c._susE==='vencido'&&c._susT!=='fundador'&&c._susT!=='gratis'){ac='Regularizar pago / contactar';acol='var(--rojo)';}
@@ -760,7 +760,7 @@ async function cargarPrioridad(){
     else if(c._mes){ac='Enviar informe mes '+c._mes;acol='#5f7dd0';}
     else {ac='En orden';acol='var(--ok)';}
     c._accion=ac;c._accionCol=acol;c._tel=G.telefono||'';
-    // 💼 Riesgo de baja (churn): combina pago + adherencia/actividad + onboarding.
+    // Riesgo de baja (churn): combina pago + adherencia/actividad + onboarding.
     // 0–100. ≥45 = "en riesgo de irse" → lista proactiva de retención.
     let ch=0;const chr=[];
     if(c._susE==='vencido'&&c._susT!=='fundador'&&c._susT!=='gratis'){ch+=45;chr.push('pago vencido');}
@@ -777,7 +777,7 @@ async function cargarPrioridad(){
   });
   ALERTAS=al.data||[];
  }catch(e){console.error('cargarPrioridad falló:',e);if(!(PRIO_FALLO&&PRIO_FALLO.length))PRIO_FALLO=['datos de prioridad'];}
- // 🔴 GARANTÍA (JC urgente 2026-08-14): renderizar SIEMPRE la lista, aunque el
+ // GARANTÍA (JC urgente 2026-08-14): renderizar SIEMPRE la lista, aunque el
  // enriquecimiento (prioridad/churn/acción) falle, para que los clientes NUNCA
  // desaparezcan por un error de cálculo. Cada render va protegido.
  try{CLIENTES.sort((a,b)=>(b._sc||0)-(a._sc||0));}catch(_){}
@@ -828,14 +828,14 @@ async function renderHoy(){
   try{const hoy=hace(0);const {data}=await sb.from("reuniones").select("resumen,transcripcion,fecha").gte("fecha",hace(40)).lte("fecha",hoy);nReu=(data||[]).filter(r=>!(r.resumen&&String(r.resumen).trim())&&!(r.transcripcion&&String(r.transcripcion).trim())).length;}catch(e){}
   const card=(emoji,n,label,color,on)=>`<div class="hoyCard" style="border-left-color:${n>0?color:'var(--muted)'}" onclick="${on}"><div class="n" style="color:${n>0?color:'var(--muted)'}">${n}</div><div class="l">${emoji} ${label}</div></div>`;
   let cards=
-    card('🔔',nAlert,'Alertas abiertas','var(--rojo)','toggleCampana()')+
-    card('💳',nPago,'Pagos por revisar','var(--warn)',"tab('pagos')")+
-    card('😴',nInact,'Inactivos 14+ días','var(--warn)',"tab('recordatorios')")+
-    card('📞',nReu,'Reunión sin resumen','var(--muted)',"tab('llamadas')")+
-    card('📏',nAltura,'Sin altura','var(--rojo)',"tab('salud')");
-  if(ATLETAS_FO&&ATLETAS_FO.length)cards+=card('🎯',ATLETAS_FO.length,'Fuera de objetivo de peso','var(--warn)',"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})");
+    card('',nAlert,'Alertas abiertas','var(--rojo)','toggleCampana()')+
+    card('',nPago,'Pagos por revisar','var(--warn)',"tab('pagos')")+
+    card('',nInact,'Inactivos 14+ días','var(--warn)',"tab('recordatorios')")+
+    card('',nReu,'Reunión sin resumen','var(--muted)',"tab('llamadas')")+
+    card('',nAltura,'Sin altura','var(--rojo)',"tab('salud')");
+  if(ATLETAS_FO&&ATLETAS_FO.length)cards+=card('',ATLETAS_FO.length,'Fuera de objetivo de peso','var(--warn)',"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})");
   const nRisk=(CLIENTES||[]).filter(c=>(c._churn||0)>=45).length;
-  if(nRisk)cards+=card('⚠️',nRisk,'Riesgo de baja','var(--rojo)',"tab('riesgo')");
+  if(nRisk)cards+=card('',nRisk,'Riesgo de baja','var(--rojo)',"tab('riesgo')");
   el.innerHTML=cards;
 }
 // Evaluación compartida de la semana de prep — MISMA lógica para el aviso de Hoy y el
@@ -908,7 +908,7 @@ function segPesoOutHTML(bf){
   const ev=real!=null?evalPrepSemana({obj:null,ritmoRealDirecto:real,ritmoPlan:recRate,nPesajes:s.n||0,dowLate:true}):null;
   if(window.SEGP)window.SEGP.rec=ev?((ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':'')+ev.rec):null;
   const recBox=real==null?`<div class="muted" style="font-size:12px">Necesito ~3 pesajes en las últimas 4 semanas para leer el ritmo. Pídele registrar peso varios días.</div>`
-    :`<div style="color:${ev.color};font-weight:600;font-size:12.5px">${ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':''}${ev.rec}.</div><button class="sm ghost" style="margin-top:6px" onclick="segRegistrarDecision()">📝 Registrar en bitácora</button>`;
+    :`<div style="color:${ev.color};font-weight:600;font-size:12.5px">${ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':''}${ev.rec}.</div><button class="sm ghost" style="margin-top:6px" onclick="segRegistrarDecision()">Registrar en bitácora</button>`;
   return `<div class="kv"><div class="fila"><span class="muted">Ritmo recomendado (por %grasa)</span><b>${recRate}%/sem <span class="muted" style="font-weight:400">≈ ${tgtKg} kg/sem</span></b></div>
     <div class="fila"><span class="muted">Ritmo real (últimas 4 sem)</span><b>${realTxt}</b></div></div>
     <div style="margin-top:8px">${recBox}</div>`;
@@ -926,7 +926,7 @@ async function segGrasaGuardar(id,quitar){
   if(m)m.innerHTML='<span style="color:var(--ok)">✓ guardado</span>';
   if(inp)segPesoRecalc(inp);
 }
-// 🎯 Atletas fuera de objetivo: revisa (client-side, sin escribir a la BD) a cada
+// Atletas fuera de objetivo: revisa (client-side, sin escribir a la BD) a cada
 // atleta con calendario — promedio semanal del peso app vs objetivo de la semana en
 // curso + ritmo real vs planeado. Surface en la franja Hoy y en una tarjeta arriba de
 // la lista, para actuar sin abrir cada ficha. Salta la peak week (no se persigue báscula).
@@ -989,7 +989,7 @@ async function revisarAtletas(){
   renderAtletasFO();renderHoy();renderClientes();
   if(typeof verRevision==='function'&&$("v-revision")&&!$("v-revision").classList.contains("hide"))verRevision();
 }
-// 🧭 Revisión del día: TODAS las decisiones (próxima acción por cliente) en una pasada,
+// Revisión del día: TODAS las decisiones (próxima acción por cliente) en una pasada,
 // agrupadas por urgencia. "Hecho" marca atendido hoy (reusa atSet, per-día). El ritual.
 async function verRevision(){
   const cont=$("v-revision");if(!cont)return;
@@ -1002,10 +1002,10 @@ async function verRevision(){
   const otros=pend.filter(c=>c._accionCol!=='var(--rojo)'&&c._accionCol!=='var(--warn)').sort((a,b)=>(b._sc||0)-(a._sc||0));
   const fila=c=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(c.nombre||c.user_id.slice(0,8))}</b> <span style="color:${c._accionCol};font-size:12.5px;font-weight:600">· ${esc(c._accion)}</span></div><div style="display:flex;gap:6px;flex-shrink:0"><button class="sm ghost" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir →</button><button class="sm" onclick="revHecho('${c.user_id}')">Hecho</button></div></div>`;
   const secc=(t,arr,col)=>arr.length?`<h3 style="color:${col};margin-top:14px">${t} (${arr.length})</h3>${arr.map(fila).join('')}`:'';
-  let h=`<div class="card"><h2 style="margin-top:0">🧭 Revisión del día · ${pend.length} pendiente${pend.length===1?'':'s'}</h2>
-    <div class="muted" style="font-size:12px;margin-bottom:6px">Todas las decisiones en una pasada. "Hecho" lo marca atendido hoy (reaparece mañana si sigue el motivo).${done.length?` <button class="sm ghost" onclick="reabrirResueltos();verRevision()">↩ Reabrir ${done.length} hecho(s)</button>`:''}</div>`;
+  let h=`<div class="card"><h2 style="margin-top:0">Revisión del día · ${pend.length} pendiente${pend.length===1?'':'s'}</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Todas las decisiones en una pasada. "Hecho" lo marca atendido hoy (reaparece mañana si sigue el motivo).${done.length?` <button class="sm ghost" onclick="reabrirResueltos();verRevision()">Reabrir ${done.length} hecho(s)</button>`:''}</div>`;
   if(!pend.length)h+=`<div style="color:var(--ok)">✓ Nada pendiente — todo en orden.</div>`;
-  h+=secc('🔴 Urgente',rojo,'var(--rojo)')+secc('🟡 Atender',warn,'var(--warn)')+secc('🔵 Seguimiento',otros,'#5f7dd0');
+  h+=secc('Urgente',rojo,'var(--rojo)')+secc('Atender',warn,'var(--warn)')+secc('Seguimiento',otros,'#5f7dd0');
   h+=`</div>`;
   cont.innerHTML=h;
 }
@@ -1030,7 +1030,7 @@ async function segRegistrarDecision(){
   if(error){alert(/relation|does not exist|schema|decisiones/i.test(error.message)?'Activa la bitácora con el SQL 0050_decisiones.':error.message);return;}
   verCliente(s.id);
 }
-// 📊 Resumen de gestión: KPIs del negocio y del coaching de un vistazo (reusa lo ya
+// Resumen de gestión: KPIs del negocio y del coaching de un vistazo (reusa lo ya
 // calculado en CLIENTES + 2 consultas livianas). Cada número lleva a su pestaña.
 async function verResumen(){
   const cont=$("v-resumen");if(!cont)return;
@@ -1050,7 +1050,7 @@ async function verResumen(){
   try{const {data}=await sb.from("decisiones").select("id").gte("created_at",hace(7));nDec=(data||[]).length;}catch(e){}
   const C={ok:'var(--ok)',warn:'var(--warn)',rojo:'var(--rojo)',mut:'var(--muted)',az:'#5f7dd0'};
   const kpi=(n,label,col,on)=>`<div class="hoyCard" style="border-left-color:${col};min-width:132px;cursor:${on?'pointer':'default'}" ${on?`onclick="${on}"`:''}><div class="n" style="color:${col}">${n}</div><div class="l">${label}</div></div>`;
-  let h=`<div class="card"><h2 style="margin-top:0">📊 Resumen de gestión</h2>
+  let h=`<div class="card"><h2 style="margin-top:0">Resumen de gestión</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Estado del negocio y del coaching de un vistazo. Cada número lleva a su pestaña. Se actualiza al abrir.</div>
     <h3>Negocio</h3><div class="hoy">
       ${kpi(total,'Clientes activos',C.ok,"tab('clientes')")}
@@ -1072,21 +1072,21 @@ async function verResumen(){
   const urg=CLIENTES.filter(c=>c._accion&&c._accion!=='En orden'&&c._accionCol==='var(--rojo)').sort((a,b)=>(b._sc||0)-(a._sc||0)).slice(0,5);
   const topR=CLIENTES.filter(c=>(c._churn||0)>=45).sort((a,b)=>(b._churn||0)-(a._churn||0)).slice(0,5);
   const li=c=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(c.nombre||c.user_id.slice(0,8))}</b> <span class="muted" style="font-size:12px">· ${esc(c._accion||'')}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir →</button></div>`;
-  if(urg.length)h+=`<div class="card"><h2 style="margin-top:0">🔴 Urgentes de hoy</h2>${urg.map(li).join('')}</div>`;
-  if(topR.length)h+=`<div class="card"><h2 style="margin-top:0">⚠️ Top riesgo de baja</h2>${topR.map(c=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(c.nombre||'')}</b> <span class="pill" style="background:var(--card2);color:var(--rojo);font-weight:700">${c._churn}%</span> <span class="muted" style="font-size:12px">${esc((c._churnR||[]).join(' · '))}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="tab('riesgo')">Retención →</button></div>`).join('')}</div>`;
+  if(urg.length)h+=`<div class="card"><h2 style="margin-top:0">Urgentes de hoy</h2>${urg.map(li).join('')}</div>`;
+  if(topR.length)h+=`<div class="card"><h2 style="margin-top:0">Top riesgo de baja</h2>${topR.map(c=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(c.nombre||'')}</b> <span class="pill" style="background:var(--card2);color:var(--rojo);font-weight:700">${c._churn}%</span> <span class="muted" style="font-size:12px">${esc((c._churnR||[]).join(' · '))}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="tab('riesgo')">Retención →</button></div>`).join('')}</div>`;
   cont.innerHTML=h;
 }
-// 💼 Riesgo de baja (retención): lista proactiva de clientes a punto de irse, con
+// Riesgo de baja (retención): lista proactiva de clientes a punto de irse, con
 // score de churn (pago+actividad+onboarding), motivos y WhatsApp con mensaje sugerido.
 function verRiesgo(){
   const cont=$("v-riesgo");if(!cont)return;
   if(!CLIENTES||!CLIENTES.length){cont.innerHTML='<div class="card muted" style="padding:14px">Cargando…</div>';return;}
   const risk=CLIENTES.filter(c=>(c._churn||0)>=45).sort((a,b)=>(b._churn||0)-(a._churn||0));
   const med=CLIENTES.filter(c=>(c._churn||0)>=25&&(c._churn||0)<45).sort((a,b)=>(b._churn||0)-(a._churn||0));
-  const nivel=v=>v>=70?['🔴','var(--rojo)']:v>=45?['🟠','#e0843a']:['🟡','var(--warn)'];
-  const msgSug=c=>{const n=(c.nombre||'').split(' ')[0]||'';return `Hola ${n}, te noté flojito esta semana 👀. ¿Cómo vas? Cuéntame qué se te atravesó y lo retomamos hoy mismo — no perdamos el ritmo que ya llevabas. 💪`;};
+  const nivel=v=>v>=70?['','var(--rojo)']:v>=45?['','#e0843a']:['','var(--warn)'];
+  const msgSug=c=>{const n=(c.nombre||'').split(' ')[0]||'';return `Hola ${n}, te noté flojito esta semana. ¿Cómo vas? Cuéntame qué se te atravesó y lo retomamos hoy mismo — no perdamos el ritmo que ya llevabas.`;};
   const fila=c=>{const nv=nivel(c._churn),tel=c._tel||'',wl=tel?waLink(tel,msgSug(c)):null;return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${nv[0]} ${esc(c.nombre||c.user_id.slice(0,8))}</b> <span class="pill" style="background:var(--card2);color:${nv[1]};font-weight:700">${c._churn}%</span><div class="muted" style="font-size:12px">${esc((c._churnR||[]).join(' · ')||'—')}</div></div><div style="display:flex;gap:6px;flex-shrink:0">${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px">WhatsApp</a>`:''}<button class="sm ghost" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir →</button></div></div>`;};
-  let h=`<div class="card" style="border:1px solid ${risk.length?'var(--rojo)':'var(--ok)'}"><h2 style="margin-top:0">⚠️ Riesgo de baja · ${risk.length} en riesgo</h2>
+  let h=`<div class="card" style="border:1px solid ${risk.length?'var(--rojo)':'var(--ok)'}"><h2 style="margin-top:0">Riesgo de baja · ${risk.length} en riesgo</h2>
     <div class="muted" style="font-size:12px;margin-bottom:6px">Score que combina pago + actividad + onboarding. Contacta a los de arriba HOY: recuperar cuesta menos que conseguir uno nuevo. El botón WhatsApp lleva un mensaje sugerido (edítalo antes de enviar).</div>`;
   if(!risk.length)h+=`<div style="color:var(--ok)">✓ Nadie en riesgo alto ahora mismo.</div>`;
   else h+=risk.map(fila).join('');
@@ -1097,7 +1097,7 @@ function verRiesgo(){
 function renderAtletasFO(){
   const el=$("atletasFO");if(!el)return;
   if(!ATLETAS_FO.length){el.innerHTML='';return;}
-  el.innerHTML=`<div class="card" style="border:1px solid var(--warn)"><h2 style="margin-top:0">🎯 Fuera de objetivo de peso (${ATLETAS_FO.length})</h2>
+  el.innerHTML=`<div class="card" style="border:1px solid var(--warn)"><h2 style="margin-top:0">Fuera de objetivo de peso (${ATLETAS_FO.length})</h2>
     <div class="muted" style="font-size:12px;margin-bottom:6px">Atletas (vs su plan) y clientes en corte (ritmo de bajada escalado por %grasa: más grasa = puede bajar más rápido). Promedio semanal, no un día. Actúa sin abrir cada ficha.</div>
     ${ATLETAS_FO.map(a=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${esc(a.nombre)}</b>${a.atleta?' <span class="pill" style="background:var(--card2);font-size:10px">atleta</span>':''} <span style="color:${a.col};font-size:12px">· ${esc(a.motivo)}</span></div><button class="sm ghost" style="flex-shrink:0" onclick="verCliente('${a.user_id}')">Abrir ficha →</button></div>`).join('')}</div>`;
 }
@@ -1132,10 +1132,10 @@ function _crmDiasA(r){return r?Math.floor((new Date(r+"T00:00:00").getTime()-Dat
 // ============ COLA DE CONTACTO / VENTAS (setter) ============
 // Lista semanal ordenada de a quién escribir por WhatsApp para vender: pruebas por vencer,
 // pruebas vencidas sin comprar y vencidos. "de una" a WhatsApp + marca contactado.
-const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['seguimiento','En seguimiento (revisar luego)'],['no_interesado','No interesado'],['ganado','✅ Compró'],['perdido','Perdido']];
+const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['seguimiento','En seguimiento (revisar luego)'],['no_interesado','No interesado'],['ganado','Compró'],['perdido','Perdido']];
 function guionContacto(nom,bucket){
   const n=nom||'';
-  if(bucket==='prueba') return `Hola ${n}, soy del equipo de Músculo al Máximo 💪 ¿Cómo vas con tu prueba? Si quieres seguir con tu plan, rutina y seguimiento sin perder tu progreso, te ayudo a activarlo hoy. ¿Te cuento cómo?`;
+  if(bucket==='prueba') return `Hola ${n}, soy del equipo de Músculo al Máximo ¿Cómo vas con tu prueba? Si quieres seguir con tu plan, rutina y seguimiento sin perder tu progreso, te ayudo a activarlo hoy. ¿Te cuento cómo?`;
   if(bucket==='prueba_vencida') return `Hola ${n}, vi que tu prueba de Músculo al Máximo terminó. No quiero que pierdas lo que ya avanzaste. ¿Te gustaría retomar con tu plan y seguimiento? Te dejo el paso a paso.`;
   return `Hola ${n}, ¿cómo estás? Soy del equipo de Músculo al Máximo. Vi que tu plan quedó en pausa y quiero ayudarte a retomar tus resultados. ¿Lo reactivamos?`;
 }
@@ -1197,7 +1197,7 @@ function renderContactar(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
       ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
-      <button class="sm ${CU_FILTRO==='nuevos48'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='nuevos48'?'':'nuevos48';CU_GRUPO='';renderContactar()">🔥 Nuevos 48h</button>
+      <button class="sm ${CU_FILTRO==='nuevos48'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='nuevos48'?'':'nuevos48';CU_GRUPO='';renderContactar()">Nuevos 48h</button>
       <button class="sm ${CU_FILTRO==='dijo_no_canjeo'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='dijo_no_canjeo'?'':'dijo_no_canjeo';CU_GRUPO='';renderContactar()">Dijo sí, no canjeó</button>
       <button class="sm ${CU_FILTRO==='seguimiento'?'':'ghost'}" style="border-radius:20px" onclick="CU_FILTRO=CU_FILTRO==='seguimiento'?'':'seguimiento';CU_GRUPO='';renderContactar()">Seguimiento${(()=>{const n=(window.CU_ALL||[]).filter(i=>i.contacto_estado==='seguimiento').length;return n?' ('+n+')':'';})()}</button>
     </div>
@@ -1288,17 +1288,17 @@ async function verCRM(){
       <td><input value="${esc(cm.observaciones||'')}" placeholder="notas…" onchange="crmGuardar('${c.user_id}',{observaciones:this.value})" style="margin:0;font-size:12px;min-width:180px"></td>
       <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:5px 8px;border-radius:7px;font-weight:700;font-size:11px">WhatsApp</a>`:''}</td>
     </tr>`;};
-  let h=`<div class="card"><h2 style="margin-top:0">👥 Clientes (CRM)</h2>
+  let h=`<div class="card"><h2 style="margin-top:0">Clientes (CRM)</h2>
     <div class="muted" style="font-size:12px;margin-bottom:10px">Todos tus clientes activos, con lo que la app sabe sola (inicio, fotos, medidas, pago) + tus campos editables (producto, objetivo, observaciones, renovación, fin de plan). <b>Toca el nombre</b> para abrir su ficha. Se guarda al salir de cada campo.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${kpi(nTot,'Clientes')}${kpi(nAct,'Activos','var(--ok)')}${kpi(nFotoV,'Fotos vencidas','var(--rojo2)')}${kpi(nRen,'Renov. ≤7 días','var(--warn)')}
       <span style="flex:1"></span>
-      <input id="crm_q" placeholder="🔎 Buscar…" value="${esc((($("crm_q")&&$("crm_q").value)||''))}" oninput="clearTimeout(window._crmT);window._crmT=setTimeout(verCRM,300)" style="margin:0;width:160px">
-      <button class="sm ghost" onclick="crmCSV()">⬇ CSV</button>
+      <input id="crm_q" placeholder="Buscar…" value="${esc((($("crm_q")&&$("crm_q").value)||''))}" oninput="clearTimeout(window._crmT);window._crmT=setTimeout(verCRM,300)" style="margin:0;width:160px">
+      <button class="sm ghost" onclick="crmCSV()">CSV</button>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('todos','Todos')}${chip('activos','Activos')}${chip('fotos','Fotos vencidas')}${chip('renov','Por renovar')}</div>
   </div>
   <div class="card" style="overflow-x:auto"><table class="data" style="min-width:1180px"><thead><tr>
-    <th>Cliente</th><th>Estado</th><th>Producto</th><th>Inicio</th><th>Pago</th><th>📸 Foto</th><th>📐 Medida</th><th>Renov. plan</th><th>Fin plan</th><th>Objetivo</th><th>Observaciones</th><th></th>
+    <th>Cliente</th><th>Estado</th><th>Producto</th><th>Inicio</th><th>Pago</th><th>Foto</th><th>Medida</th><th>Renov. plan</th><th>Fin plan</th><th>Objetivo</th><th>Observaciones</th><th></th>
   </tr></thead><tbody>${rows.map(fila).join('')||'<tr><td colspan="12" class="muted" style="padding:14px">Sin clientes que coincidan.</td></tr>'}</tbody></table></div>`;
   $("v-crm").innerHTML=h;
 }
@@ -1348,29 +1348,29 @@ async function verSeguimiento(){
   const alDia=filas.filter(x=>x.estado==='Al día');
   const nVenc=filas.filter(x=>x.estado==='Vencido').length, nPorV=filas.filter(x=>x.estado==='Por vencer').length;
 
-  const waMsg=nom=>`Hola ${nom}, ya se cumplieron tus 4 semanas 📸. Súbeme por la app tus FOTOS y MEDIDAS actualizadas (misma pose, luz y hora) para ver tu progreso y que no se te pause el plan. ¡Con eso ajusto tu siguiente bloque! 💪`;
+  const waMsg=nom=>`Hola ${nom}, ya se cumplieron tus 4 semanas. Súbeme por la app tus FOTOS y MEDIDAS actualizadas (misma pose, luz y hora) para ver tu progreso y que no se te pause el plan. ¡Con eso ajusto tu siguiente bloque!`;
   const fila=x=>{const nom=(x.c.nombre||'').split(' ')[0]||'';const tel=x.c.telefono||'';const wl=tel?waLink(tel,waMsg(nom)):null;
     return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 4px;border-bottom:1px solid var(--line)">
       <b style="min-width:150px">${esc(x.c.nombre||x.c.user_id.slice(0,8))}</b>
-      <span class="pill" style="background:var(--card2)">📸 ${txt(x.df)}</span>
-      <span class="pill" style="background:var(--card2)">📐 ${txt(x.dm)}</span>
+      <span class="pill" style="background:var(--card2)">${txt(x.df)}</span>
+      <span class="pill" style="background:var(--card2)">${txt(x.dm)}</span>
       <span class="pill" style="background:var(--card2);color:${x.col};font-weight:700">${x.estado}</span>
       <span style="flex:1"></span>
       ${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px">WhatsApp</a>`:`<span class="muted" style="font-size:11px">sin teléfono</span>`}
       <button class="sm ghost" onclick="tab('clientes');verCliente('${x.c.user_id}')">Abrir →</button>
     </div>`;};
 
-  let h=`<div class="card"><h2 style="margin-top:0">📸 Fotos y medidas · cada 4 semanas</h2>
+  let h=`<div class="card"><h2 style="margin-top:0">Fotos y medidas · cada 4 semanas</h2>
     <div class="muted" style="font-size:13px;margin-bottom:10px">A cada cliente le toca subir <b>fotos y medidas cada 4 semanas</b> (28 días) para no pausar su plan. Aquí ves quién ya venció o está por vencer; usa el botón <b style="color:#25d366">WhatsApp</b> para recordarle con un mensaje ya listo (editable antes de enviar).</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <div class="pill" style="background:rgba(181,23,24,.16);color:var(--rojo);font-weight:700">Vencidos: ${nVenc}</div>
       <div class="pill" style="background:rgba(224,184,74,.18);color:var(--warn);font-weight:700">Por vencer: ${nPorV}</div>
       <div class="pill" style="background:rgba(55,224,166,.16);color:var(--ok);font-weight:700">Al día: ${alDia.length}</div>
     </div></div>`;
-  h+=`<div class="card"><h2 style="margin-top:0">⏳ Les toca ahora ${pend.length?`<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700">${pend.length}</span>`:''}</h2>`;
+  h+=`<div class="card"><h2 style="margin-top:0">Les toca ahora ${pend.length?`<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700">${pend.length}</span>`:''}</h2>`;
   h+= pend.length? pend.map(fila).join('') : `<div class="muted" style="font-size:13px">Nadie pendiente. Todos subieron fotos y medidas dentro de las últimas 4 semanas. ✓</div>`;
   h+=`</div>`;
-  if(alDia.length){h+=`<div class="card"><h2 style="margin-top:0">✅ Al día (${alDia.length})</h2>${alDia.map(fila).join('')}</div>`;}
+  if(alDia.length){h+=`<div class="card"><h2 style="margin-top:0">Al día (${alDia.length})</h2>${alDia.map(fila).join('')}</div>`;}
   $("v-seguimiento").innerHTML=h;
 }
 async function verRecordatorios(){
@@ -1485,10 +1485,10 @@ async function verRecordatorios(){
       .filter(x=>x.foto&&x.foto>=d12)
       .sort((a,b)=>String(b.foto).localeCompare(String(a.foto)));
     const diasA=f=>{const d=Math.floor((Date.now()-new Date(f+"T00:00:00").getTime())/864e5);return d<=0?'hoy':d===1?'ayer':`hace ${d}d`;};
-    h+=`<div class="card" style="border:1px solid var(--ok)"><h2 style="margin-top:0">📸 Fotos nuevas para revisar ${revisar.length?`<span class="pill" style="background:rgba(95,208,127,.16);color:var(--ok);font-weight:700">${revisar.length}</span>`:''}</h2>`;
+    h+=`<div class="card" style="border:1px solid var(--ok)"><h2 style="margin-top:0">Fotos nuevas para revisar ${revisar.length?`<span class="pill" style="background:rgba(95,208,127,.16);color:var(--ok);font-weight:700">${revisar.length}</span>`:''}</h2>`;
     if(revisar.length){
       h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Clientes que subieron fotos (o medidas) en los últimos 12 días. Ábrelos para verlas en <b>Comparaciones</b> y ajustar.</div>`;
-      h+=`<div style="display:flex;flex-direction:column;gap:6px">`+revisar.map(x=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 4px;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.c.nombre||x.c.user_id.slice(0,8))}</b><span class="pill" style="background:var(--card2)">📸 ${diasA(x.foto)}</span>${x.med&&x.med>=d12?`<span class="pill" style="background:var(--card2)">📐 medidas ${diasA(x.med)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="tab('clientes');verCliente('${x.c.user_id}')">Ver fotos →</button></div>`).join('')+`</div>`;
+      h+=`<div style="display:flex;flex-direction:column;gap:6px">`+revisar.map(x=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 4px;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.c.nombre||x.c.user_id.slice(0,8))}</b><span class="pill" style="background:var(--card2)">${diasA(x.foto)}</span>${x.med&&x.med>=d12?`<span class="pill" style="background:var(--card2)">medidas ${diasA(x.med)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="tab('clientes');verCliente('${x.c.user_id}')">Ver fotos →</button></div>`).join('')+`</div>`;
     } else h+=`<div class="muted" style="font-size:12px">Nadie ha subido fotos nuevas en los últimos 12 días.</div>`;
     h+=`</div>`;
   }
@@ -1500,7 +1500,7 @@ async function verRecordatorios(){
     // Reunión cuya fecha ya pasó (o es hoy) y NO tiene resumen ni transcripción → hay que subirla/sincronizar.
     const pend=RE.filter(r=>String(r.fecha)<=hoyS && !((r.resumen||'').trim()) && !((r.transcripcion||'').trim()))
       .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
-    h+=`<div class="card" style="border:1px solid var(--warn)"><h2 style="margin-top:0">🎥 Reuniones sin resumen ${pend.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${pend.length}</span>`:''}</h2>`;
+    h+=`<div class="card" style="border:1px solid var(--warn)"><h2 style="margin-top:0">Reuniones sin resumen ${pend.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${pend.length}</span>`:''}</h2>`;
     if(pend.length){
       h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Reuniones ya realizadas sin resumen. Sincroniza Meet (si tenía transcripción) o pega la transcripción en la ficha del cliente → Reuniones.</div>`;
       h+=`<div style="display:flex;flex-direction:column;gap:6px">`+pend.slice(0,15).map(r=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 4px;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(nomDe(r.user_id))}</b><span class="pill" style="background:var(--card2)">${esc(r.fecha)}${r.titulo?' · '+esc(r.titulo):''}</span>${r.origen?`<span class="muted" style="font-size:11px">${esc(r.origen)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="tab('clientes');verCliente('${r.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>`;
@@ -1508,14 +1508,14 @@ async function verRecordatorios(){
     h+=`</div>`;
   }
   h+=`<div class="card"><h2 style="margin-top:0">Recordatorios de hoy</h2><div class="muted" style="font-size:12px">Qué tener en cuenta de cada cliente hoy (sueño, sensaciones, journal, adherencia, ciclo en mujeres, cierre de ciclo de 4 semanas → fotos y medidas, y pesos semanales para quien no está sanando TCA). Ordenado por prioridad. Marca "Atendido" cuando lo contactes: baja al final y no reaparece hoy.${nAt?` <b>${nAt} atendido(s) hoy.</b>`:''}</div></div>`;
-  if(recFallos.length)h+=`<div class="card"><div class="alert">⚠️ No cargó: <b>${esc(recFallos.join(", "))}</b>. Algunos recordatorios pueden faltar. <button class="sm" onclick="verRecordatorios()">Reintentar</button></div></div>`;
+  if(recFallos.length)h+=`<div class="card"><div class="alert">No cargó: <b>${esc(recFallos.join(", "))}</b>. Algunos recordatorios pueden faltar. <button class="sm" onclick="verRecordatorios()">Reintentar</button></div></div>`;
   h+=`<div class="card" style="overflow-x:auto"><table class="data" style="min-width:880px"><thead><tr><th>Cliente</th><th>Señales de hoy</th><th>Qué tener en cuenta</th><th>WhatsApp</th><th>Hecho</th></tr></thead><tbody>`;
   rows.forEach(r=>{
     const wl=waLink(r.pr.telefono,r.wa);
     const at=ATEND.has(r.c.user_id);
     const badge=r.nota.length?`<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700;font-size:10px;padding:1px 6px;margin-left:6px">${r.nota.length}</span>`:'';
     h+=`<tr style="${at?'opacity:.45':''}">
-      <td style="white-space:nowrap"><a href="#" onclick="tab('clientes');verCliente('${r.c.user_id}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:700;text-decoration:none">${esc(r.c.nombre||'—')}</a>${r.pr.sexo==='F'?' <span class="muted" style="font-size:10px">♀</span>':''}${badge}</td>
+      <td style="white-space:nowrap"><a href="#" onclick="tab('clientes');verCliente('${r.c.user_id}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:700;text-decoration:none">${esc(r.c.nombre||'—')}</a>${r.pr.sexo==='F'?' <span class="muted" style="font-size:10px">mujer</span>':''}${badge}</td>
       <td style="font-size:12px">${r.sen.map(s=>esc(s)).join(' · ')||'—'}</td>
       <td style="font-size:12px">${r.nota.length?`<span style="color:var(--warn)">${r.nota.map(esc).join('; ')}</span>`:'<span class="muted">Sin novedades. Check-in general.</span>'}</td>
       <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" style="color:#25d366;font-weight:700;text-decoration:none">WhatsApp →</a>`:'<span class="muted" style="font-size:11px">Sin teléfono</span>'} <button class="sm ghost" onclick="copiarMsg(this,${JSON.stringify(r.wa).replace(/"/g,'&quot;')})" title="Copiar mensaje" style="margin:0;padding:3px 7px">Copiar</button></td>
@@ -1584,7 +1584,7 @@ function cmpFotos(){
   const fa=F[a],fb=F[b];if(!fa||!fb){v.innerHTML='';return;}
   let extra='';
   if(fa.fecha&&fb.fecha){const d=Math.round((new Date(fb.fecha)-new Date(fa.fecha))/864e5);if(!isNaN(d))extra=`<div class="muted" style="font-size:11px;text-align:center;margin-top:6px">${Math.abs(d)} días entre A y B</div>`;}
-  const mm=(fa.tipo&&fb.tipo&&fa.tipo!==fb.tipo)?`<div style="font-size:11px;color:var(--warn);text-align:center;margin-top:2px">⚠ Poses distintas (${esc(fa.tipo)} vs ${esc(fb.tipo)}) — compara la misma pose para decidir mejor</div>`:'';
+  const mm=(fa.tipo&&fb.tipo&&fa.tipo!==fb.tipo)?`<div style="font-size:11px;color:var(--warn);text-align:center;margin-top:2px">Poses distintas (${esc(fa.tipo)} vs ${esc(fb.tipo)}) — compara la misma pose para decidir mejor</div>`:'';
   const cel=(f,idx,lbl)=>`<div style="flex:1;min-width:150px;text-align:center"><div class="muted" style="font-size:11px;margin-bottom:3px">${lbl} · ${esc(f.fecha||'')}${f.tipo?' · '+esc(f.tipo):''}</div><img src="${esc(f.url)}" style="width:100%;max-height:560px;object-fit:contain;border-radius:8px;background:#000;cursor:pointer" onclick="lbOpen(window.__cmpF,${idx})"></div>`;
   v.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap">${cel(fa,a,'A (antes)')}${cel(fb,b,'B (después)')}</div>${mm}${extra}`;
 }
@@ -1634,16 +1634,16 @@ async function verLlamadas(){
   if(todoOK){
     // Todo bien: NO mostrar botón de conectar (JC no lo quiere visible siempre).
     // Solo el estado + un enlace discreto de reconectar por si algún día falla.
-    h+=`<div class="card"><h2 style="margin-top:0">🎥 Google Meet <span style="color:var(--ok);font-size:13px">· ✅ conectado${est.email?' ('+esc(est.email)+')':''}</span></h2>`;
+    h+=`<div class="card"><h2 style="margin-top:0">Google Meet <span style="color:var(--ok);font-size:13px">· conectado${est.email?' ('+esc(est.email)+')':''}</span></h2>`;
     h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Listo. Las reuniones se <b>agendan desde la ficha de cada cliente</b> (pestaña <b>Reuniones</b>). No tienes que volver a conectar.</div>`;
-    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm ghost" onclick="sincronizarMeet()">🔄 Sincronizar resúmenes (opcional)</button> <span id="meetMsg" class="muted" style="font-size:12px"></span> <span style="flex:1"></span><a href="#" onclick="conectarGoogle();return false" class="muted" style="font-size:11px;text-decoration:underline" title="Solo si algo falla al agendar/sincronizar">¿Problemas? Reconectar</a></div>`;
+    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm ghost" onclick="sincronizarMeet()">Sincronizar resúmenes (opcional)</button> <span id="meetMsg" class="muted" style="font-size:12px"></span> <span style="flex:1"></span><a href="#" onclick="conectarGoogle();return false" class="muted" style="font-size:11px;text-decoration:underline" title="Solo si algo falla al agendar/sincronizar">¿Problemas? Reconectar</a></div>`;
     h+=`</div>`;
   }else{
     // Solo cuando HACE FALTA (no conectado o faltan permisos): botón visible.
-    const badge=conectado?`<span style="color:var(--warn);font-size:13px">· ⚠️ faltan permisos</span>`:'';
-    h+=`<div class="card" style="border:1px solid var(--rojo)"><h2 style="margin-top:0">🎥 Google Meet ${badge}</h2>`;
+    const badge=conectado?`<span style="color:var(--warn);font-size:13px">· faltan permisos</span>`:'';
+    h+=`<div class="card" style="border:1px solid var(--rojo)"><h2 style="margin-top:0">Google Meet ${badge}</h2>`;
     h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">${conectado?'Reconecta y <b>acepta los permisos de Meet + Calendar</b> para poder agendar reuniones y sincronizar.':'<b>Conéctate UNA vez</b> (con soporte@jcfitn3ss.com) y acepta los permisos de Meet + Calendar. Sirve para TODOS tus clientes.'}</div>`;
-    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="conectarGoogle()">🔗 ${conectado?'Reconectar Google':'Conectar Google (una vez)'}</button><button class="sm ghost" onclick="verLlamadas()">↻ Verificar</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
+    h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="conectarGoogle()">${conectado?'Reconectar Google':'Conectar Google (una vez)'}</button><button class="sm ghost" onclick="verLlamadas()">Verificar</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>`;
     h+=`</div>`;
   }
   // ── Mejora 5: reuniones recientes de TODOS los clientes (vista global) ──
@@ -1660,7 +1660,7 @@ async function verLlamadas(){
   }catch(e){/* la vista global es opcional; no romper Llamadas si falla */}
   h+=`<div class="card"><h2 style="margin-top:0">Llamadas por cliente</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Próxima llamada de cada cliente, ordenadas por fecha. <b style="color:var(--rojo)">Rojo</b>=atrasada, <b style="color:var(--warn)">naranja</b>=hoy, verde=próxima. Cambia la fecha aquí mismo.${nAtr?` <b style="color:var(--rojo)">${nAtr} atrasada(s).</b>`:''}</div>`;
   if(conFecha.length){h+=`<table><tr><th>Cliente</th><th>Próxima llamada</th><th>Estado</th><th>Frecuencia</th><th></th></tr>${conFecha.map(filaLlam).join('')}</table>`;}
-  else h+=`<div class="muted">Ningún cliente tiene próxima llamada agendada. Agenda desde la ficha del cliente (pestaña 📞 Reuniones) o aquí abajo.</div>`;
+  else h+=`<div class="muted">Ningún cliente tiene próxima llamada agendada. Agenda desde la ficha del cliente (pestaña Reuniones) o aquí abajo.</div>`;
   if(sinFecha.length){h+=`<h3>Sin llamada agendada (${sinFecha.length}) — ponles fecha</h3><table><tr><th>Cliente</th><th>Agendar</th><th>Frecuencia</th><th></th></tr>${sinFecha.map(p=>`<tr><td><b>${esc(p.nombre||'')}</b></td><td><input type="date" onchange="setLlamada('${p.user_id}',this.value)" style="margin:0;font-size:12px;max-width:150px"></td><td class="muted" style="font-size:12px">${esc(p.frecuencia_llamada||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${p.user_id}')">Abrir</button></td></tr>`).join('')}</table>`;}
   h+=`</div>`;
   $("v-llamadas").innerHTML=h;
@@ -1729,7 +1729,7 @@ async function agendarReunion(id){
   if(m){m.style.color='';m.textContent="Agendando en tu Google Calendar…";}
   const {data,error}=await invokeFn("agendar-reunion",{body:{cliente_id:id,inicio:dt,duracion_min:dur}});
   if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
-  let txt=`✅ <b>Reunión agendada</b> para ${esc(data.fecha)}.`;
+  let txt=`<b>Reunión agendada</b> para ${esc(data.fecha)}.`;
   if(data.meetLink)txt+=` <a href="${esc(data.meetLink)}" target="_blank">Abrir enlace Meet</a>.`;
   txt+=data.invitado?` Invitación enviada a <b>${esc(data.correo||'el cliente')}</b>.`:` <span style="color:var(--warn)">El cliente no tiene correo registrado: no se le invitó, avísale tú.</span>`;
   if(m){m.style.color='var(--ok)';m.innerHTML=txt;}
@@ -1784,14 +1784,14 @@ function renderClientes(){
       <span class="pill" style="background:rgba(226,59,59,.16);color:#ff8a8a;font-weight:700">${sinPagar} sin pagar</span>
       ${sinAltura?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${sinAltura} sin altura</span>`:''}
       ${nPrueba?`<span class="pill" style="background:rgba(143,179,255,.18);color:#8fb3ff;font-weight:700">${nPrueba} en prueba</span>`:''}
-      <span style="flex:1"></span><button class="sm ghost" style="padding:5px 10px" onclick="copiarCorreos()" title="Copiar los correos (para invitar testers de Android o contactar)">✉ Copiar correos</button>${chip('atencion','Atención')}${chip('grupos','👥 Grupos')}${chip('sinpagar','Sin pagar')}${sinAltura?chip('sinaltura','Sin altura'):''}${nPrueba?chip('prueba','En prueba'):''}${chip('todos','Todos')}
+      <span style="flex:1"></span><button class="sm ghost" style="padding:5px 10px" onclick="copiarCorreos()" title="Copiar los correos (para invitar testers de Android o contactar)">Copiar correos</button>${chip('atencion','Atención')}${chip('grupos','Grupos')}${chip('sinpagar','Sin pagar')}${sinAltura?chip('sinaltura','Sin altura'):''}${nPrueba?chip('prueba','En prueba'):''}${chip('todos','Todos')}
     </div>`;
-  if(PRIO_FALLO.length)head=`<div class="alert" style="margin-bottom:8px">⚠️ No cargó: <b>${esc(PRIO_FALLO.join(", "))}</b>. El orden de prioridad puede estar incompleto. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>`+head;
-  // 🔴 Diagnóstico claro si NO se cargó ningún cliente (casi siempre = sesión vencida).
-  if(!CLIENTES.length)head=`<div class="alert" style="margin-bottom:8px;padding:12px"><b>⚠️ No se cargó ningún cliente.</b> ${window._cliErr?('Motivo: <b>'+esc(window._cliErr)+'</b>'):'Casi siempre es la <b>sesión vencida</b>.'} <div style="margin-top:6px;display:flex;gap:6px"><button class="sm" onclick="logout()">Cerrar sesión y reingresar</button><button class="sm ghost" onclick="trasLogin()">Reintentar carga</button></div></div>`+head;
+  if(PRIO_FALLO.length)head=`<div class="alert" style="margin-bottom:8px">No cargó: <b>${esc(PRIO_FALLO.join(", "))}</b>. El orden de prioridad puede estar incompleto. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>`+head;
+  // Diagnóstico claro si NO se cargó ningún cliente (casi siempre = sesión vencida).
+  if(!CLIENTES.length)head=`<div class="alert" style="margin-bottom:8px;padding:12px"><b>No se cargó ningún cliente.</b> ${window._cliErr?('Motivo: <b>'+esc(window._cliErr)+'</b>'):'Casi siempre es la <b>sesión vencida</b>.'} <div style="margin-top:6px;display:flex;gap:6px"><button class="sm" onclick="logout()">Cerrar sesión y reingresar</button><button class="sm ghost" onclick="trasLogin()">Reintentar carga</button></div></div>`+head;
   if(!q && VER_PAGO==='atencion'){
     const nRes=[...RES].filter(uid=>CLIENTES.some(c=>c.user_id===uid&&(c._sc>=2||c._inact||c._mes))).length;
-    head += `<div class="muted" style="font-size:12px;margin-bottom:8px">${list.length?`<b style="color:var(--txt)">${list.length}</b> cliente(s) por resolver hoy.`:'✓ Todo resuelto por hoy.'} Marca <b>“✓ Resuelto hoy”</b> al atender a alguien: se oculta hoy y reaparece mañana si sigue la alerta.${nRes?` <button class="sm ghost" style="padding:2px 8px" onclick="reabrirResueltos()">↺ Reabrir ${nRes} resuelto(s)</button>`:''}</div>`;
+    head += `<div class="muted" style="font-size:12px;margin-bottom:8px">${list.length?`<b style="color:var(--txt)">${list.length}</b> cliente(s) por resolver hoy.`:'✓ Todo resuelto por hoy.'} Marca <b>“✓ Resuelto hoy”</b> al atender a alguien: se oculta hoy y reaparece mañana si sigue la alerta.${nRes?` <button class="sm ghost" style="padding:2px 8px" onclick="reabrirResueltos()">Reabrir ${nRes} resuelto(s)</button>`:''}</div>`;
   }
   list.sort((a,b)=> (pagoInfo(a).pagando?1:0)-(pagoInfo(b).pagando?1:0) || (b._sc||0)-(a._sc||0)); // sin pagar arriba
   LISTA_VIS=list; // para "Copiar correos"
@@ -1802,9 +1802,9 @@ function renderClientes(){
     LISTA_VIS=[...GR.pagando,...GR.interno,...GR.otros];
     const secc=(titulo,color,arr,nota)=>arr.length?`<div style="margin:16px 0 6px;border-top:1px solid var(--line);padding-top:10px"><span style="font-weight:800;color:${color};font-size:14px">${titulo}</span> <span class="muted">(${arr.length})</span>${nota?`<div class="muted" style="font-size:11px;margin-top:1px">${nota}</div>`:''}</div>`+arr.slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(c=>cardClienteHTML(c,false)).join(''):'';
     $("clientes").innerHTML=head
-      +secc('💚 Pagando','var(--ok)',GR.pagando,'Suscripción activa (mensual/anual/preferencial).')
-      +secc('🛡️ Equipo interno / cortesía','#8fb3ff',GR.interno,'Fundadores y accesos gratis — NO pagan.')
-      +secc('🔴 Sin pagar / otros','#ff8a8a',GR.otros,'Sin suscripción, en prueba o vencidos.');
+      +secc('Pagando','var(--ok)',GR.pagando,'Suscripción activa (mensual/anual/preferencial).')
+      +secc('Equipo interno / cortesía','#8fb3ff',GR.interno,'Fundadores y accesos gratis — NO pagan.')
+      +secc('Sin pagar / otros','#ff8a8a',GR.otros,'Sin suscripción, en prueba o vencidos.');
     return;
   }
   $("clientes").innerHTML=head+(list.map(c=>cardClienteHTML(c,enAtencion)).join("")||(q?'<div class="muted">Sin coincidencias para tu búsqueda.</div>':'<div class="muted">Sin clientes en este filtro.</div>'));
@@ -1818,21 +1818,21 @@ function grupoDe(c){
 }
 // Tarjeta de un cliente (reutilizable en la lista plana y en la vista por grupos).
 function cardClienteHTML(c,enAtencion){
-  const ic=c._sc>=5?"🔴":c._sc>=2?"🟡":"🟢";
+  const ic=c._sc>=5?"":c._sc>=2?"":"";
   const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
-  const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">⚠ En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
+  const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
   const ms=c._mes?`<div style="font-size:12px;margin-top:3px;color:var(--rojo)">Informe mes ${c._mes} listo</div>`:"";
-  const sinAlt=!(Number(c.altura)>0)?`<div style="font-size:12px;margin-top:3px;color:var(--warn);font-weight:600">📏 Falta altura — el plan la necesita</div>`:"";
+  const sinAlt=!(Number(c.altura)>0)?`<div style="font-size:12px;margin-top:3px;color:var(--warn);font-weight:600">Falta altura — el plan la necesita</div>`:"";
   const tcol={alto:"var(--rojo)",medio:"var(--warn)",bajo:"#5f7dd0"};
   const tk=c._ticket?`<span class="pill" style="background:${tcol[c._ticket]||'#444'};color:#000;font-weight:700">${esc(c._ticket.toUpperCase())}</span>`:"";
   const pa=c._presu?`<span class="pill" style="background:#15391f;color:var(--ok)">presupuesto+</span>`:"";
   const pg=pagoInfo(c);
   const pagoBadge=`<span class="pill" style="background:${pg.bg};color:${pg.fg};font-weight:700;font-size:11px">${pg.txt}</span>`;
   const meta=`<span class="muted" style="font-weight:400;font-size:12px;display:flex;gap:4px;align-items:center">${pagoBadge}${tk}${pa}${esc(c._obj||"")}</span>`;
-  const emL=c._email?`<div class="muted" style="font-size:11px;margin-top:2px;user-select:text">✉ ${esc(c._email)}</div>`:"";
+  const emL=c._email?`<div class="muted" style="font-size:11px;margin-top:2px;user-select:text">${esc(c._email)}</div>`:"";
   // Nombre completo (dos apellidos) si existe y aporta info sobre el nombre corto.
   const _nc=(c.nombre_completo||'').trim();
-  const fullL=(_nc && _nc.toLowerCase()!==(c.nombre||'').trim().toLowerCase())?`<div class="muted" style="font-size:11px;margin-top:1px;user-select:text">👤 ${esc(_nc)}</div>`:"";
+  const fullL=(_nc && _nc.toLowerCase()!==(c.nombre||'').trim().toLowerCase())?`<div class="muted" style="font-size:11px;margin-top:1px;user-select:text">${esc(_nc)}</div>`:"";
   const acc=(c._accion&&c._accion!=='En orden')?`<div style="margin-top:4px;font-size:12.5px;font-weight:700;color:${c._accionCol||'var(--warn)'}">→ ${esc(c._accion)}</div>`:"";
   const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${acc}${inact}${sinAlt}${rs}${ms}</button>`;
   return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${cardBtn}<button class="sm ghost" onclick="resolverHoy('${c.user_id}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:cardBtn;
@@ -1900,7 +1900,7 @@ async function verCliente(id){
   // realidad la consulta falló) y el entrenador planeaba sobre info que no cargó.
   const _cargas={'objetivos':obj,'suscripción':susc,'plan':pln,'check-ins':ck,'journal':jr,'comidas':cm,'fotos':fts,'pesos':pes,'medidas':meds,'series':ser,'rutina':rut,'sueño':sue,'plan de comidas':pc,'registro comida':reg,'intake':intk,'perfil':per,'ciclo':cic,'sesiones':ses,'macros día':mac,'atleta':atl,'especialización':esp,'historial series':serHist,'comidas 35d':cm30,'medidas históricas':medsAll,'calendario':cal,'fuerza':fz,'recetas':recCli,'registro diario':regLog};
   const _fallos=Object.entries(_cargas).filter(([,r])=>r&&r.error).map(([k])=>k);
-  const avisoCarga=_fallos.length?`<div class="card" style="border:1px solid var(--rojo);background:rgba(209,43,43,.08)"><b style="color:var(--rojo)">⚠️ Carga incompleta.</b> No se pudieron cargar: <b>${esc(_fallos.join(", "))}</b>. Lo que ves de esas secciones puede estar vacío por el fallo, no porque el cliente no tenga datos. <button class="sm" onclick="verCliente('${id}')">Reintentar</button></div>`:'';
+  const avisoCarga=_fallos.length?`<div class="card" style="border:1px solid var(--rojo);background:rgba(209,43,43,.08)"><b style="color:var(--rojo)">Carga incompleta.</b> No se pudieron cargar: <b>${esc(_fallos.join(", "))}</b>. Lo que ves de esas secciones puede estar vacío por el fallo, no porque el cliente no tenga datos. <button class="sm" onclick="verCliente('${id}')">Reintentar</button></div>`:'';
   // Alimentos ya registrados por el cliente (del contador), distintos, para armar recetas.
   REGALIM=[];const vistos=new Set();
   (reg.data||[]).forEach(a=>{const key=(a.descripcion||"").trim().toLowerCase();if(!key||vistos.has(key))return;vistos.add(key);REGALIM.push({desc:(a.descripcion||"").trim(),k:+a.kcal||0,p:+a.prot||0,c:+a.carb||0,f:+a.fat||0});});
@@ -1933,7 +1933,7 @@ async function verCliente(id){
   const fatAvg=avgCk('fatiga'),enAvg=avgCk('energia');
   const alsCli=(typeof ALERTAS!=='undefined'?ALERTAS:[]).filter(a=>String(a.cliente_id)===String(id));
   let rep=`<div class="card"><h2 style="margin-top:0">Reporte automático · ${esc(nom)}</h2>`;
-  // 📋 SNAPSHOT: lo más relevante del cliente de un vistazo (JC 2026-08-11).
+  // SNAPSHOT: lo más relevante del cliente de un vistazo (JC 2026-08-11).
   {
     const OBJLBL={def:'Definición',vol:'Volumen',rec:'Recomposición',mant:'Mantenimiento',tca:'Bienestar (relación con la comida)'};
     const objTxt=OBJLBL[o.tipo]||(o.tipo?cap(o.tipo):'—');
@@ -1943,38 +1943,38 @@ async function verCliente(id){
     const pagoTxt=sD.tier==='fundador'?'Fundador':sD.tier==='gratis'?'Cortesía':sD.estado==='activa'?('Pagando'+(sD.tier?' · '+sD.tier:'')):sD.estado==='prueba'?'En prueba':(sD.estado?cap(sD.estado):'Sin pago');
     rep+=`<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px">
       <div style="display:flex;flex-wrap:wrap;gap:5px 14px;font-size:13px">
-        <span>🎯 <b>${esc(objTxt)}</b></span>
-        <span>📈 Nivel: <b>${esc(nivelTxt)}</b></span>
-        <span>🗓️ Semana <b>${sa}/${sem}</b> · Bloque <b>${m?m.n:1}</b>${esDeload?' · <span style="color:var(--warn)">descarga</span>':''}</span>
-        ${esAtl?'<span>🏆 <b>Atleta</b></span>':''}
-        <span>💳 ${esc(pagoTxt)}</span>
+        <span><b>${esc(objTxt)}</b></span>
+        <span>Nivel: <b>${esc(nivelTxt)}</b></span>
+        <span>Semana <b>${sa}/${sem}</b> · Bloque <b>${m?m.n:1}</b>${esDeload?' · <span style="color:var(--warn)">descarga</span>':''}</span>
+        ${esAtl?'<span><b>Atleta</b></span>':''}
+        <span>${esc(pagoTxt)}</span>
       </div>
       <div class="muted" style="display:flex;flex-wrap:wrap;gap:5px 14px;font-size:12.5px;margin-top:6px">
-        <span>⚖️ ${peso!=null?'<b style="color:var(--txt)">'+pU(peso)+' '+U_PESO+'</b>'+(dp!=null?' ('+(dp>0?'+':'')+dU(dp)+' total)':''):'sin peso'}</span>
-        <span>🏋️ ${ses7} ses/7d</span>
-        <span>🍽️ ${prom?prom.k+' kcal prom'+(o.kcal?' / obj '+o.kcal:''):'sin registro'}</span>
-        <span>😴 ${sprom!=null?sprom.toFixed(1)+'h':'—'}</span>
+        <span>${peso!=null?'<b style="color:var(--txt)">'+pU(peso)+' '+U_PESO+'</b>'+(dp!=null?' ('+(dp>0?'+':'')+dU(dp)+' total)':''):'sin peso'}</span>
+        <span>${ses7} ses/7d</span>
+        <span>${prom?prom.k+' kcal prom'+(o.kcal?' / obj '+o.kcal:''):'sin registro'}</span>
+        <span>${sprom!=null?sprom.toFixed(1)+'h':'—'}</span>
       </div>
     </div>`;
   }
-  // 🚨 ALERTAS al entrenador (JC 2026-08-11): prioridad a DOLORES, luego fatiga, y
+  // ALERTAS al entrenador (JC 2026-08-11): prioridad a DOLORES, luego fatiga, y
   // cumplimiento de calorías y de entrenamiento. Todo con datos ya calculados.
   const alertasR=[];
-  if(C&&(C.dart||0)>=6)alertasR.push(`🔴 Dolor articular alto (${C.dart}/10)${C.dartZona?' · '+esc(C.dartZona):''} — revisar carga`);
-  if(C&&(C.dmusc||0)>=8)alertasR.push(`🟠 Dolor muscular alto (${C.dmusc}/10)`);
-  if(fatAvg!=null&&+fatAvg>=7)alertasR.push(`🟠 Fatiga alta (prom ${fatAvg}/10)`);
-  if(ses7===0)alertasR.push('🔴 No ha entrenado en 7 días');
-  else if(ses7<2)alertasR.push(`🟡 Poco entrenamiento (${ses7} sesión en 7 días)`);
-  if(prom&&o.kcal&&Math.abs(prom.k-o.kcal)>=Math.max(250,Math.round(o.kcal*0.15)))alertasR.push(`🟡 Calorías ${prom.k>o.kcal?'por ENCIMA':'por DEBAJO'} del objetivo (${prom.k} vs ${o.kcal})`);
-  if(alertasR.length)rep+=`<div style="background:rgba(226,59,59,.10);border:1px solid var(--rojo);border-radius:8px;padding:8px 10px;margin-bottom:10px"><b style="color:var(--rojo)">🚨 Requiere atención</b><ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5">${alertasR.map(a=>`<li>${a}</li>`).join('')}</ul></div>`;
+  if(C&&(C.dart||0)>=6)alertasR.push(`Dolor articular alto (${C.dart}/10)${C.dartZona?' · '+esc(C.dartZona):''} — revisar carga`);
+  if(C&&(C.dmusc||0)>=8)alertasR.push(`Dolor muscular alto (${C.dmusc}/10)`);
+  if(fatAvg!=null&&+fatAvg>=7)alertasR.push(`Fatiga alta (prom ${fatAvg}/10)`);
+  if(ses7===0)alertasR.push('No ha entrenado en 7 días');
+  else if(ses7<2)alertasR.push(`Poco entrenamiento (${ses7} sesión en 7 días)`);
+  if(prom&&o.kcal&&Math.abs(prom.k-o.kcal)>=Math.max(250,Math.round(o.kcal*0.15)))alertasR.push(`Calorías ${prom.k>o.kcal?'por ENCIMA':'por DEBAJO'} del objetivo (${prom.k} vs ${o.kcal})`);
+  if(alertasR.length)rep+=`<div style="background:rgba(226,59,59,.10);border:1px solid var(--rojo);border-radius:8px;padding:8px 10px;margin-bottom:10px"><b style="color:var(--rojo)">Requiere atención</b><ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5">${alertasR.map(a=>`<li>${a}</li>`).join('')}</ul></div>`;
   else if(!alsCli.length)rep+=`<div style="color:var(--ok);font-size:12.5px;margin-bottom:10px">✓ Sin alertas: dolores, fatiga, calorías y entrenamiento en orden.</div>`;
-  // 🔔 Alertas GUARDADAS de este cliente (las mismas de la campana global: cobro no
+  // Alertas GUARDADAS de este cliente (las mismas de la campana global: cobro no
   // recurrente, fotos por revisar, etc.), ahora visibles y RESOLUBLES desde su ficha
   // (JC 2026-08-13: "asegurémonos de que las alertas estén en cada cliente"). Ámbar
   // para distinguirlas del bloque rojo de señales fisiológicas/entreno de arriba.
   if(alsCli.length){
     rep+=`<div style="background:rgba(224,184,74,.09);border:1px solid var(--warn);border-radius:8px;padding:8px 10px;margin-bottom:10px">
-      <b style="color:var(--warn)">🔔 Alertas de este cliente (${alsCli.length})</b>
+      <b style="color:var(--warn)">Alertas de este cliente (${alsCli.length})</b>
       <div style="margin-top:4px">${alsCli.map((a,i)=>`<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:6px 0${i<alsCli.length-1?';border-bottom:1px solid var(--line)':''}">
         <div style="min-width:0"><div style="font-weight:600;font-size:12.5px">${esc(a.tipo||'Alerta')}</div>
         <div class="muted" style="font-size:12px">${esc(a.texto||'')}</div>
@@ -1983,7 +1983,7 @@ async function verCliente(id){
       </div>`).join('')}</div>
     </div>`;
   }
-  // 📉 Seguimiento de peso (decisión) — clientes en corte/recomp. Ritmo de bajada
+  // Seguimiento de peso (decisión) — clientes en corte/recomp. Ritmo de bajada
   // escalado por %grasa estimado (medido por pliegues si hay; si no, Deurenberg). Editable.
   if(o.tipo==='def'||o.tipo==='rec'){
     const grasaMed=(()=>{const P=(plg&&plg.data)||[];for(let i=P.length-1;i>=0;i--){if(P[i].grasa!=null&&+P[i].grasa>0)return +P[i].grasa;}return null;})();
@@ -1991,20 +1991,20 @@ async function verCliente(id){
     const _tr=ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso})));
     window.SEGP={sexo:(per.data&&per.data.sexo)||null,peso:peso||0,rateReal:_tr.rate,n:_tr.n,id:id};
     const medido=(grasaMed!=null&&+grasaMed>0);
-    rep+=`<h3 style="margin:10px 0 2px">📉 Seguimiento de peso</h3>
+    rep+=`<h3 style="margin:10px 0 2px">Seguimiento de peso</h3>
       <div class="muted" style="font-size:12px;margin-bottom:4px">Ritmo de bajada seguro según su grasa: más grasa = puede bajar más rápido; más seco = más lento (proteger músculo).${g.fuente?' %grasa: <b>'+esc(g.fuente)+'</b>.':''}</div>
       <div class="row" style="align-items:flex-end"><div style="max-width:150px"><label class="lbl">% grasa ${medido?'(medido)':'estimado'}</label><input id="segGrasaInp" type="number" step="0.1" value="${g.bf!=null?g.bf:''}" oninput="segPesoRecalc(this)"></div>${medido?'':`<div><button class="sm" onclick="segGrasaGuardar('${id}')">Guardar %grasa</button> <button class="sm ghost" onclick="segGrasaGuardar('${id}',true)">Quitar</button> <span id="segGrasaMsg" class="muted" style="font-size:11px"></span></div>`}</div>
       ${medido?`<div class="muted" style="font-size:11px">Tiene pliegues medidos → se usa ese valor. Para clientes SIN pliegues, aquí puedes escribir y guardar un %grasa estimado.</div>`:`<div class="muted" style="font-size:11px">Para clientes que no pueden registrar pliegues: escribe tu estimado y <b>Guardar</b> (se recuerda). Si lo dejas vacío, se usa la fórmula por IMC/edad/sexo.</div>`}
       <div id="segPesoOut" style="margin-top:6px">${segPesoOutHTML(g.bf)}</div>`;
   }
-  // 📈 Seguimiento de VOLUMEN (bulk): ritmo de ganancia magra por nivel.
+  // Seguimiento de VOLUMEN (bulk): ritmo de ganancia magra por nivel.
   else if(o.tipo==='vol'){
     const _trv=ritmoRealSemana((pesos||[]).map(p=>({fecha:p.fecha,peso:p.peso})));
     const nivelV=(per.data&&per.data.nivel)||null;
     const tgtV=ritmoGananciaVolumen(nivelV);
     const evV=_trv.rate!=null?evalVolumenSemana({rateReal:_trv.rate,targetGain:tgtV,nPesajes:_trv.n}):null;
     const realV=_trv.rate!=null?((-_trv.rate).toFixed(2)+'%/sem ganancia ('+((-_trv.rate)*(peso||0)/100).toFixed(2)+' kg/sem)'):'—';
-    rep+=`<h3 style="margin:10px 0 2px">📈 Seguimiento de volumen</h3>
+    rep+=`<h3 style="margin:10px 0 2px">Seguimiento de volumen</h3>
       <div class="muted" style="font-size:12px;margin-bottom:4px">Ritmo de ganancia magra según nivel${nivelV?' ('+esc(nivelV)+')':''}: principiante gana más rápido, avanzado muy lento (para no acumular grasa de más).</div>
       <div class="kv"><div class="fila"><span class="muted">Ganancia objetivo</span><b>${tgtV}%/sem <span class="muted" style="font-weight:400">≈ ${Math.round(tgtV/100*(peso||0)*100)/100} kg/sem</span></b></div><div class="fila"><span class="muted">Ganancia real (últimas 4 sem)</span><b>${realV}</b></div></div>
       <div style="margin-top:8px">${evV?`<div style="color:${evV.color};font-weight:600;font-size:12.5px">${evV.motivo.charAt(0).toUpperCase()+evV.motivo.slice(1)}${evV.rec?' → '+evV.rec:''}.</div>`:`<div class="muted" style="font-size:12px">Necesito ~3 pesajes en 4 semanas para leer el ritmo.</div>`}</div>`;
@@ -2031,7 +2031,7 @@ async function verCliente(id){
   rep+=fila("Peso actual",peso!=null?(pU(peso)+" "+U_PESO+(dp!=null?` (${dp>0?'+':''}${dU(dp)} total)`:'')):"—");
   rep+=`</div>`;
   // Anotaciones del entrenador (notas de seguimiento) — visibles siempre en el Resumen.
-  rep+=`<h3 style="margin:8px 0 2px">📌 Anotaciones</h3>`;
+  rep+=`<h3 style="margin:8px 0 2px">Anotaciones</h3>`;
   rep+=`<div class="muted" style="font-size:13px;white-space:pre-wrap;line-height:1.4">${(per.data&&per.data.notas_seguimiento)?esc(per.data.notas_seguimiento):'Sin anotaciones. Agrégalas en Gestión interna → “Notas de seguimiento”.'}</div>`;
   // Mejora 4: pendientes de la última reunión con pendientes (seguimiento entre reuniones).
   {
@@ -2039,7 +2039,7 @@ async function verCliente(id){
     const conP=_RNS.filter(r=>(r.puntos||'').trim()).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)))[0];
     if(conP){
       const pts=String(conP.puntos).split('\n').filter(Boolean).slice(0,6);
-      rep+=`<h3 style="margin:8px 0 2px">✅ Pendientes de la última reunión <span class="muted" style="font-weight:400;font-size:11px">(${esc(conP.fecha)})</span></h3>`;
+      rep+=`<h3 style="margin:8px 0 2px">Pendientes de la última reunión <span class="muted" style="font-weight:400;font-size:11px">(${esc(conP.fecha)})</span></h3>`;
       rep+=`<ul style="margin:2px 0 0;padding-left:18px;font-size:12.5px;line-height:1.5">${pts.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`;
     }
   }
@@ -2076,14 +2076,14 @@ async function verCliente(id){
     </div>`;
     // 2) Agendar reunión (Google Calendar + Meet + invita al cliente).
     reuCard+=`<div style="border:1px solid var(--ok);border-radius:8px;padding:10px;margin-bottom:12px">
-      <b style="font-size:13px">📅 Agendar reunión</b>
+      <b style="font-size:13px">Agendar reunión</b>
       <div class="row" style="margin-top:6px;align-items:flex-end">
         <div><label class="lbl">Fecha y hora</label><input id="ag_dt" type="datetime-local" style="margin:0"></div>
         <div><label class="lbl">Duración</label><select id="ag_dur" style="margin:0"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></div>
-        <div><button class="sm" onclick="agendarReunion('${id}')">✅ Confirmar y agendar</button></div>
+        <div><button class="sm" onclick="agendarReunion('${id}')">Confirmar y agendar</button></div>
       </div>
       <div class="muted" style="font-size:11px;margin-top:5px">Se crea en tu <b>Google Calendar</b> con enlace de <b>Meet</b> y se le envía invitación al cliente por correo. Requiere Google conectado (pestaña Llamadas).</div>
-      <div style="margin-top:6px"><button class="sm ghost" onclick="sincronizarMeet('${id}')">🔄 Sincronizar resúmenes de Meet</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>
+      <div style="margin-top:6px"><button class="sm ghost" onclick="sincronizarMeet('${id}')">Sincronizar resúmenes de Meet</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>
       <div id="agMsg" style="font-size:12px;margin-top:5px"></div>
     </div>`;
     // 3) Historial de reuniones (formato interno: oscuro, con acento rojo).
@@ -2092,7 +2092,7 @@ async function verCliente(id){
       reuCard+=`<div style="display:flex;flex-direction:column;gap:8px">`+RNS.map(r=>`<div style="background:#14141b;border:1px solid var(--line);border-left:3px solid var(--rojo);border-radius:8px;padding:10px 12px">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
           <b style="font-size:13px">${_fmtFecha(r.fecha)}${r.titulo?` · ${esc(r.titulo)}`:''}</b>
-          <div style="display:flex;gap:6px;align-items:center">${r.origen?`<span class="pill" style="background:var(--card2);font-size:10px">${esc(r.origen)}</span>`:''}<button class="sm ghost" onclick="reuBorrar('${r.id}','${id}')" style="margin:0;padding:2px 8px">🗑</button></div>
+          <div style="display:flex;gap:6px;align-items:center">${r.origen?`<span class="pill" style="background:var(--card2);font-size:10px">${esc(r.origen)}</span>`:''}<button class="sm ghost" onclick="reuBorrar('${r.id}','${id}')" style="margin:0;padding:2px 8px">Borrar</button></div>
         </div>
         ${r.resumen?`<div style="font-size:12.5px;margin-top:5px;line-height:1.5">${esc(r.resumen)}</div>`:'<div class="muted" style="font-size:12px;margin-top:4px">Sin resumen (reunión agendada o sin transcripción).</div>'}
         ${r.puntos?`<div style="margin-top:6px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px">Pendientes</div><ul style="margin:3px 0 0;padding-left:18px;font-size:12px;line-height:1.5">${String(r.puntos).split('\n').filter(Boolean).map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>`:''}
@@ -2104,17 +2104,17 @@ async function verCliente(id){
       <div class="row" style="margin-top:6px"><div><label class="lbl">Fecha</label><input id="reu_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div style="flex:2"><label class="lbl">Título (opcional)</label><input id="reu_tit" placeholder="ej. Revisión mensual"></div></div>
       <label class="lbl">Enlace de Meet (opcional)</label><input id="reu_url" placeholder="https://meet.google.com/...">
       <label class="lbl">Transcripción / notas</label><textarea id="reu_txt" rows="4" placeholder="Pega aquí la transcripción o tus notas…" style="width:100%;box-sizing:border-box"></textarea>
-      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="reuResumir()">✨ Resumir con IA</button><button class="sm" onclick="reuGuardar('${id}')">Guardar reunión</button> <span id="reuMsg" class="muted" style="font-size:12px"></span></div>
+      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="sm" onclick="reuResumir()">Resumir con IA</button><button class="sm" onclick="reuGuardar('${id}')">Guardar reunión</button> <span id="reuMsg" class="muted" style="font-size:12px"></span></div>
       <label class="lbl">Resumen (editable)</label><textarea id="reu_res" rows="3" placeholder="Se llena al resumir con IA" style="width:100%;box-sizing:border-box"></textarea>
       <label class="lbl">Puntos / pendientes (uno por línea)</label><textarea id="reu_pts" rows="3" style="width:100%;box-sizing:border-box"></textarea>
     </details>`;
     reuCard+=`</div>`;
   }
 
-  // 📝 Bitácora de decisiones (audit trail de coaching) → pestaña Gestión.
+  // Bitácora de decisiones (audit trail de coaching) → pestaña Gestión.
   const _decTipos=['kcal','volumen','fase','cardio','rutina','contacto','otro'];
   const _decItems=(DECS||[]).map(d=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px"><div style="min-width:0"><span class="muted" style="font-size:11px">${esc(String(d.created_at||'').slice(0,10))}${d.tipo?' · '+esc(d.tipo):''}</span><div style="font-size:12.5px">${esc(d.texto||'')}${d.motivo?` <span class="muted">— ${esc(d.motivo)}</span>`:''}</div></div><button class="sm ghost" onclick="decBorrar('${id}','${d.id}')" style="flex-shrink:0" title="Borrar">×</button></div>`).join('')||'<div class="muted" style="font-size:12px">Sin decisiones registradas aún.</div>';
-  const bitCard=`<div class="card"><h2 style="margin-top:0">📝 Bitácora de decisiones</h2>
+  const bitCard=`<div class="card"><h2 style="margin-top:0">Bitácora de decisiones</h2>
     <div class="muted" style="font-size:12px;margin-bottom:6px">Registra qué ajustaste y por qué; queda con fecha para ver luego si funcionó. Es tu audit trail de coaching (bucle de resultados).</div>
     <div class="row"><div style="flex:0 0 140px"><label class="lbl">Tipo</label><select id="dec_tipo" style="margin:0">${_decTipos.map(t=>`<option value="${t}">${t}</option>`).join('')}</select></div><div style="flex:2;min-width:180px"><label class="lbl">Qué decidiste</label><input id="dec_txt" placeholder="Ej: bajé 150 kcal / subí 1 serie a espalda" style="margin:0"></div></div>
     <input id="dec_motivo" placeholder="Motivo (opcional): por qué" style="margin-top:6px">
@@ -2176,17 +2176,17 @@ async function verCliente(id){
   h+=`</div><div class="card"><h2 style="margin-top:0">Acceso y suscripción</h2>
     ${_em?`<div class="fila" style="border:0;padding:0 0 8px"><span class="muted">Correo</span><b style="user-select:text">${esc(_em)} <button class="sm ghost" style="padding:2px 7px;margin-left:6px" onclick="copiarMsg(this,'${esc(_em)}')">Copiar</button></b></div>`:''}
     ${MI_PRINCIPAL?`<div class="muted" style="font-size:11px;margin-bottom:6px">Si el cliente no puede entrar (olvidó su clave, o el correo de recuperación no le llega), cámbiasela aquí y pásasela por WhatsApp. No depende de correos.</div>
-    <button onclick="resetClave('${id}')">🔑 Restablecer contraseña</button>`:''}
+    <button onclick="resetClave('${id}')">Restablecer contraseña</button>`:''}
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
       <div style="font-weight:600;margin-bottom:4px">Suscripción</div>
       <div class="muted" style="font-size:11px;margin-bottom:6px">Estado: <b style="color:${(susActiva||susFund)?'var(--ok)':'var(--warn)'}">${esc(susTxt)}</b>. ${(susActiva||susFund)?'El cliente puede usar la app.':'El cliente <b>NO pasa del paywall</b> hasta que pague por Apple o lo actives aquí (úsalo cuando confirmes el pago).'}</div>
       ${susFund?'':(susActiva
         ? `<button class="danger" onclick="setAcceso('${id}','vencido')">Quitar acceso (marcar sin pago)</button>`
-        : `<button onclick="setAcceso('${id}','activa')">✅ Activar acceso (pago recibido)</button>`)}
+        : `<button onclick="setAcceso('${id}','activa')">Activar acceso (pago recibido)</button>`)}
       <span id="accMsg_${id}" class="muted" style="font-size:12px"></span>
     </div>
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" ${pm.acceso_bloqueado===true?'checked':''} onchange="setModulo('${id}','acceso_bloqueado',this.checked)"> <b>⏸️ Pausar acceso por falta de pago</b></label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" ${pm.acceso_bloqueado===true?'checked':''} onchange="setModulo('${id}','acceso_bloqueado',this.checked)"> <b>Pausar acceso por falta de pago</b></label>
       <div class="muted" style="font-size:11px;margin:4px 0 8px">Si se marca, el cliente NO puede usar la app (ni el acompañamiento) hasta que reactives. Ve un mensaje para ponerse al día. Se quita al instante cuando lo desmarcas.</div>
       <textarea id="avisoPago_${id}" placeholder="Mensaje que verá el cliente (opcional). Ej: 'Tu mensualidad está pendiente, ponte al día para reactivar tu acceso.'" style="width:100%;min-height:54px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:12px;box-sizing:border-box">${esc(pm.aviso_pago||'')}</textarea>
       <button onclick="guardarAviso('${id}')" style="margin-top:6px">Guardar mensaje</button>
@@ -2198,17 +2198,17 @@ async function verCliente(id){
       <tr><td class="c"><input type="checkbox" ${pm.ver_pasos!==false?'checked':''} onchange="setModulo('${id}','ver_pasos',this.checked)"></td><td>Monitoreo de pasos</td><td class="d">Pasos del día en "Tu mañana"</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.ver_pliegues===true?'checked':''} onchange="setModulo('${id}','ver_pliegues',this.checked)"></td><td>Pliegues (plicómetro)</td><td class="d">7 pliegues + % grasa estimado (automático para atletas)</td></tr>
       <tr><td class="c"><input type="checkbox" ${pm.cardio_pautado===true?'checked':''} onchange="setModulo('${id}','cardio_pautado',this.checked);document.getElementById('cardioCfg_${id}').style.display=this.checked?'':'none'"></td><td>Cardio pautado</td><td class="d">Habilita la pestaña Cardio (registra actividad, ppm y tipo). Configúralo abajo.</td></tr>
-      <tr><td class="c"><input type="checkbox" ${pm.edicion_bloqueada===false?'checked':''} onchange="setModulo('${id}','edicion_bloqueada',!this.checked)"></td><td>✏️ Permitir editar calorías</td><td class="d">Por DEFECTO el cliente NO puede cambiar sus calorías, macros, plan ni modo (los defines tú). Marca esto solo si quieres darle permiso para ajustarlos él mismo. Igual sigue registrando su comida normal.</td></tr>
-      <tr><td class="c"><input type="checkbox" ${pm.respiro_prioritario===true?'checked':''} onchange="setModulo('${id}','respiro_prioritario',this.checked)"></td><td>🫁 Control de impulsos primero</td><td class="d">Para clientes con atracones: al abrir Comida ven PRIMERO el acceso a "Un respiro" (HALT) antes de registrar. Acompañamiento invisible.</td></tr>
-      <tr><td class="c"><input type="checkbox" ${pm.recetas_publicas===true?'checked':''} onchange="setModulo('${id}','recetas_publicas',this.checked)"></td><td>🍳 Recetas públicas</td><td class="d">Si se marca, las recetas que cree esta persona quedan PÚBLICAS (nativas de la app) y las ven TODOS los clientes. Ideal para María.</td></tr>
-      ${MI_PRINCIPAL?`<tr><td class="c"><input type="checkbox" ${pm.moderador===true?'checked':''} onchange="setModulo('${id}','moderador',this.checked)"></td><td>🛡️ Moderador</td><td class="d">Persona de confianza que puede APROBAR los alimentos recomendados y MODERAR (quitar) recetas públicas — desde la app o la consola. Asígnalo a quienes hacen bien las recetas.</td></tr>`:''}
+      <tr><td class="c"><input type="checkbox" ${pm.edicion_bloqueada===false?'checked':''} onchange="setModulo('${id}','edicion_bloqueada',!this.checked)"></td><td>Permitir editar calorías</td><td class="d">Por DEFECTO el cliente NO puede cambiar sus calorías, macros, plan ni modo (los defines tú). Marca esto solo si quieres darle permiso para ajustarlos él mismo. Igual sigue registrando su comida normal.</td></tr>
+      <tr><td class="c"><input type="checkbox" ${pm.respiro_prioritario===true?'checked':''} onchange="setModulo('${id}','respiro_prioritario',this.checked)"></td><td>Control de impulsos primero</td><td class="d">Para clientes con atracones: al abrir Comida ven PRIMERO el acceso a "Un respiro" (HALT) antes de registrar. Acompañamiento invisible.</td></tr>
+      <tr><td class="c"><input type="checkbox" ${pm.recetas_publicas===true?'checked':''} onchange="setModulo('${id}','recetas_publicas',this.checked)"></td><td>Recetas públicas</td><td class="d">Si se marca, las recetas que cree esta persona quedan PÚBLICAS (nativas de la app) y las ven TODOS los clientes. Ideal para María.</td></tr>
+      ${MI_PRINCIPAL?`<tr><td class="c"><input type="checkbox" ${pm.moderador===true?'checked':''} onchange="setModulo('${id}','moderador',this.checked)"></td><td>Moderador</td><td class="d">Persona de confianza que puede APROBAR los alimentos recomendados y MODERAR (quitar) recetas públicas — desde la app o la consola. Asígnalo a quienes hacen bien las recetas.</td></tr>`:''}
     </tbody></table>
     <span id="modMsg" class="muted" style="font-size:12px"></span>`;
   // Panel de configuración del cardio pautado. Visible cuando "Cardio pautado" está activo.
   const cardTipos=['Trote','Caminata','Bici','Elíptica','Escaladora','Remo','Otro'];
   const cardMomentos=['','Post-entreno','Pre-entreno','En ayunas','Día aparte','Cuando puedas'];
   h+=`<div id="cardioCfg_${id}" style="${pm.cardio_pautado===true?'':'display:none'};margin-top:12px;border:1px solid var(--rojo);border-radius:10px;padding:14px;background:var(--card2)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><b>❤️ Cardio del cliente</b><span class="muted" style="font-size:11px">Solo aparece en la app de este cliente</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><b>Cardio del cliente</b><span class="muted" style="font-size:11px">Solo aparece en la app de este cliente</span></div>
     <div class="muted" style="font-size:11px;margin-bottom:10px">Define lo que verá pautado. Registrar el cardio siempre es opcional para él.</div>
     <div class="row">
       <div style="flex:1"><label class="lbl">Tipo de actividad</label>
@@ -2283,13 +2283,13 @@ async function verCliente(id){
           <span id="offMsg" class="muted" style="font-size:12px"></span>
         </div>
       </div>
-      <div class="muted" style="font-size:11px;margin-bottom:4px">¿La fecha de inicio quedó mal? Corrígela (⚠️ re-agrupa el historial por semanas; solo para arreglar el arranque real, no para adelantar):</div>
+      <div class="muted" style="font-size:11px;margin-bottom:4px">¿La fecha de inicio quedó mal? Corrígela (re-agrupa el historial por semanas; solo para arreglar el arranque real, no para adelantar):</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input id="inicioPlan_${id}" type="date" value="${_P.inicio?esc(_P.inicio):''}" style="width:auto;margin:0">
         <button class="sm ghost" onclick="setInicioPlan('${id}')">Guardar inicio</button>
         <span id="semMesoMsg" class="muted" style="font-size:12px"></span>
       </div>
-      <div class="muted" style="font-size:11px;margin:12px 0 4px">📅 <b>Día en que ARRANCA su semana de entreno</b> (defecto lunes). Cámbialo solo si el cliente entrena en otro ritmo — ej. arranca el <b>domingo</b>. Solo reagrupa el check de "completada"; <b>NO</b> toca la progresión ni el historial.</div>
+      <div class="muted" style="font-size:11px;margin:12px 0 4px"><b>Día en que ARRANCA su semana de entreno</b> (defecto lunes). Cámbialo solo si el cliente entrena en otro ritmo — ej. arranca el <b>domingo</b>. Solo reagrupa el check de "completada"; <b>NO</b> toca la progresión ni el historial.</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="semDia_${id}" class="sm" onchange="setSemanaInicioDia('${id}',this.value)">
           ${[['1','Lunes'],['2','Martes'],['3','Miércoles'],['4','Jueves'],['5','Viernes'],['6','Sábado'],['0','Domingo']].map(([v,l])=>`<option value="${v}"${_sdia==+v?' selected':''}>${l}</option>`).join('')}
@@ -2302,9 +2302,9 @@ async function verCliente(id){
   //  `rep`, para que sea un hijo directo de #detalle y tenga su propia pestaña.)
 
   // ===== SECCIÓN ÚNICA DE ENTRENAMIENTO (una sola, ordenada y fácil de editar) =====
-  h+=`<div style="margin:20px 0 8px;border-top:2px solid var(--rojo);padding-top:12px"><h2 style="margin:0;color:var(--rojo)">🏋️ ENTRENAMIENTO</h2><div class="muted" style="font-size:12px">Todo el entreno del cliente en un solo lugar. Para <b>editar la rutina y subir/bajar volumen por grupo</b> ve a la tarjeta <b>“✏️ Editar rutina y volumen”</b> más abajo. Lo avanzado (fuerza / especialización) queda plegado.</div></div>`;
+  h+=`<div style="margin:20px 0 8px;border-top:2px solid var(--rojo);padding-top:12px"><h2 style="margin:0;color:var(--rojo)">ENTRENAMIENTO</h2><div class="muted" style="font-size:12px">Todo el entreno del cliente en un solo lugar. Para <b>editar la rutina y subir/bajar volumen por grupo</b> ve a la tarjeta <b>“Editar rutina y volumen”</b> más abajo. Lo avanzado (fuerza / especialización) queda plegado.</div></div>`;
   // FECHA DE INICIO ESPECÍFICA del mesociclo (define desde cuándo cuenta la semana 1).
-  h+=`<div class="card" style="padding:10px 14px"><label class="lbl" style="margin-top:0">📅 Fecha de inicio del mesociclo (semana 1)</label>
+  h+=`<div class="card" style="padding:10px 14px"><label class="lbl" style="margin-top:0">Fecha de inicio del mesociclo (semana 1)</label>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="date" id="g_inicio" value="${(plan.inicio||'').slice(0,10)}" style="margin:0;max-width:170px"><button class="sm" onclick="guardarInicioPlan('${id}')">Guardar fecha</button> <span id="iniMsg" class="muted" style="font-size:12px"></span></div>
     <div class="muted" style="font-size:11px;margin-top:4px">Semana actual del cliente: <b>${sa}/${sem}</b>. Cambia esta fecha solo si el bloque arranca otro día (recalcula la semana y la progresión).</div></div>`;
 
@@ -2397,8 +2397,8 @@ async function verCliente(id){
   h+=`<button style="margin-top:8px" onclick="guardarGestion('${id}')">Guardar gestión</button> <span id="gMsg" class="muted"></span></div>`;
 
   // PARTE 2: Estado del entreno (programación + volumen por grupo + sensaciones).
-  // La rutina en sí se edita abajo en "✏️ Editar rutina y volumen" (fusionado).
-  h+=`<div class="card"><h2 style="margin-top:0">📊 Estado del entreno</h2>`;
+  // La rutina en sí se edita abajo en "Editar rutina y volumen" (fusionado).
+  h+=`<div class="card"><h2 style="margin-top:0">Estado del entreno</h2>`;
   h+=`<div class="kv">`;
   h+=fila("Programación",`Semana ${sa}/${sem} · Bloque ${m?m.n:1}${esDeload?' · DESCARGA':''}`);
   h+=fila("Bloques",ms.map(x=>`B${x.n}:${x.ini}-${x.fin}${x.deload?'(d'+x.deload+')':''}`).join("  "));
@@ -2409,9 +2409,9 @@ async function verCliente(id){
   else h+=`<div class="muted">Sin series esta semana.</div>`;
 
   // La rutina en detalle (ejercicios · reps · RIR) se ve y se EDITA en el editor de
-  // abajo ("✏️ Editar rutina y volumen") — se quitó la tabla de solo lectura que la
+  // abajo ("Editar rutina y volumen") — se quitó la tabla de solo lectura que la
   // duplicaba. Aquí queda solo el ESTADO (programación + volumen por grupo + sensaciones).
-  h+=`<div class="muted" style="font-size:12px;margin-top:4px">El detalle y la edición de la rutina (ejercicios, reps, RIR, técnicas, volumen) está abajo en <b>“✏️ Editar rutina y volumen”</b>.</div>`;
+  h+=`<div class="muted" style="font-size:12px;margin-top:4px">El detalle y la edición de la rutina (ejercicios, reps, RIR, técnicas, volumen) está abajo en <b>“Editar rutina y volumen”</b>.</div>`;
 
   // Fatiga / dolor / sueño (tendencia)
   h+=`<h3>Fatiga, dolor y sueño (recientes)</h3>`;
@@ -2428,7 +2428,7 @@ async function verCliente(id){
 
   // PARTE 3: Editor de rutina
   // Importar rutina desde Excel (IA interpreta -> vista previa -> guardar)
-  h+=`<div class="card"><details><summary style="cursor:pointer;font-weight:700;font-size:15px">📥 Importar rutina (Excel · Word · PDF · enlace)</summary>
+  h+=`<div class="card"><details><summary style="cursor:pointer;font-weight:700;font-size:15px">Importar rutina (Excel · Word · PDF · enlace)</summary>
     <div class="muted" style="margin:8px 0">Sube un archivo (<b>Excel, Word, PDF o CSV</b>), pega el texto, o pega un <b>enlace público</b> (Google Drive/Docs). La IA la interpreta (días, ejercicios, series, reps, RIR, técnicas) y verás una <b>vista previa</b> antes de guardar.</div>
     <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.docx,.pdf,.txt" onchange="importarRutina('${id}')">
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><input id="impLink" placeholder="Enlace público (Google Drive/Docs o URL del archivo)" style="flex:1;min-width:200px"><button class="sm ghost" onclick="importarLink('${id}')">Importar del enlace</button></div>
@@ -2436,7 +2436,7 @@ async function verCliente(id){
     <div id="impMsg" class="muted" style="margin-top:6px"></div>
     <div id="impPrev" style="margin-top:8px"></div></details></div>`;
 
-  h+=`<div class="card"><h2 style="margin-top:0">✏️ Editar rutina y volumen</h2>${RUT&&RUT.updated_at?`<div class="muted" style="font-size:12px;margin-bottom:6px;border-left:3px solid var(--rojo);padding:4px 10px">📅 Plan actualizado: <b>${new Date(RUT.updated_at).toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'})}</b> — se actualiza sola cada vez que guardas (así queda la fecha del bloque actual).</div>`:''}<div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>
+  h+=`<div class="card"><h2 style="margin-top:0">Editar rutina y volumen</h2>${RUT&&RUT.updated_at?`<div class="muted" style="font-size:12px;margin-bottom:6px;border-left:3px solid var(--rojo);padding:4px 10px">Plan actualizado: <b>${new Date(RUT.updated_at).toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'})}</b> — se actualiza sola cada vez que guardas (así queda la fecha del bloque actual).</div>`:''}<div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px">
       <div style="flex:0"><label class="lbl">Días</label><input id="genDias" type="number" min="1" max="6" value="${plan.dias||4}" oninput="document.getElementById('genDistWrap').style.display=(+this.value===3?'':'none')" style="width:80px"></div>
       <div id="genDistWrap" style="${(plan.dias||4)===3?'':'display:none'}"><label class="lbl">Distribución (3 días)</label><select id="genDist"><option value="espaciados"${plan.distribucion==='espaciados'?' selected':''}>Espaciados → fullbody</option><option value="seguidos"${plan.distribucion==='seguidos'?' selected':''}>3 seguidos → rotativa</option><option value="mixto"${plan.distribucion==='mixto'?' selected':''}>2 seguidos + 1 → mixta</option></select></div>
@@ -2445,13 +2445,13 @@ async function verCliente(id){
     </div>
     ${RUT&&RUT.rotativo?`<div class="muted" style="font-size:12px;border-left:3px solid var(--rojo);padding:6px 10px;margin-bottom:8px">Rutina <b>rotativa por semanas</b> (3 días seguidos): abajo editas la <b>semana A</b> (2 inferior + 1 superior); la semana B (2 superior + 1 inferior) se alterna sola en la app.</div>`:''}
     ${rutGruposHTML()}<div id="editorRut">${editorRutinaHTML()}</div>`;
-  if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">↩ Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><button class="ghost" onclick="plGuardarComo('${id}')" title="Guardar esta rutina en la biblioteca de rutinas estándar">💾 Guardar como plantilla</button><span id="rutMsg" class="muted"></span></div>`;
+  if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><button class="ghost" onclick="plGuardarComo('${id}')" title="Guardar esta rutina en la biblioteca de rutinas estándar">Guardar como plantilla</button><span id="rutMsg" class="muted"></span></div>`;
   h+=`</div>`;
 
   // ===== PROGRESO FÍSICO (peso) + COMPARACIONES organizadas (fotos/medidas/pliegues) =====
   {
     window.__fotos=fts.data||[]; // compat con las fotos iniciales del intake
-    h+=`<div class="card"><h2 style="margin-top:0">📈 Peso</h2>`;
+    h+=`<div class="card"><h2 style="margin-top:0">Peso</h2>`;
     h+=`<div class="fila"><span>Actual</span><span>${peso!=null?`${pU(peso)} ${U_PESO}`:'—'}${dp!=null?` <span class="muted">(${dp>0?'+':''}${dU(dp)} ${U_PESO} total)</span>`:''}</span></div>`;
     if(pesos.length) h+=`<div class="muted" style="font-size:11px;margin-top:4px">Últimos registros</div>`+pesos.slice(0,8).map(p=>`<div class="fila"><span class="muted">${esc(p.fecha)}</span><span>${pU(p.peso)} ${U_PESO}</span></div>`).join("");
     else h+=`<div class="muted" style="font-size:12px">Sin pesos registrados.</div>`;
@@ -2464,14 +2464,14 @@ async function verCliente(id){
     const P=(plg&&plg.data)||[];window.__cmpP=P;                     // pliegues (asc)
     const tipos=[...new Set(F.map(f=>String(f.tipo||'').trim()).filter(Boolean))];
     const optF=F.map((f,i)=>`<option value="${i}">${esc(f.fecha||'')}${f.tipo?' · '+esc(f.tipo):''}</option>`).join('');
-    h+=`<div class="card"><h2 style="margin-top:0">📸 Comparaciones</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Elige por fecha qué comparar. Ideal para atletas con muchas fotos y medidas.</div>`;
+    h+=`<div class="card"><h2 style="margin-top:0">Comparaciones</h2><div class="muted" style="font-size:12px;margin-bottom:8px">Elige por fecha qué comparar. Ideal para atletas con muchas fotos y medidas.</div>`;
     // ---- ALTURA (dato físico fijo, va junto a medidas/fotos) ----
     {
       const alt=Number(per.data&&per.data.altura)||0;
       const pesoAct=(pes&&pes.data&&pes.data[0]&&pes.data[0].peso)?Number(pes.data[0].peso):0;
       const imc=(alt>0&&pesoAct>0)?Math.round((pesoAct/((alt/100)**2))*10)/10:0;
-      if(alt>0)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span class="pill" style="background:var(--card2);font-weight:700">📏 Altura: ${alt} cm</span>${pesoAct?`<span class="pill" style="background:var(--card2);font-weight:700">⚖️ Peso: ${pesoAct} kg</span>`:''}${imc?`<span class="pill" style="background:var(--card2)">IMC ${imc}</span>`:''}</div>`;
-      else h+=`<div style="margin-bottom:10px;color:var(--warn);font-weight:600;font-size:12px">📏 Falta la altura de este cliente — regístrala en “Gestión interna” (necesaria para el plan y el IMC).</div>`;
+      if(alt>0)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span class="pill" style="background:var(--card2);font-weight:700">Altura: ${alt} cm</span>${pesoAct?`<span class="pill" style="background:var(--card2);font-weight:700">Peso: ${pesoAct} kg</span>`:''}${imc?`<span class="pill" style="background:var(--card2)">IMC ${imc}</span>`:''}</div>`;
+      else h+=`<div style="margin-bottom:10px;color:var(--warn);font-weight:600;font-size:12px">Falta la altura de este cliente — regístrala en “Gestión interna” (necesaria para el plan y el IMC).</div>`;
     }
     // ---- FOTOS (a tamaño completo, seleccionables por fecha/pose) ----
     h+=`<h3 style="margin-top:0">Fotos comparativas</h3>`;
@@ -2633,8 +2633,8 @@ async function verCliente(id){
     fechasSem.forEach((f,i)=>{
       const d=macroDia(f);sum.kcal+=d.kcal;sum.prot+=d.prot;sum.carb+=d.carb;sum.fat+=d.fat;
       const et=d.over?(d.tipo==='refeed'?'<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700">REFEED</span>':d.tipo==='bajo'?'<span class="pill" style="background:#5f7dd0;color:#000;font-weight:700">Bajo</span>':'<span class="pill" style="background:var(--warn);color:#000;font-weight:700">Custom</span>'):'<span class="muted" style="font-size:11px">base</span>';
-      // ✏️ lápiz: edita los macros de ESE día (carga sus valores en el editor de abajo).
-      h+=`<tr${f===hoy?' style="background:#1d1d20"':''}><td>${DIAS[i]} <span class="muted" style="font-size:11px">${esc(f.slice(5))}</span></td><td>${et}</td><td>${d.kcal} kcal · P${d.prot}/C${d.carb}/G${d.fat}</td><td style="text-align:center;white-space:nowrap"><button class="sm ghost" onclick="editarMacroDia('${f}',${d.kcal},${d.prot},${d.carb},${d.fat})" title="Editar los macros de este día" style="padding:2px 7px;margin:0">✏️</button></td></tr>`;
+      // lápiz: edita los macros de ESE día (carga sus valores en el editor de abajo).
+      h+=`<tr${f===hoy?' style="background:#1d1d20"':''}><td>${DIAS[i]} <span class="muted" style="font-size:11px">${esc(f.slice(5))}</span></td><td>${et}</td><td>${d.kcal} kcal · P${d.prot}/C${d.carb}/G${d.fat}</td><td style="text-align:center;white-space:nowrap"><button class="sm ghost" onclick="editarMacroDia('${f}',${d.kcal},${d.prot},${d.carb},${d.fat})" title="Editar los macros de este día" style="padding:2px 7px;margin:0">Editar</button></td></tr>`;
     });
     h+=`</table>`;
     // Promedio semanal
@@ -2669,11 +2669,11 @@ async function verCliente(id){
       <div class="row" style="margin-top:10px">
         <div><button class="ghost" onclick="guardarSeg('${id}')">Guardar seguimiento</button></div>
         <div><button onclick="publicarInforme('${id}')">Publicar y notificar</button></div>
-        <div><button class="ghost" onclick="infEnviar('${id}')">✉ Enviar por correo</button></div>
+        <div><button class="ghost" onclick="infEnviar('${id}')">Enviar por correo</button></div>
         <div><button class="ghost" onclick="descargarInformePDF()">Ver / descargar PDF</button></div>
       </div>
       <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
-        <button class="sm ghost" onclick="infToggleEditor()">✏️ Editar textos del informe</button>
+        <button class="sm ghost" onclick="infToggleEditor()">Editar textos del informe</button>
         <div id="inf_editor" class="hide" style="margin-top:8px"></div>
       </div>
       <iframe id="inf_prev" style="width:100%;height:520px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
@@ -2698,9 +2698,9 @@ async function verCliente(id){
     <div id="plan_editor" style="margin-top:10px"></div>
     <div id="plan_acciones" class="hide" style="margin-top:10px">
       <button onclick="planGuardar('${id}')">Aprobar y guardar</button>
-      <button class="ghost" onclick="planAjustar('${id}')" title="Reescala los GRAMOS para pegar a las kcal objetivo actuales del cliente SIN cambiar los alimentos ni la estructura. Para dieta reversa: primero cambia sus calorías (arriba), y si quieres que las kcal extra vengan de un alimento puntual agrégalo a la comida; luego pulsa Ajustar.">⚖ Ajustar a kcal (mantener estructura)</button>
+      <button class="ghost" onclick="planAjustar('${id}')" title="Reescala los GRAMOS para pegar a las kcal objetivo actuales del cliente SIN cambiar los alimentos ni la estructura. Para dieta reversa: primero cambia sus calorías (arriba), y si quieres que las kcal extra vengan de un alimento puntual agrégalo a la comida; luego pulsa Ajustar.">Ajustar a kcal (mantener estructura)</button>
       <button class="ghost" onclick="planExportar()">Exportar PDF</button>
-      <button class="ghost" onclick="marcarPlanEnviado('${id}')">✉ Enviar por correo</button>
+      <button class="ghost" onclick="marcarPlanEnviado('${id}')">Enviar por correo</button>
       <button class="ghost" onclick="planPreview()">Actualizar vista previa</button>
       <span id="planMsg2" class="muted" style="font-size:12px"></span>
     </div>
@@ -2791,7 +2791,7 @@ async function verCliente(id){
     // un valor null inesperado), mostramos el error y un botón para reintentar, en
     // vez de una pantalla vacía ("no sale nada").
     console.error('verCliente',err);
-    const _d=$("detalle");if(_d)_d.innerHTML='<div style="position:sticky;top:0;background:var(--bg);padding:8px 0;margin-bottom:6px;border-bottom:1px solid var(--line)"><button class="sm" onclick="volverLista()" style="margin:0">← Volver a la lista</button></div><div class="card" style="border:1px solid var(--rojo);background:rgba(209,43,43,.08)"><b style="color:var(--rojo)">⚠️ No se pudo cargar la ficha completa.</b><div class="muted" style="margin:6px 0">'+esc((err&&err.message)||String(err))+'</div><button class="sm" onclick="verCliente(\''+id+'\')">Reintentar</button></div>';
+    const _d=$("detalle");if(_d)_d.innerHTML='<div style="position:sticky;top:0;background:var(--bg);padding:8px 0;margin-bottom:6px;border-bottom:1px solid var(--line)"><button class="sm" onclick="volverLista()" style="margin:0">← Volver a la lista</button></div><div class="card" style="border:1px solid var(--rojo);background:rgba(209,43,43,.08)"><b style="color:var(--rojo)">No se pudo cargar la ficha completa.</b><div class="muted" style="margin:6px 0">'+esc((err&&err.message)||String(err))+'</div><button class="sm" onclick="verCliente(\''+id+'\')">Reintentar</button></div>';
   }
 }
 // ===== Progreso del cliente: gráfica de PESO + OBJETIVO mensual (solo entrenador) + CALENDARIO =====
@@ -2867,7 +2867,7 @@ function renderProgreso(id,D){
         <text x="8" y="${mt+ph}" fill="#6b6b74" font-size="10">${R(lo)}</text>
       </svg>`;
   }
-  return PROG_CSS+`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 style="margin:0 0 6px">📉 Progreso de peso</h2></div>
+  return PROG_CSS+`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 style="margin:0 0 6px">Progreso de peso</h2></div>
     ${pesoCard}${renderObjetivoMes(id,D)}
     <div style="border-top:1px solid var(--line);margin:16px 0 12px"></div>
     ${renderCalendario(id,D)}`;
@@ -2889,7 +2889,7 @@ function renderObjetivoMes(id,D){
   else{estado='ATRASADO';col='#e0b84a';}
   const bg=col==='var(--ok)'?'rgba(55,224,166,.16)':(col==='#e0b84a'?'rgba(224,184,74,.16)':'var(--card2)');
   return `<div style="margin-top:14px;background:linear-gradient(180deg,rgba(224,184,74,.08),rgba(224,184,74,.02));border:1px solid rgba(224,184,74,.4);border-radius:12px;padding:13px 15px">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:13px">🎯 Objetivo de peso · ${esc(nombreMes(D.mes))}</b><span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#e0b84a;font-weight:800;border:1px solid rgba(224,184,74,.5);border-radius:999px;padding:3px 9px">🔒 Solo entrenador</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:13px">Objetivo de peso · ${esc(nombreMes(D.mes))}</b><span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#e0b84a;font-weight:800;border:1px solid rgba(224,184,74,.5);border-radius:999px;padding:3px 9px">Solo entrenador</span></div>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
       <div style="flex:1;min-width:110px"><label class="lbl">Peso meta (kg)${metaKg==null?' · <span style="color:#e0b84a">sugerido</span>':''}</label><input id="metaPeso_${id}" type="number" step="0.1" value="${val}" style="margin:0"></div>
       <div><div class="muted" style="font-size:10px">Requiere</div><div style="font-weight:800">−${R(req)}/sem</div></div>
@@ -2933,15 +2933,15 @@ function renderCalendario(id,D){
     if(entreno)sumT++; if(dieta)sumD++; if(pasos)sumP++;
     const cls=entreno?'pc-train':((kcalDia>0||pasosDia>0)?'pc-log':'');
     const today=k===hoyStr?' pc-today':'';
-    cells+=`<div class="pc-cell ${cls}${today}"><div class="pc-d">${d}</div><div class="pc-t">${entreno?nombreSes(di):(cls==='pc-log'?'Registro':'—')}</div><div class="pc-b"><span class="pcb tr ${entreno?'on':''}">🏋</span><span class="pcb di ${dieta?'on':''}">🍽</span><span class="pcb pa ${pasos?'on':''}">👟</span><span class="pcb pl ${plan?'on':''}">✓</span></div></div>`;
+    cells+=`<div class="pc-cell ${cls}${today}"><div class="pc-d">${d}</div><div class="pc-t">${entreno?nombreSes(di):(cls==='pc-log'?'Registro':'—')}</div><div class="pc-b"><span class="pcb tr ${entreno?'on':''}">E</span><span class="pcb di ${dieta?'on':''}">C</span><span class="pcb pa ${pasos?'on':''}">P</span><span class="pcb pl ${plan?'on':''}">✓</span></div></div>`;
   }
   return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:6px"><button class="sm ghost" onclick="progMesNav('${id}',-1)" style="margin:0">‹</button><b>${esc(nombreMes(mes))}</b><button class="sm ghost" onclick="progMesNav('${id}',1)" style="margin:0">›</button></div>
-      <div class="muted" style="font-size:11px">🏋 ${sumT} entrenos · 🍽 ${sumD} dieta · 👟 ${sumP} pasos</div>
+      <div class="muted" style="font-size:11px">${sumT} entrenos · ${sumD} dieta · ${sumP} pasos</div>
     </div>
     <div class="pc-dow"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
     <div class="pc-grid">${cells}</div>
-    <div class="muted" style="font-size:10.5px;margin-top:8px">🏋 entrenó · 🍽 dieta en objetivo (±15% kcal) · 👟 pasos ≥ 8.000 · ✓ plan completo (los tres)</div>`;
+    <div class="muted" style="font-size:10.5px;margin-top:8px">entrenó · dieta en objetivo (±15% kcal) · pasos ≥ 8.000 · ✓ plan completo (los tres)</div>`;
 }
 // Hace cada tarjeta del detalle un desplegable (clic en el título) para no verse invasivo.
 function hacerColapsables(){
@@ -3093,10 +3093,10 @@ function infRenderEditor(){
   // es un arreglo (resumenFinal); null si es texto o arreglo completo (comidaFavor).
   const ta=(id,label,val,campo,rows,idx)=>`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
     <label class="lbl" style="margin:0">${label}</label>
-    ${campo?`<button class="sm ghost" style="padding:1px 8px;font-size:11px" onclick="rehacerCampo('${campo}','${id}',${idx==null?'null':idx})">🔄 Rehacer con IA</button>`:''}
+    ${campo?`<button class="sm ghost" style="padding:1px 8px;font-size:11px" onclick="rehacerCampo('${campo}','${id}',${idx==null?'null':idx})">Rehacer con IA</button>`:''}
     </div><textarea id="${id}" rows="${rows||3}" style="width:100%;box-sizing:border-box">${esc(val||'')}</textarea>`;
   el.innerHTML=`
-    <div class="muted" style="font-size:11px;margin-bottom:6px">Corrige la redacción a tu gusto, o pulsa <b>🔄 Rehacer con IA</b> para reescribir SOLO ese párrafo. Los números y las gráficas NO cambian. Al guardar se re-arma el informe y se actualiza la vista previa.</div>
+    <div class="muted" style="font-size:11px;margin-bottom:6px">Corrige la redacción a tu gusto, o pulsa <b>Rehacer con IA</b> para reescribir SOLO ese párrafo. Los números y las gráficas NO cambian. Al guardar se re-arma el informe y se actualiza la vista previa.</div>
     ${ta('ie_ce','Cierre de entrenamiento',d.cierreEntreno,'cierreEntreno')}
     ${ta('ie_cc','Cierre de comida',d.cierreComida,'cierreComida')}
     ${ta('ie_cm','Cierre de medidas',d.cierreMedidas,'cierreMedidas')}
@@ -3116,7 +3116,7 @@ async function rehacerCampo(campo,taId,idx){
   let v=data.valor;
   if(Array.isArray(v)) v=(idx!=null)?(v[idx]||''):v.join('\n');
   el.value=(v!=null&&v!=='')?String(v):prev;
-  const m=$("ieMsg");if(m)m.innerHTML="↻ Párrafo reescrito. Revísalo y <b>Guarda</b> si te gusta.";
+  const m=$("ieMsg");if(m)m.innerHTML="Párrafo reescrito. Revísalo y <b>Guarda</b> si te gusta.";
 }
 async function guardarTextosInforme(id){
   if(!id){id=SEL||INF_CID;}
@@ -3303,7 +3303,7 @@ async function verRestaurantes(){
     <div class="row"><div><label class="lbl">Ciudad</label><input id="rc" placeholder="Bogotá"></div><div style="flex:2"><label class="lbl">Dirección</label><input id="rd" placeholder="Calle 123 #45-67"></div></div>
     <div class="row"><div><label class="lbl">Latitud (opcional)</label><input id="rlat" type="number" step="any" placeholder="4.65"></div><div><label class="lbl">Longitud (opcional)</label><input id="rlng" type="number" step="any" placeholder="-74.05"></div></div>
     <label class="lbl">Descripción (opcional)</label><textarea id="rdesc" rows="2" placeholder="Comida saludable, bowls, opciones altas en proteína…"></textarea>
-    <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="rrec" style="flex-shrink:0;margin:0"><span>Recomendado por el equipo ⭐</span></label>
+    <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer"><input type="checkbox" id="rrec" style="flex-shrink:0;margin:0"><span>Recomendado por el equipo</span></label>
     <button onclick="addRestaurante()">Agregar restaurante</button> <span id="rMsg" class="muted"></span></div>
     <div class="card"><h2 style="margin-top:0">Restaurantes (${RESTS.length})</h2><div id="restList"></div></div>`;
   renderRests();
@@ -3316,8 +3316,8 @@ async function addRestaurante(){
 }
 function renderRests(){
   $("restList").innerHTML=RESTS.map(r=>`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${r.recomendado?'⭐ ':''}${esc(r.nombre)}</b><span style="display:flex;gap:6px"><button class="sm ghost" onclick="togRec('${r.id}',${!r.recomendado})">${r.recomendado?'Quitar ⭐':'Recomendar ⭐'}</button><button class="sm ghost" onclick="delRest('${r.id}')">🗑</button></span></div>
-    <div class="muted" style="font-size:12px">${esc(r.ciudad||'sin ciudad')}${r.direccion?' · '+esc(r.direccion):''}${(r.lat&&r.lng)?' · 📍':''}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b>${r.recomendado?'':''}${esc(r.nombre)}</b><span style="display:flex;gap:6px"><button class="sm ghost" onclick="togRec('${r.id}',${!r.recomendado})">${r.recomendado?'Quitar':'Recomendar'}</button><button class="sm ghost" onclick="delRest('${r.id}')">Borrar</button></span></div>
+    <div class="muted" style="font-size:12px">${esc(r.ciudad||'sin ciudad')}${r.direccion?' · '+esc(r.direccion):''}${(r.lat&&r.lng)?' ·':''}</div>
     <button class="sm" style="margin-top:6px" onclick="verPlatos('${r.id}')">Ver / editar platos</button>
     <div id="platos-${r.id}"></div></div>`).join("")||'<div class="muted">Aún no hay restaurantes.</div>';
 }
@@ -3330,7 +3330,7 @@ async function verPlatos(id){
   if(error){el.innerHTML='<div class="alert" style="margin-top:8px">No se pudieron cargar los platos: '+esc(error.message)+'</div>';return;}
   const platos=data||[];
   el.innerHTML=`<div style="margin-top:8px;padding:8px;background:#14141b;border-radius:8px">
-    ${platos.map(p=>`<div class="fila"><span style="font-size:13px">${esc(p.nombre)} <span class="muted">· ${p.kcal||0} kcal · P${p.prot||0}/C${p.carb||0}/G${p.fat||0}</span></span><button class="sm ghost" onclick="delPlato('${p.id}','${id}')">🗑</button></div>`).join('')||'<div class="muted" style="font-size:12px">Sin platos aún.</div>'}
+    ${platos.map(p=>`<div class="fila"><span style="font-size:13px">${esc(p.nombre)} <span class="muted">· ${p.kcal||0} kcal · P${p.prot||0}/C${p.carb||0}/G${p.fat||0}</span></span><button class="sm ghost" onclick="delPlato('${p.id}','${id}')">Borrar</button></div>`).join('')||'<div class="muted" style="font-size:12px">Sin platos aún.</div>'}
     <input id="pn-${id}" placeholder="Plato (ej: Bowl de pollo)" style="margin-top:6px">
     <div class="row"><div><input id="pk-${id}" type="number" placeholder="kcal"></div><div><input id="pp-${id}" type="number" placeholder="prot"></div><div><input id="pc-${id}" type="number" placeholder="carb"></div><div><input id="pf-${id}" type="number" placeholder="grasa"></div></div>
     <button class="sm" onclick="addPlato('${id}')">Agregar plato</button></div>`;
@@ -3578,7 +3578,7 @@ function planRenderEditor(){
         const valU=esU?((+f.unidades||(cat&&cat.pg?Math.round((+f.gramos||0)/cat.pg):0))||0):(Math.round(planGramosDe(f)||+f.gramos||0));
         // Solo un aviso discreto si el alimento NO se encontró (no aporta macros).
         // El resto se edita igual que siempre: el nombre es libre y editable.
-        const hint=cat?'':`<span style="color:var(--warn);font-size:10px;white-space:nowrap" title="No está en el catálogo: no aporta macros. Cámbialo por uno del catálogo o revisa el nombre">⚠ sin dato</span>`;
+        const hint=cat?'':`<span style="color:var(--warn);font-size:10px;white-space:nowrap" title="No está en el catálogo: no aporta macros. Cámbialo por uno del catálogo o revisa el nombre">sin dato</span>`;
         h+=`<div style="display:flex;gap:6px;align-items:center;margin:3px 0;flex-wrap:wrap">
           <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;min-width:120px;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
           <input type="number" min="0" step="${esU?'1':'1'}" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
@@ -3841,7 +3841,7 @@ function editorRutinaHTML(){
   let h="";
   RUT.dias.forEach((d,di)=>{
     const items=d.orden||[];
-    h+=`<div style="margin:14px 0;border-top:1px solid var(--line);padding-top:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="muted" style="font-size:11px">Día ${di+1}</span><input class="rutDiaNom" data-d="${di}" value="${esc(d.nombre||('Día '+(di+1)))}" placeholder="Nombre (ej: Superior)" style="font-weight:700;flex:1;max-width:280px;margin:0"><button class="sm ghost" onclick="rutMoverDia(${di},-1)" title="Subir día" style="padding:3px 8px;margin:0"${di===0?' disabled':''}>▲</button><button class="sm ghost" onclick="rutMoverDia(${di},1)" title="Bajar día" style="padding:3px 8px;margin:0"${di===RUT.dias.length-1?' disabled':''}>▼</button><button class="sm ghost" onclick="rutQuitarDia(${di})" title="Quitar este día" style="padding:3px 8px;margin:0;color:var(--rojo)">🗑</button></div>`;
+    h+=`<div style="margin:14px 0;border-top:1px solid var(--line);padding-top:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="muted" style="font-size:11px">Día ${di+1}</span><input class="rutDiaNom" data-d="${di}" value="${esc(d.nombre||('Día '+(di+1)))}" placeholder="Nombre (ej: Superior)" style="font-weight:700;flex:1;max-width:280px;margin:0"><button class="sm ghost" onclick="rutMoverDia(${di},-1)" title="Subir día" style="padding:3px 8px;margin:0"${di===0?' disabled':''}>▲</button><button class="sm ghost" onclick="rutMoverDia(${di},1)" title="Bajar día" style="padding:3px 8px;margin:0"${di===RUT.dias.length-1?' disabled':''}>▼</button><button class="sm ghost" onclick="rutQuitarDia(${di})" title="Quitar este día" style="padding:3px 8px;margin:0;color:var(--rojo)">Borrar</button></div>`;
     if(items.length){
       // Tabla HTML real: header y columnas alinean nativamente.
       let rows='';
@@ -3865,7 +3865,7 @@ function editorRutinaHTML(){
     h+=`<button class="sm ghost" onclick="rutAgregar(${di})" style="margin-top:2px">+ Agregar ejercicio</button>`;
     h+=`</div>`;
   });
-  h+=`<div style="margin-top:12px;border-top:1px dashed var(--line);padding-top:10px"><button class="sm" onclick="rutAgregarDia()">➕ Agregar día</button> <span class="muted" style="font-size:11px">Añade un día vacío a la rutina (ponle nombre y ejercicios).</span></div>`;
+  h+=`<div style="margin-top:12px;border-top:1px dashed var(--line);padding-top:10px"><button class="sm" onclick="rutAgregarDia()">Agregar día</button> <span class="muted" style="font-size:11px">Añade un día vacío a la rutina (ponle nombre y ejercicios).</span></div>`;
   return h;
 }
 // ---- Importar rutina desde Excel (SheetJS -> IA -> vista previa -> guardar) ----
@@ -3989,7 +3989,7 @@ function rutGruposHTML(){
       <button class="sm ghost" onclick="rutBump('${esc(g)}',2)" title="Subir 2 series" style="padding:2px 8px;margin:0">+</button>
     </div>`;
   return `<div style="border:1px solid var(--rojo);border-radius:8px;padding:12px;margin-bottom:14px;background:rgba(181,23,24,0.05)">
-    <b style="font-size:14px">🏋️ Volumen por grupo muscular (series semanales)</b>
+    <b style="font-size:14px">Volumen por grupo muscular (series semanales)</b>
     <div class="muted" style="font-size:11px;margin:4px 0 10px">Sube o baja las series de un grupo con <b>−/+</b> (o escribe la meta) y dale <b>Aplicar</b>: se reparten solas entre los ejercicios de ese grupo. Ideal para <b>subir volumen a un grupo específico</b> (espalda, hombro, etc.). Luego afinas abajo y Guardas.</div>
     <div style="display:flex;flex-wrap:wrap;gap:8px">${groups.map(row).join('')}</div>
     <button class="sm" style="margin-top:12px" onclick="rutDistribuirGrupos()">Aplicar volumen a la rutina</button> <span id="rutGrpMsg" class="muted" style="font-size:12px"></span>
@@ -4008,7 +4008,7 @@ function rutDistribuirGrupos(){
 // Pila de deshacer: guarda el estado ANTES de cada cambio (con lo que haya en las celdas).
 let RUT_UNDO=[];
 function rutSnapshot(){syncEditorAMemoria();RUT_UNDO.push(JSON.stringify({dias:RUT.dias,tecnicas:RUT.tecnicas||{}}));if(RUT_UNDO.length>40)RUT_UNDO.shift();}
-function rutDeshacer(){if(!RUT_UNDO.length){$("rutMsg").textContent="No hay más cambios que deshacer.";return;}const prev=JSON.parse(RUT_UNDO.pop());RUT.dias=prev.dias;RUT.tecnicas=prev.tecnicas;rutRefrescar();$("rutMsg").textContent="↩ Cambio deshecho. Recuerda Guardar si quieres conservarlo.";}
+function rutDeshacer(){if(!RUT_UNDO.length){$("rutMsg").textContent="No hay más cambios que deshacer.";return;}const prev=JSON.parse(RUT_UNDO.pop());RUT.dias=prev.dias;RUT.tecnicas=prev.tecnicas;rutRefrescar();$("rutMsg").textContent="Cambio deshecho. Recuerda Guardar si quieres conservarlo.";}
 async function rutDescartar(id){if(!confirm("¿Descartar TODOS los cambios sin guardar y volver a la rutina guardada? (recupera lo que hayas borrado sin guardar)"))return;RUT_UNDO=[];await verCliente(id);}
 function rutQuitar(di,ii){rutSnapshot();if(RUT.dias[di]&&RUT.dias[di].orden)RUT.dias[di].orden.splice(ii,1);rutRefrescar();$("rutMsg").textContent="Quitaste un ejercicio. Puedes Deshacer. Recuerda Guardar rutina.";}
 function rutAgregar(di){rutSnapshot();if(!RUT.dias[di].orden)RUT.dias[di].orden=[];const g=(RUT.dias[di].grupos&&RUT.dias[di].grupos[0])||'';const first=(EJU&&EJU[0])||EJ[0];RUT.dias[di].orden.push({id:first?first.id:'',g});rutRefrescar();$("rutMsg").textContent="Agregaste un ejercicio. Elígelo y Guarda rutina.";}
@@ -4024,7 +4024,7 @@ function rutMoverDia(di,dir){
   const t=RUT.dias[di];RUT.dias[di]=RUT.dias[j];RUT.dias[j]=t;
   rutRefrescar();$("rutMsg").textContent="Reordenaste los días. Recuerda Guardar rutina.";
 }
-// ➕ Agregar un día vacío a la rutina.
+// Agregar un día vacío a la rutina.
 function rutAgregarDia(){
   if(!RUT){$("rutMsg").textContent="Genera o carga una rutina primero.";return;}
   syncEditorAMemoria();rutSnapshot();
@@ -4032,7 +4032,7 @@ function rutAgregarDia(){
   RUT.dias.push({nombre:'Día '+(RUT.dias.length+1),grupos:['Pecho','Espalda'],orden:[]});
   rutRefrescar();$("rutMsg").textContent="Agregaste un día. Ponle nombre y ejercicios. Recuerda Guardar rutina.";
 }
-// 🗑 Quitar un día (con remapeo de técnicas/asign: quita d==di, baja d>di en 1).
+// Quitar un día (con remapeo de técnicas/asign: quita d==di, baja d>di en 1).
 function rutQuitarDia(di){
   if(!RUT||!RUT.dias||RUT.dias.length<=1){alert("La rutina debe tener al menos un día.");return;}
   if(!confirm(`¿Quitar el día ${di+1} (${(RUT.dias[di]&&RUT.dias[di].nombre)||''})? Puedes Deshacer antes de guardar.`))return;
@@ -4090,7 +4090,7 @@ async function guardarRutina(id){
   if(cargadaEn){
     const {data:actual}=await sb.from("rutinas").select("updated_at").eq("user_id",id).maybeSingle();
     if(actual&&actual.updated_at&&new Date(actual.updated_at)>new Date(cargadaEn)){
-      $("rutMsg").innerHTML=`<span class="alert">⚠️ Otra persona acaba de modificar esta rutina. Recargué la versión más reciente para NO borrar su trabajo: revísala y vuelve a aplicar tus cambios.</span>`;
+      $("rutMsg").innerHTML=`<span class="alert">Otra persona acaba de modificar esta rutina. Recargué la versión más reciente para NO borrar su trabajo: revísala y vuelve a aplicar tus cambios.</span>`;
       const _fr=await invokeFn("consola-rutina",{body:{action:'get',cliente:id}});const fresh={data:(_fr.data&&_fr.data.rutina)||null};
       if(fresh){RUT=fresh;const ed=$("editorRut");if(ed)ed.innerHTML=editorRutinaHTML();}
       return;
@@ -4180,7 +4180,7 @@ async function resetClave(id){
   if(pw.trim().length<6){alert('La contraseña debe tener al menos 6 caracteres.');return;}
   const {data,error}=await sb.rpc('entrenador_reset_password',{p_user_id:id,p_password:pw.trim()});
   if(error){alert('Error: '+error.message);return;}
-  if(data==='ok'){alert('✅ Contraseña cambiada.\n\nPásale esto al cliente:\n\nContraseña: '+pw.trim()+'\n\nQue entre con "Iniciar sesión" (no crear cuenta).');}
+  if(data==='ok'){alert('Contraseña cambiada.\n\nPásale esto al cliente:\n\nContraseña: '+pw.trim()+'\n\nQue entre con "Iniciar sesión" (no crear cuenta).');}
   else if(data==='no_autorizado'){alert('No autorizado: solo el entrenador principal puede restablecer contraseñas.');}
   else if(data==='clave_corta'){alert('La contraseña es muy corta (mínimo 6).');}
   else if(data==='usuario_no_existe'){alert('No se encontró ese usuario.');}
@@ -4229,7 +4229,7 @@ async function setAcceso(id,estado){
   if(msg)msg.textContent="Guardando…";
   const e=errFilas(await sb.from("suscripciones").upsert({user_id:id,estado,tier:'publico',updated_at:new Date().toISOString()},{onConflict:"user_id"}).select("user_id"));
   if(e){if(msg)msg.textContent="Error: "+e;return;}
-  if(msg)msg.textContent=estado==='activa'?"✅ Acceso activado":"Acceso quitado";
+  if(msg)msg.textContent=estado==='activa'?"Acceso activado":"Acceso quitado";
   // Refresca el cache de suscripción para que el BADGE de pago de la lista no quede
   // desactualizado (antes seguía diciendo "Sin pagar/Pagando" viejo hasta recargar).
   [CLIENTES,TODOS].forEach(arr=>{const c=arr.find(x=>x.user_id===id);if(c){c._susE=estado;c._susT='publico';}});
@@ -4359,7 +4359,7 @@ async function aplicarRefeed(id){
   if(e){$("mdMsg").innerHTML=`<span class="alert">${esc(e)}</span>`;return;}
   await verCliente(id);
 }
-// ✏️ Editar los macros de un día concreto: fija la fecha y precarga sus valores en
+// Editar los macros de un día concreto: fija la fecha y precarga sus valores en
 // el editor "Custom" de abajo (reusa guardarCustomMacros). Baja y enfoca el campo.
 function editarMacroDia(f,k,p,c,g){
   const sf=$("md_fecha");if(sf)sf.value=f;
@@ -4401,7 +4401,7 @@ function verEjercicios(){
   const nmap={};EJ.forEach(e=>{const k=norm(e.nombre);(nmap[k]=nmap[k]||[]).push(e);});
   const dups=Object.values(nmap).filter(a=>a.length>1);
   const nExtra=dups.reduce((a,g)=>a+g.length-1,0);
-  const dupHint=dups.length?`<div style="font-size:12px;color:#e0b84a;margin-bottom:6px">⚠ Hay <b>${dups.length}</b> ejercicios con duplicados (<b>${nExtra}</b> copias de más): ${dups.slice(0,12).map(a=>esc(cap(a[0].nombre))).join(", ")}${dups.length>12?'…':''}.<br><button style="margin-top:6px" onclick="fusionarTodos()">🔧 Fusionar todos los duplicados</button> <span id="fusAllMsg" class="muted"></span></div>`:`<div class="muted" style="font-size:12px;margin-bottom:6px">No hay nombres duplicados ahora mismo. ✓</div>`;
+  const dupHint=dups.length?`<div style="font-size:12px;color:#e0b84a;margin-bottom:6px">Hay <b>${dups.length}</b> ejercicios con duplicados (<b>${nExtra}</b> copias de más): ${dups.slice(0,12).map(a=>esc(cap(a[0].nombre))).join(", ")}${dups.length>12?'…':''}.<br><button style="margin-top:6px" onclick="fusionarTodos()">Fusionar todos los duplicados</button> <span id="fusAllMsg" class="muted"></span></div>`:`<div class="muted" style="font-size:12px;margin-bottom:6px">No hay nombres duplicados ahora mismo. ✓</div>`;
   let h=`<div class="card"><h2 style="margin-top:0">Nuevo ejercicio</h2>
    <div class="muted" style="margin-bottom:6px">Usa nombres estandarizados (ej: "Press inclinado con mancuernas"). El enlace de YouTube se reproduce dentro de la app.</div>
    <input id="x_nom" placeholder="Nombre del ejercicio">
@@ -4421,9 +4421,9 @@ function verEjercicios(){
      const grupos=Object.values(nmap);
      const conVid=grupos.filter(a=>a.some(e=>okv(e.video_url))).length;
      const sinVid=grupos.filter(a=>!a.some(e=>okv(e.video_url))).map(a=>a.find(e=>!e.entrenador_id)||a[0]).sort((x,y)=>norm(x.nombre).localeCompare(norm(y.nombre)));
-     return `<div class="card"><h2 style="margin-top:0">🎬 Tutoriales <span class="muted" style="font-size:13px;font-weight:400">· ${conVid} con video · ${sinVid.length} sin video</span></h2>
+     return `<div class="card"><h2 style="margin-top:0">Tutoriales <span class="muted" style="font-size:13px;font-weight:400">· ${conVid} con video · ${sinVid.length} sin video</span></h2>
        <div class="muted" style="font-size:12px;margin-bottom:8px">Ejercicios (por nombre) que aún NO tienen tutorial. En la app, el botón "Ver tutorial" solo sale si hay link. Toca "+ link" para pegar el YouTube.</div>
-       ${sinVid.length?`<div style="display:flex;flex-direction:column;gap:3px;max-height:340px;overflow:auto">${sinVid.map(e=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--line)"><b style="flex:1;min-width:180px">${esc(cap(e.nombre))}</b><span class="muted" style="font-size:11px">${esc(e.grupo||'')}</span><button class="sm" onclick="editVid('${e.id}')">+ link</button></div>`).join('')}</div>`:`<div style="color:var(--ok);font-size:12px">✅ Todos los ejercicios tienen tutorial.</div>`}
+       ${sinVid.length?`<div style="display:flex;flex-direction:column;gap:3px;max-height:340px;overflow:auto">${sinVid.map(e=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--line)"><b style="flex:1;min-width:180px">${esc(cap(e.nombre))}</b><span class="muted" style="font-size:11px">${esc(e.grupo||'')}</span><button class="sm" onclick="editVid('${e.id}')">+ link</button></div>`).join('')}</div>`:`<div style="color:var(--ok);font-size:12px">Todos los ejercicios tienen tutorial.</div>`}
      </div>`;
    })()}
    <div class="card"><h2 style="margin-top:0">Biblioteca (${EJ.length})</h2>
@@ -4466,10 +4466,10 @@ function renderEj(){
      <div class="row"><div><label class="lbl">Reps min</label><input id="ee_rmin" type="number" value="${e.rep_min??8}"></div><div><label class="lbl">Reps max</label><input id="ee_rmax" type="number" value="${e.rep_max??12}"></div><div><label class="lbl">RIR</label><input id="ee_rir" type="number" value="${e.rir??2}"></div></div>
      <label class="lbl">Enlace de YouTube</label><input id="ee_vid" value="${esc(e.video_url||'')}">
      <div class="muted" style="font-size:11px;margin:6px 0 3px">…o sube un <b>video propio (mp4/mov)</b>: se reproduce dentro de la app <b>sin ninguna marca de YouTube</b> y con autoplay.</div>
-     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="ee_file" accept="video/mp4,video/quicktime,video/*" style="flex:1;min-width:150px"><button class="sm" onclick="subirVideoEj('${e.id}')">⤴ Subir video</button><span id="eeVidMsg" class="muted" style="font-size:11px"></span></div>
+     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="ee_file" accept="video/mp4,video/quicktime,video/*" style="flex:1;min-width:150px"><button class="sm" onclick="subirVideoEj('${e.id}')">Subir video</button><span id="eeVidMsg" class="muted" style="font-size:11px"></span></div>
      <div style="margin-top:8px"><button onclick="guardarEjEdit('${e.id}')">Guardar cambios</button> <button class="ghost" onclick="EJ_EDIT=null;renderEj()">Cancelar</button> <span id="eeMsg" class="muted"></span></div>
    </td></tr>`;
-  $("ejlist").innerHTML=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Reps · RIR</th><th>Acciones</th></tr>${list.map(e=>`<tr><td>${esc(cap(e.nombre))}</td><td class="muted">${esc(e.grupo||'')}</td><td class="muted">${e.rep_min??'-'}-${e.rep_max??'-'} · RIR ${e.rir??'-'}</td><td><button class="sm ghost" onclick="EJ_EDIT=(EJ_EDIT==='${e.id}'?null:'${e.id}');renderEj()">✏️ Editar</button> <button class="sm ghost" onclick="editVid('${e.id}')">${e.video_url?'🎬':'+ link'}</button> <button class="sm ghost" onclick="borrarEjercicio('${e.id}')" title="Borrar">🗑</button></td></tr>${EJ_EDIT===String(e.id)?editForm(e):''}`).join("")}</table>`;
+  $("ejlist").innerHTML=`<table><tr><th>Ejercicio</th><th>Grupo</th><th>Reps · RIR</th><th>Acciones</th></tr>${list.map(e=>`<tr><td>${esc(cap(e.nombre))}</td><td class="muted">${esc(e.grupo||'')}</td><td class="muted">${e.rep_min??'-'}-${e.rep_max??'-'} · RIR ${e.rir??'-'}</td><td><button class="sm ghost" onclick="EJ_EDIT=(EJ_EDIT==='${e.id}'?null:'${e.id}');renderEj()">Editar</button> <button class="sm ghost" onclick="editVid('${e.id}')">${e.video_url?'Video':'+ link'}</button> <button class="sm ghost" onclick="borrarEjercicio('${e.id}')" title="Borrar">Borrar</button></td></tr>${EJ_EDIT===String(e.id)?editForm(e):''}`).join("")}</table>`;
 }
 // Sube un video PROPIO (mp4/mov) al bucket público videos-ejercicios y lo vincula al
 // ejercicio (video_url). En la app se reproduce con el reproductor nativo (expo-av) →
@@ -4557,13 +4557,13 @@ async function verAlimentos(){
   try{ await planCargarCatalogo(MIID); }catch(_){}
   const {data:pubrec}=await sb.from("recetas").select("id,nombre,tipo,kcal,prot,carb,fat,comunidad,ingredientes,pasos,ingredientes_json").eq("comunidad",true).order("nombre");
   const RECS=pubrec||[]; window.RECS=RECS;
-  const recCard=`<datalist id="recCat">${PLAN_CATNAMES.map(n=>`<option value="${esc(n)}"></option>`).join("")}</datalist><div class="card"><h2 style="margin-top:0">🍳 Recetario público <span class="muted" style="font-size:13px;font-weight:400">· ${RECS.length} recetas</span></h2>
+  const recCard=`<datalist id="recCat">${PLAN_CATNAMES.map(n=>`<option value="${esc(n)}"></option>`).join("")}</datalist><div class="card"><h2 style="margin-top:0">Recetario público <span class="muted" style="font-size:13px;font-weight:400">· ${RECS.length} recetas</span></h2>
    <div class="muted" style="font-size:12px;margin-bottom:8px">Recetas que ven <b>todos los clientes</b> y que el <b>plan de alimentación</b> puede usar como combinaciones. Pega varias y se cargan de una.</div>
-   <h3 style="margin:6px 0 4px">📥 Importar en lote</h3>
+   <h3 style="margin:6px 0 4px">Importar en lote</h3>
    <div class="muted" style="font-size:12px;margin-bottom:6px">Cada receta empieza con <b>número y punto</b> ("1. Nombre — dulce/salado"). Los títulos en MAYÚSCULA (DESAYUNOS, ALMUERZOS Y CENAS, SNACKS…) fijan el tipo. Incluye <b>Ingredientes:</b> (con gramos), <b>Preparación:</b> y <b>Macros:</b> (si faltan, se calculan del banco).</div>
    <textarea id="imp_recetas" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px" placeholder="DESAYUNOS&#10;1. Bowl de avena y banano — dulce&#10;Macros: 380 kcal G7 C48 P30 Ingredientes: 80 g de avena; 30 g de proteína; 100 g de banano Preparación: Mezcla y cocina."></textarea>
-   <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><button class="sm ghost" onclick="estructurarRecetasIA()" title="Pega nombres o recetas sueltas (ej. 'Salmón con arroz y brócoli', 'Bandeja paisa fit') y la IA las estructura con gramos y macros, listas para el plan.">🤖 Estructurar con IA</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
-   ${RECS.length?`<div style="margin-top:12px;max-height:460px;overflow:auto;border-top:1px solid var(--line);padding-top:8px">${RECS.map(r=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(cap(r.nombre))} <span class="muted" style="font-size:11px">· ${esc(r.tipo||'')} · ${r.kcal||0} kcal</span></span><span style="display:flex;gap:4px;flex:0 0 auto"><button class="sm ghost" onclick="editarRecetaPub('${r.id}')">✏️ Editar</button><button class="sm ghost" onclick="borrarRecetaPub('${r.id}')" title="Borrar">🗑</button></span></div>${REC_EDIT===String(r.id)?recetaEditorHTML(r):''}</div>`).join('')}</div>`:''}
+   <div class="row" style="margin-top:6px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:12px;flex:0 0 auto"><input type="checkbox" id="imp_com" checked> Públicas (las ven todos)</label><button class="sm" onclick="importarRecetasLote()">Cargar recetas</button><button class="sm ghost" onclick="estructurarRecetasIA()" title="Pega nombres o recetas sueltas (ej. 'Salmón con arroz y brócoli', 'Bandeja paisa fit') y la IA las estructura con gramos y macros, listas para el plan.">Estructurar con IA</button><span id="impMsg" class="muted" style="font-size:12px"></span></div>
+   ${RECS.length?`<div style="margin-top:12px;max-height:460px;overflow:auto;border-top:1px solid var(--line);padding-top:8px">${RECS.map(r=>`<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(cap(r.nombre))} <span class="muted" style="font-size:11px">· ${esc(r.tipo||'')} · ${r.kcal||0} kcal</span></span><span style="display:flex;gap:4px;flex:0 0 auto"><button class="sm ghost" onclick="editarRecetaPub('${r.id}')">Editar</button><button class="sm ghost" onclick="borrarRecetaPub('${r.id}')" title="Borrar">Borrar</button></span></div>${REC_EDIT===String(r.id)?recetaEditorHTML(r):''}</div>`).join('')}</div>`:''}
   </div>`;
   // ===== Fragmentos de cada sub-pestaña =====
   const abrecCard=`<div class="card"><h2 style="margin-top:0">Alimentos recomendados${AB_REC.length?` <span style="color:#c0392b">(${AB_REC.length})</span>`:` (0)`}</h2>
@@ -4586,7 +4586,7 @@ async function verAlimentos(){
   const nCat=AB.length,nRec=AB_REC.length,nRecetas=RECS.length;
   const stab=(t,label,extra='')=>`<button onclick="alTab('${t}')" style="padding:7px 13px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--line);${ALTAB===t?'background:#B51718;color:#fff;border-color:#B51718':'background:var(--card2);color:var(--muted)'}">${label}${extra}</button>`;
   const pill=n=>n?` <span style="background:rgba(224,184,74,.22);color:#e0b84a;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px">${n}</span>`:'';
-  const nav=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${stab('cat','🥗 Catálogo ('+nCat+')')}${stab('aprobar','⏳ Por aprobar',pill(nRec))}${stab('recetas','🍳 Recetario ('+nRecetas+')')}</div>`;
+  const nav=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${stab('cat','Catálogo ('+nCat+')')}${stab('aprobar','Por aprobar',pill(nRec))}${stab('recetas','Recetario ('+nRecetas+')')}</div>`;
 
   let body;
   if(ALTAB==='aprobar')body=abrecCard;
@@ -4686,7 +4686,7 @@ function renderABRec(){
     <td class="muted" style="font-size:12px">${Math.round(a.k||0)} kcal · P${a.p??0}/C${a.c??0}/G${a.f??0}</td>
     <td class="muted" style="font-size:12px">${a.porcion_g?a.porcion_g+" g":"—"}</td>
     <td class="muted" style="font-size:12px">${esc(a._quien||"—")}</td>
-    <td style="white-space:nowrap"><button class="sm" onclick="AB_REC_EDIT=(AB_REC_EDIT==='${a.id}'?null:'${a.id}');renderABRec()" title="Editar macros y aprobar">✏️ Editar</button> <button class="sm ghost" onclick="aprobarAlimento('${a.id}')" title="Aprobar tal cual">Aprobar</button> <button class="sm ghost" onclick="rechazarAlimento('${a.id}')">Rechazar</button></td></tr>${AB_REC_EDIT===String(a.id)?editForm(a):''}`).join("")}</table>`;
+    <td style="white-space:nowrap"><button class="sm" onclick="AB_REC_EDIT=(AB_REC_EDIT==='${a.id}'?null:'${a.id}');renderABRec()" title="Editar macros y aprobar">Editar</button> <button class="sm ghost" onclick="aprobarAlimento('${a.id}')" title="Aprobar tal cual">Aprobar</button> <button class="sm ghost" onclick="rechazarAlimento('${a.id}')">Rechazar</button></td></tr>${AB_REC_EDIT===String(a.id)?editForm(a):''}`).join("")}</table>`;
 }
 // Guarda las correcciones del entrenador y aprueba el alimento al menú oficial MAM.
 async function aprobarAlimentoEdit(id){
@@ -4757,7 +4757,7 @@ function renderAB(){
       </td></tr>`;
     }
     const oculto=a.activo===false;
-    return `<tr${oculto?' style="opacity:.5"':''}><td><b>${esc(a.nombre)}</b>${oculto?' <span class="pill" style="background:var(--card2)">oculto</span>':''}${a.marca?`<br><span class="muted" style="font-size:11px">${esc(a.marca)}</span>`:''}</td><td class="muted">${esc(catLabel(a.categoria))}</td><td>${Math.round(a.k||0)}</td><td>${a.p??0}</td><td>${a.c??0}</td><td>${a.f??0}</td><td style="white-space:nowrap"><button class="sm ghost" onclick="abEdit('${a.id}')" title="Editar">✏️</button><button class="sm ghost" onclick="toggleAlimentoActivo('${a.id}')" title="${oculto?'Mostrar de nuevo':'Ocultar sin borrar (deja de verlo el cliente, no se borra)'}">${oculto?'↩':'🚫'}</button><button class="sm ghost" onclick="borrarAlimento('${a.id}')" title="Quitar del catálogo (borra)">🗑</button></td></tr>`;
+    return `<tr${oculto?' style="opacity:.5"':''}><td><b>${esc(a.nombre)}</b>${oculto?' <span class="pill" style="background:var(--card2)">oculto</span>':''}${a.marca?`<br><span class="muted" style="font-size:11px">${esc(a.marca)}</span>`:''}</td><td class="muted">${esc(catLabel(a.categoria))}</td><td>${Math.round(a.k||0)}</td><td>${a.p??0}</td><td>${a.c??0}</td><td>${a.f??0}</td><td style="white-space:nowrap"><button class="sm ghost" onclick="abEdit('${a.id}')" title="Editar">Editar</button><button class="sm ghost" onclick="toggleAlimentoActivo('${a.id}')" title="${oculto?'Mostrar de nuevo':'Ocultar sin borrar (deja de verlo el cliente, no se borra)'}">${oculto?'Mostrar':'Ocultar'}</button><button class="sm ghost" onclick="borrarAlimento('${a.id}')" title="Quitar del catálogo (borra)">Borrar</button></td></tr>`;
   };
   $("ablist").innerHTML=`<table><tr><th>Alimento</th><th>Categoría</th><th>Kcal</th><th>P</th><th>C</th><th>G</th><th></th></tr>${list.map(fila).join("")}</table>`;
 }
@@ -4818,7 +4818,7 @@ async function verComunidad(){
   const pp={};(intt.data||[]).forEach(i=>pp[i.user_id]=(pp[i.user_id]||0)+(i.puntos||0));(pts.data||[]).forEach(p=>pp[p.user_id]=Math.max(pp[p.user_id]||0,p.total||0));
   const topPts=Object.entries(pp).sort((a,b)=>b[1]-a[1]).slice(0,10);
   const tabla=(arr,unidad)=>arr.length?`<table>${arr.map(([u,n],i)=>`<tr><td>${i+1}. <a href="#" onclick="tab('clientes');verCliente('${u}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:600;text-decoration:none">${esc(perfiles[u]||u.slice(0,8))}</a></td><td><b>${n}</b> ${unidad}</td></tr>`).join("")}</table>`:'<div class="muted">Sin datos aún.</div>';
-  $("v-comunidad").innerHTML=`<div class="card"><h2 style="margin-top:0">🏆 Top recetas subidas</h2>${tabla(topRec,"recetas")}</div><div class="card"><h2 style="margin-top:0">🎯 Top puntos (juego de adivinar)</h2>${tabla(topPts,"pts")}</div><div class="card muted">Toca el nombre de quien más aporta para abrir su ficha y reconocerlo (mensaje por WhatsApp desde Recordatorios/Acceso).</div>`;
+  $("v-comunidad").innerHTML=`<div class="card"><h2 style="margin-top:0">Top recetas subidas</h2>${tabla(topRec,"recetas")}</div><div class="card"><h2 style="margin-top:0">Top puntos (juego de adivinar)</h2>${tabla(topPts,"pts")}</div><div class="card muted">Toca el nombre de quien más aporta para abrir su ficha y reconocerlo (mensaje por WhatsApp desde Recordatorios/Acceso).</div>`;
 }
 
 // PARTE 8: Sugerencias agrupadas
@@ -4835,7 +4835,7 @@ async function verSugerencias(){
   const grupos={};fb.forEach(f=>{const t=(f.tema||"General").trim();(grupos[t]=grupos[t]||[]).push(f);});
   // Digest IA (propuestas de mejora automáticas)
   const col={alta:"var(--bad)",media:"var(--warn)",baja:"var(--ok)"};
-  let h=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">🤖 Digest IA · mejoras propuestas</h2><button class="sm" onclick="generarDigest()">Generar ahora</button></div>`;
+  let h=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Digest IA · mejoras propuestas</h2><button class="sm" onclick="generarDigest()">Generar ahora</button></div>`;
   if(dg){
     h+=`<div class="muted" style="font-size:12px;margin:4px 0">Actualizado ${esc((dg.fecha||'').toString())} · ${dg.n_feedback||0} feedback analizados</div><p>${esc(dg.resumen||'')}</p>`;
     const props=Array.isArray(dg.propuestas)?dg.propuestas:[];
@@ -4875,7 +4875,7 @@ async function verInterno(){
     <label class="lbl">Área</label><select id="fi_area">${AREAS_INT.map(a=>`<option>${a}</option>`).join("")}</select>
     <label class="lbl">¿Qué mejorarías o qué falta?</label><textarea id="fi_txt" rows="3" placeholder="Ej: en Clientes, filtrar por ticket. En Informes, editar el veredicto antes de publicar."></textarea>
     <button style="margin-top:8px" onclick="enviarFeedbackInterno()">Enviar</button> <span id="fiMsg" class="muted"></span></div>`;
-  h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">🤖 Revisión semanal de la consola</h2><button class="sm" onclick="generarConsolaDigest()">Generar ahora</button></div>`;
+  h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Revisión semanal de la consola</h2><button class="sm" onclick="generarConsolaDigest()">Generar ahora</button></div>`;
   if(dg){
     h+=`<div class="muted" style="font-size:12px;margin:4px 0">Actualizado ${esc((dg.fecha||dg.created_at||'').toString().slice(0,10))} · ${dg.n_feedback||0} notas</div><p>${esc(dg.resumen||'')}</p>`;
     const props=Array.isArray(dg.propuestas)?dg.propuestas:[];
@@ -4983,7 +4983,7 @@ function iaEjId(nombre){const q=(nombre||'').toLowerCase().trim();if(!q)return n
 // equivocarse). Así el entrenador confirma antes de aplicar.
 function iaResuelto(a){
   const nm=id=>{const e=EJ.find(x=>String(x.id)===String(id));return e?e.nombre:null;};
-  const chk=n=>{const r=iaEjId(n);const rn=r?nm(r):null;return rn?`"${n}" → ${rn}`:`"${n}" → ⚠ no encontrado`;};
+  const chk=n=>{const r=iaEjId(n);const rn=r?nm(r):null;return rn?`"${n}" → ${rn}`:`"${n}" → no encontrado`;};
   const p=[];
   if(a.ejercicio&&['series','tecnica','agregar_ejercicio','quitar_ejercicio'].includes(a.tipo))p.push(chk(a.ejercicio));
   if(a.tipo==='swap'){if(a.ejercicio_actual)p.push(chk(a.ejercicio_actual));if(a.ejercicio_nuevo)p.push(chk(a.ejercicio_nuevo));}
@@ -5023,7 +5023,7 @@ async function iaAplicar(){
       RUT.updated_at=nowIso;
     }
   }catch(e){}}
-  if(rutConflicto){$("ia_msg").innerHTML=`<span class="alert">⚠️ Otra persona modificó esta rutina mientras usabas la IA. NO apliqué los cambios de rutina para no borrar su trabajo. Abre de nuevo el cliente y reintenta.</span>`;return;}
+  if(rutConflicto){$("ia_msg").innerHTML=`<span class="alert">Otra persona modificó esta rutina mientras usabas la IA. NO apliqué los cambios de rutina para no borrar su trabajo. Abre de nuevo el cliente y reintenta.</span>`;return;}
   // Si pidió generar el plan de alimentación: cerramos el motor, llenamos el panel
   // del plan (alimentos + días) y lo generamos para que el entrenador lo revise/apruebe.
   const planAcc=IA_ACC.find(a=>a.tipo==='plan_generar');
@@ -5056,8 +5056,8 @@ async function verPlantillas(){
   if(error){cont.innerHTML=`<div class="card alert">No se pudieron cargar las plantillas: ${esc(error.message)}.<div class="muted" style="font-size:12px;margin-top:6px">Si la tabla aún no existe, créala UNA vez con el SQL de <b>0048_rutinas_plantilla.sql</b> en el editor de Supabase.</div></div>`;return;}
   PLANT=data||[];
   let h=`<div class="card"><h2 style="margin-top:0">Rutinas estándar (${PLANT.length})</h2>
-    <div class="muted" style="font-size:12px;margin-bottom:6px">Biblioteca para asignar y arrancar cuando lo necesites. Crea plantillas desde la ficha de un cliente (Entrenamiento → "💾 Guardar como plantilla"). <b>Asignar reemplaza la rutina del cliente que elijas</b>; no toca a los demás ni a las rutinas ya existentes.</div>`;
-  if(!PLANT.length)h+=`<div class="muted" style="font-size:12px">Aún no hay plantillas. Abre un cliente con una buena rutina → sección Entrenamiento → "💾 Guardar como plantilla".</div>`;
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Biblioteca para asignar y arrancar cuando lo necesites. Crea plantillas desde la ficha de un cliente (Entrenamiento → "Guardar como plantilla"). <b>Asignar reemplaza la rutina del cliente que elijas</b>; no toca a los demás ni a las rutinas ya existentes.</div>`;
+  if(!PLANT.length)h+=`<div class="muted" style="font-size:12px">Aún no hay plantillas. Abre un cliente con una buena rutina → sección Entrenamiento → "Guardar como plantilla".</div>`;
   h+=PLANT.map(t=>{
     const dias=(t.dias||[]);
     const prev=dias.map(d=>`${esc(d.nombre||'Día')} (${(d.orden||[]).length} ej.)`).join(' · ');
@@ -5129,7 +5129,7 @@ function calInnerHTML(){
   h+=`<h3>Fases (colores del timeline)</h3><div>`;
   CAL.fases.forEach((f,i)=>{h+=`<span style="display:inline-flex;align-items:center;gap:4px;margin:0 8px 6px 0"><input type="color" value="${f.color||'#888888'}" onchange="CAL.fases[${i}].color=this.value;calRefresh()" style="width:28px;height:24px;padding:0;border:none;background:none"><input value="${esc(f.nombre||'')}" onchange="CAL.fases[${i}].nombre=this.value;calRefresh()" style="width:120px" placeholder="Fase"><button class="sm ghost" onclick="CAL.fases.splice(${i},1);calRefresh()">×</button></span>`;});
   h+=`</div><button class="sm ghost" onclick="CAL.fases.push({nombre:'Nueva',color:'#888888'});calRefresh()">+ Fase</button>`;
-  // 🎯 Auto-planeador de prep desde el PESO (escuela natural): traza la línea de peso
+  // Auto-planeador de prep desde el PESO (escuela natural): traza la línea de peso
   // semanal del peso actual (app) → peso de tarima, a ~0.6-0.75%/sem, con Peak Week al
   // final; rellena peso/kcal/fase. Params en CAL.volumen.__prep (jsonb, sin columna nueva).
   CAL.volumen.__prep=CAL.volumen.__prep||{};
@@ -5139,7 +5139,7 @@ function calInnerHTML(){
   if(P.ritmo==null)P.ritmo=0.7;
   if(P.mant==null&&_pa)P.mant=Math.round(_pa*33);
   if(P.tarima==null&&_pa&&P.bfNow)P.tarima=Math.round(_pa*(1-P.bfNow/100)/(1-P.bfGoal/100)*10)/10;
-  h+=`<h3>🎯 Auto-planear la prep desde el peso</h3>
+  h+=`<h3>Auto-planear la prep desde el peso</h3>
     <div class="muted" style="font-size:12px;margin-bottom:6px">Traza la línea de peso semanal desde el <b>peso actual (app)</b> hasta el <b>peso de tarima</b>, al ritmo del culturismo natural, con <b>Peak Week</b> al final. Rellena peso, kcal y fase de cada semana (luego las editas a mano). La app estima el peso de tarima desde el %grasa; ajústalo según las fotos.</div>
     <div class="row" style="align-items:flex-end">
       <div><label class="lbl">Peso actual (app)</label><input value="${_pa!=null?_pa+' kg':'—'}" disabled></div>
@@ -5151,7 +5151,7 @@ function calInnerHTML(){
       <div><label class="lbl">Ritmo (%/sem)</label><input type="number" step="0.05" value="${P.ritmo!=null?P.ritmo:0.7}" onchange="CAL.volumen.__prep.ritmo=this.value===''?0.7:+this.value"></div>
       <div><label class="lbl">Mantenimiento (kcal)</label><input type="number" value="${P.mant!=null?P.mant:''}" onchange="CAL.volumen.__prep.mant=this.value===''?null:+this.value"></div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 2px"><button class="sm ghost" onclick="calTarimaEst()">↻ Estimar tarima desde %grasa</button><button class="sm" onclick="calAutoPlan()">🎯 Auto-planear semanas</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 2px"><button class="sm ghost" onclick="calTarimaEst()">Estimar tarima desde %grasa</button><button class="sm" onclick="calAutoPlan()">Auto-planear semanas</button></div>
     <div class="muted" style="font-size:11px">Estándar natural: 0.6–0.75%/sem (más lento = más músculo). Reemplaza las semanas del timeline; luego las ajustas.</div>`;
   h+=`<h3>Timeline anual por semanas</h3>
     <div class="row" style="align-items:flex-end;margin-bottom:6px">
@@ -5172,7 +5172,7 @@ function calInnerHTML(){
       <td><input type="number" value="${s.peso_obj!=null?s.peso_obj:''}" onchange="CAL.semanas[${i}].peso_obj=this.value===''?null:+this.value" style="width:64px;text-align:center;margin:0"></td>
       <td><input type="number" value="${s.kcal_obj!=null?s.kcal_obj:''}" onchange="CAL.semanas[${i}].kcal_obj=this.value===''?null:+this.value" style="width:74px;text-align:center;margin:0"></td>
       <td><input value="${esc(s.notas||'')}" onchange="CAL.semanas[${i}].notas=this.value" style="width:100%;min-width:130px;margin:0"></td>
-      <td style="white-space:nowrap;text-align:center"><button class="sm ghost" onclick="calMoverSem(${i},-1)" title="Subir" style="padding:2px 6px;margin:0"${i===0?' disabled':''}>↑</button> <button class="sm ghost" onclick="calMoverSem(${i},1)" title="Bajar" style="padding:2px 6px;margin:0"${i===CAL.semanas.length-1?' disabled':''}>↓</button> <button class="sm ghost" onclick="calDupSem(${i})" title="Duplicar semana" style="padding:2px 6px;margin:0">⧉</button> <button class="sm ghost" onclick="CAL.semanas.splice(${i},1);calRefresh()" title="Quitar" style="padding:2px 6px;margin:0">×</button></td>
+      <td style="white-space:nowrap;text-align:center"><button class="sm ghost" onclick="calMoverSem(${i},-1)" title="Subir" style="padding:2px 6px;margin:0"${i===0?' disabled':''}>↑</button> <button class="sm ghost" onclick="calMoverSem(${i},1)" title="Bajar" style="padding:2px 6px;margin:0"${i===CAL.semanas.length-1?' disabled':''}>↓</button> <button class="sm ghost" onclick="calDupSem(${i})" title="Duplicar semana" style="padding:2px 6px;margin:0">Duplicar</button> <button class="sm ghost" onclick="CAL.semanas.splice(${i},1);calRefresh()" title="Quitar" style="padding:2px 6px;margin:0">×</button></td>
     </tr>`;});
   h+=`</tbody></table></div>`;
   h+=`<h3>Semana actual — comparativo</h3>`;
@@ -5208,7 +5208,7 @@ function calComparativo(s){
   const row=(lbl,obj,act,u)=>{const o=(obj!=null&&obj!=='')?+obj:null;const a=act!=null?Math.round(act*10)/10:null;let dif='—',est='—',col='#888';if(o!=null&&a!=null){const d=Math.round((a-o)*10)/10;dif=(d>0?'+':'')+d+' '+u;const tol=u==='kg'?0.4:80;if(Math.abs(d)<=tol){est='En objetivo';col='#22c55e';}else if(d>0){est='Por encima';col='#e23b3b';}else{est='Por debajo';col='#4c8dff';}}return `<tr><td>${lbl}</td><td>${o!=null?o+' '+u:'—'}</td><td>${a!=null?a+' '+u:'—'}</td><td>${dif}</td><td style="color:${col};font-weight:700">${est}</td></tr>`;};
   return `<table style="font-size:12px;width:100%"><tr><th>Métrica</th><th>Objetivo</th><th>Actual</th><th>Diferencia</th><th>Estado</th></tr>${row('Peso (kg)',s.peso_obj,pa,'kg')}${row('Kcal diarias',s.kcal_obj,ka,'kcal')}</table>`;
 }
-// 🔬 Seguimiento fino del proceso (más exacto que un pesaje suelto): usa el PROMEDIO
+// Seguimiento fino del proceso (más exacto que un pesaje suelto): usa el PROMEDIO
 // semanal del peso de la app vs el objetivo, calcula el ritmo real vs el planeado,
 // proyecta al show y recomienda qué ajustar (con la lógica del culturismo natural:
 // primero recuperación/adherencia, luego dieta; nunca perseguir la báscula en peak).
@@ -5218,7 +5218,7 @@ function calSeguimiento(){
   // Promedio real por semana del plan (pesos de la app dentro de [ini,fin]).
   const rows=sem.map(s=>{const inW=pesos.filter(p=>s.ini&&s.fin&&p.fecha>=s.ini&&p.fecha<=s.fin);const real=inW.length?Math.round(inW.reduce((a,p)=>a+p.peso,0)/inW.length*10)/10:null;return {s,real,n:inW.length};});
   const conReal=rows.filter(r=>r.real!=null);
-  let h=`<h3>🔬 Seguimiento del proceso</h3>`;
+  let h=`<h3>Seguimiento del proceso</h3>`;
   if(!conReal.length)return h+`<div class="muted" style="font-size:12px">Aún no hay pesos por semana. Pide al atleta que registre su peso <b>varios días por semana</b>: el seguimiento usa el <b>promedio semanal</b> (no un día suelto) para decidir con exactitud.</div>`;
   const ritmoPlan=+((CAL.volumen.__prep||{}).ritmo)||0.7;
   const tarima=+((CAL.volumen.__prep||{}).tarima)||null;
@@ -5252,8 +5252,8 @@ function calSeguimiento(){
   }
   if(proyTxt)h+=`<div class="fila"><span class="muted">Proyección al show</span><b style="text-align:right;max-width:62%">${proyTxt}</b></div>`;
   if(weeksLeft!=null)h+=`<div class="fila"><span class="muted">Semanas al show</span><b>${weeksLeft}</b></div>`;
-  h+=`<div class="fila"><span class="muted">Adherencia</span><b style="text-align:right;font-weight:600">🏋️ ${ctx.ses7!=null?ctx.ses7:'—'} ses/7d · 🍽️ ${ctx.promKcal!=null?ctx.promKcal+' kcal'+(curKobj?(' / obj '+curKobj):''):'sin registro'} · 😴 ${ctx.sprom!=null?ctx.sprom.toFixed(1)+'h':'—'} · Fatiga ${ctx.fatAvg!=null?ctx.fatAvg:'—'} · Energía ${ctx.enAvg!=null?ctx.enAvg:'—'}</b></div></div>`;
-  // 🧭 Recomendación (motor de decisión, orden natural: recuperación/adherencia → dieta).
+  h+=`<div class="fila"><span class="muted">Adherencia</span><b style="text-align:right;font-weight:600">${ctx.ses7!=null?ctx.ses7:'—'} ses/7d · ${ctx.promKcal!=null?ctx.promKcal+' kcal'+(curKobj?(' / obj '+curKobj):''):'sin registro'} · ${ctx.sprom!=null?ctx.sprom.toFixed(1)+'h':'—'} · Fatiga ${ctx.fatAvg!=null?ctx.fatAvg:'—'} · Energía ${ctx.enAvg!=null?ctx.enAvg:'—'}</b></div></div>`;
+  // Recomendación (motor de decisión, orden natural: recuperación/adherencia → dieta).
   const recs=[];
   if(curReal==null)recs.push({c:'var(--warn)',t:'Sin pesos esta semana → pídelos (varios días) antes de ajustar.'});
   if(esPeak)recs.push({c:'#f59e0b',t:'Peak week: NO persigas la báscula; maneja agua/glucógeno/sodio según tu protocolo.'});
@@ -5265,7 +5265,7 @@ function calSeguimiento(){
     const ev=evalPrepSemana({obj:curObj,prevObj:prevRow&&prevRow.s?prevRow.s.peso_obj:null,real:curReal,prev:prevRow?prevRow.real:null,ritmoPlan,nPesajes:curRow?curRow.n:0,fase:curFaseTxt,dowLate:true});
     if(ev.rec){const m=ev.motivo?ev.motivo.charAt(0).toUpperCase()+ev.motivo.slice(1)+' → ':'';recs.push({c:ev.color,t:m+ev.rec+'.'});}
   }
-  h+=`<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-left:3px solid var(--rojo);border-radius:8px;padding:8px 10px;margin-top:10px"><b>🧭 Recomendación</b><ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px;line-height:1.55">${recs.map(r=>`<li style="color:${r.c}">${r.t}</li>`).join('')}</ul><div class="muted" style="font-size:10.5px;margin-top:6px">Guía natural (Helms/3DMJ, RP): decisiones sobre el PROMEDIO semanal, no un día; primero recuperación y adherencia, luego dieta. Tú decides — esto es apoyo.</div></div>`;
+  h+=`<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-left:3px solid var(--rojo);border-radius:8px;padding:8px 10px;margin-top:10px"><b>Recomendación</b><ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px;line-height:1.55">${recs.map(r=>`<li style="color:${r.c}">${r.t}</li>`).join('')}</ul><div class="muted" style="font-size:10.5px;margin-top:6px">Guía natural (Helms/3DMJ, RP): decisiones sobre el PROMEDIO semanal, no un día; primero recuperación y adherencia, luego dieta. Tú decides — esto es apoyo.</div></div>`;
   return h;
 }
 function calVolTotal(){let t=0;CAL_MUS.forEach(m=>{t+=+CAL.volumen[m]||0;});const el=$("calVolTot");if(el)el.innerHTML='<b>'+t+'</b>';}
@@ -5275,7 +5275,7 @@ function calAddSemana(){CAL.semanas=CAL.semanas||[];CAL.semanas.push({semana:CAL
 // Estima el peso de tarima desde el %grasa actual y el %grasa meta (masa magra
 // constante): tarima = pesoActual*(1-bfNow)/(1-bfGoal). Editable después por fotos.
 function calTarimaEst(){const P=CAL.volumen.__prep||(CAL.volumen.__prep={});const pa=CAL_CTX.pesoActual;const bf=+P.bfNow,bg=+P.bfGoal||5.5;if(!pa||!bf){alert('Necesito el peso actual (app) y el %grasa actual para estimar el peso de tarima.');return;}P.tarima=Math.round(pa*(1-bf/100)/(1-bg/100)*10)/10;calRefresh();}
-// 🎯 Auto-planea la prep (escuela natural): línea de peso semanal del peso actual (app)
+// Auto-planea la prep (escuela natural): línea de peso semanal del peso actual (app)
 // → peso de tarima al ritmo %/sem elegido (bajada frontal), holding antes si sobra
 // tiempo, y Peak Week al final. Propone kcal por semana desde el déficit de la pérdida
 // planeada (7700 kcal/kg). Reemplaza CAL.semanas. No toca rutinas ni mesociclos.
@@ -5309,7 +5309,7 @@ function calAutoPlan(){
     for(let i=1;i<=n;i++){lineaPesos.push(Math.round((pa+(tarima-pa)*(i/n))*10)/10);fases.push('Definición');}
     lineaPesos.push(tarima);fases.push('Peak Week');
     const ritmoReal=(1-Math.pow(tarima/pa,1/n))*100;
-    aviso=`⚠️ El tiempo no alcanza para el ritmo elegido: el plan saldría a ~${ritmoReal.toFixed(2)}%/sem (más agresivo, más riesgo de perder músculo). Considera empezar antes o subir el peso de tarima.`;
+    aviso=`El tiempo no alcanza para el ritmo elegido: el plan saldría a ~${ritmoReal.toFixed(2)}%/sem (más agresivo, más riesgo de perder músculo). Considera empezar antes o subir el peso de tarima.`;
   }
   const semanas=[];let d=new Date(hoyMon);
   for(let i=0;i<weeksAvail;i++){
@@ -5414,7 +5414,7 @@ function anEstancamiento(meso){
   Object.keys(byEj).forEach(k=>{const ws=Object.keys(byEj[k]).map(Number).sort((a,b)=>a-b);if(ws.length<2)return;const w0=ws[0],w1=ws[ws.length-1];const e0=byEj[k][w0].e,e1=byEj[k][w1].e;const r0=avg(byEj[k][w0].rpe),r1=avg(byEj[k][w1].rpe);const pct=e0>0?(e1-e0)/e0*100:0;const dRpe=(r0!=null&&r1!=null)?r1-r0:null;if(pct<=1.5&&dRpe!=null&&dRpe>=0.5)out.push({id:k,nombre:AN.ejById[k]||'',grupo:AN.grById[k]||'',pct:Math.round(pct*10)/10,dRpe:Math.round(dRpe*10)/10});});
   return out.sort((a,b)=>b.dRpe-a.dRpe);
 }
-function anTablaEstanc(rows){if(!rows.length)return '<div class="muted" style="font-size:12px">Sin señales de estancamiento con fatiga en este bloque. 💪</div>';return `<table class="data" style="font-size:12px;width:100%"><tr><th>Ejercicio</th><th>Músculo</th><th>Δ 1RM</th><th>Δ RPE</th></tr>${rows.map(r=>`<tr><td>${esc(r.nombre)}</td><td class="muted">${esc(r.grupo)}</td><td style="color:var(--warn);font-weight:700">${r.pct>0?'+':''}${r.pct}%</td><td style="color:var(--rojo);font-weight:700">+${r.dRpe}</td></tr>`).join('')}</table>`;}
+function anTablaEstanc(rows){if(!rows.length)return '<div class="muted" style="font-size:12px">Sin señales de estancamiento con fatiga en este bloque.</div>';return `<table class="data" style="font-size:12px;width:100%"><tr><th>Ejercicio</th><th>Músculo</th><th>Δ 1RM</th><th>Δ RPE</th></tr>${rows.map(r=>`<tr><td>${esc(r.nombre)}</td><td class="muted">${esc(r.grupo)}</td><td style="color:var(--warn);font-weight:700">${r.pct>0?'+':''}${r.pct}%</td><td style="color:var(--rojo);font-weight:700">+${r.dRpe}</td></tr>`).join('')}</table>`;}
 function anCardHTML(){
   const ejs=anEjerciciosConDatos();
   if(!ejs.length)return `<div class="card"><h2 style="margin-top:0">Análisis de entreno</h2><div class="muted">Aún no hay registros de entrenamiento suficientes para analizar.</div></div>`;
