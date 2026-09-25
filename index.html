@@ -1154,7 +1154,9 @@ async function verContactar(force){
     el.innerHTML='<div class="card">Cargando CRM… (una sola vez)</div>';
     const {data,error}=await invokeFn('crm-unificado',{body:{all:true}});
     if(error||(data&&data.error)){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`;return;}
-    window.CU_ALL=data.items||[]; window.CU_META={counts:data.counts||{},nivelCount:data.nivelCount||{},total_general:data.total_general||0,generado:data.generado};
+    window.CU_ALL=data.items||[]; window.CU_META={counts:data.counts||{},nivelCount:data.nivelCount||{},total_general:data.total_general||0,generado:data.generado,cupon:data.cupon||null};
+    // Guiones editables del equipo (si el equipo los cambió). Silencioso si falla.
+    try{ const gc=await invokeFn('crm-config',{body:{action:'get'}}); if(gc&&gc.data&&gc.data.guiones) window.CU_GUIONES=gc.data.guiones; }catch(e){}
   }
   renderContactar();
 }
@@ -1215,14 +1217,17 @@ function cuSegmento(i){
   if(i.grupo==='Vencido') return 'vencido';
   return 'prueba';
 }
-// Guiones por segmento (voz de marca, sin emojis). {et}=etiqueta corta, {msg}=texto.
-const GUIONES={
-  no_descargo:{et:'No descargó',msg:function(n){return 'Hola '+n+', soy del equipo de Juan Camilo. Vi que te interesó entrenar con estrategia. Te regalo el análisis de tu rutina actual con nuestro método: qué estás haciendo bien y qué te está frenando. ¿Te lo mando?';}},
-  prueba:{et:'Prueba',msg:function(n){return 'Hola '+n+', veo que ya estás dentro. Para que le saques el jugo desde esta semana te armo el análisis de tu rutina y te muestro el primer ajuste. ¿Te va bien una llamada corta hoy o mañana?';}},
-  regalo:{et:'Regalo sin canjear',msg:function(n){return 'Hola '+n+', te guardé el acceso de 21 días que te comenté. Se vence pronto y no quiero que lo pierdas. Te dejo el paso a paso, te toma 2 minutos.';}},
-  vencido:{et:'Winback',msg:function(n){return 'Hola '+n+', cambió bastante la app desde que estuviste: ahora la rutina se ajusta sola cada semana. Te reactivo el acceso para que la pruebes de nuevo sin costo unos días. ¿Le damos?';}}
+// Guiones por segmento (voz de marca, sin emojis). Plantillas con [nombre].
+// Editables por el equipo (se guardan en crm_config); estos son los de fábrica.
+const SEG_ET={no_descargo:'No descargó',prueba:'Prueba',regalo:'Regalo sin canjear',vencido:'Winback'};
+const GUION_TXT_DEFAULT={
+  no_descargo:'Hola [nombre], soy del equipo de Juan Camilo. Vi que te interesó entrenar con estrategia. Te regalo el análisis de tu rutina actual con nuestro método: qué estás haciendo bien y qué te está frenando. ¿Te lo mando?',
+  prueba:'Hola [nombre], veo que ya estás dentro. Para que le saques el jugo desde esta semana te armo el análisis de tu rutina y te muestro el primer ajuste. ¿Te va bien una llamada corta hoy o mañana?',
+  regalo:'Hola [nombre], te guardé el acceso de 21 días que te comenté. Se vence pronto y no quiero que lo pierdas. Te dejo el paso a paso, te toma 2 minutos.',
+  vencido:'Hola [nombre], cambió bastante la app desde que estuviste: ahora la rutina se ajusta sola cada semana. Te reactivo el acceso para que la pruebes de nuevo sin costo unos días. ¿Le damos?'
 };
-function cuMensaje(i){ const n=(i.nombre||'').split(' ')[0]||''; const s=GUIONES[cuSegmento(i)]||GUIONES.no_descargo; return s.msg(n); }
+function guionTxt(seg){ const g=window.CU_GUIONES||{}; return g[seg]||GUION_TXT_DEFAULT[seg]||GUION_TXT_DEFAULT.no_descargo; }
+function cuMensaje(i){ const n=(i.nombre||'').split(' ')[0]||''; return guionTxt(cuSegmento(i)).replace(/\[nombre\]/g,n); }
 // Toast de confirmación (sensación de juego: feedback inmediato). Sin librerías.
 let _toastT=null;
 function toast(txt,tipo){
@@ -1260,13 +1265,28 @@ function renderContactar(){
   const nNuevos=(()=>{const lim=Date.now()-48*3600*1000;return ALL.filter(i=>i.grupo!=='Cliente'&&i.registrado&&new Date(i.registrado).getTime()>=lim).length;})();
   const nSeg=ALL.filter(i=>i.contacto_estado==='seguimiento').length;
   const nCanjeo=ALL.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21').length;
+  // Embudo de los últimos 7 días (por último contacto). Solo no-clientes.
+  const cupon=meta.cupon;
+  const wk=Date.now()-7*86400000;
+  const worked=ALL.filter(i=>i.grupo!=='Cliente'&&i.contacto_ultimo&&new Date(i.contacto_ultimo).getTime()>=wk);
+  const fCont=worked.length;
+  const fResp=worked.filter(i=>['respondio','acepto_regalo','agendado','ganado'].includes(i.contacto_estado)).length;
+  const fAg=worked.filter(i=>i.contacto_estado==='agendado'||i.regalo==='MAM-APP21'||i.contacto_estado==='acepto_regalo').length;
+  const fWon=worked.filter(i=>i.contacto_estado==='ganado').length;
+  const pct=(a,b)=>b?Math.round(a/b*100):0;
+  const funBox=(l,n,p)=>`<div style="flex:1;min-width:120px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:10px;padding:10px 12px"><div style="font-size:22px;font-weight:800">${n}</div><div class="muted" style="font-size:11px">${esc(l)}${p?' · '+p:''}</div></div>`;
   let h=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
       <div><h2 style="margin:0">Contactar <span class="muted" style="font-size:13px;font-weight:400">· ${data.total_general} personas</span></h2>
       <div class="muted" style="font-size:12px;margin-top:4px">Todo en un lugar: los que no descargaron, los que tienen el regalo y los que ya están en la app. Ordenado por propensión a comprar (entrenar pesa más).</div></div>
-      <div style="display:flex;gap:6px;align-items:center"><button class="sm ghost" onclick="verContactar(true)" title="Volver a traer los datos frescos del servidor">Actualizar</button><a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a></div>
+      <div style="display:flex;gap:6px;align-items:center"><button class="sm ghost" onclick="cuEditarGuiones()" title="Editar los guiones de WhatsApp por segmento">Editar guiones</button><button class="sm ghost" onclick="verContactar(true)" title="Volver a traer los datos frescos del servidor">Actualizar</button><a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a></div>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}${cupon&&cupon.quedan<=10?`<span class="pill" style="background:rgba(226,59,59,.16);color:#ff8080;font-weight:700">Solo quedan ${cupon.quedan} cupones</span>`:''}</div>
+    <details style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700">Tablero de la semana${cupon?` · Cupones 21d: ${cupon.quedan} de ${cupon.maximo} disponibles`:''}</summary>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${funBox('Contactados',fCont,'')}${funBox('Respondieron',fResp,pct(fResp,fCont)+'%')}${funBox('Agendó o canjeó',fAg,pct(fAg,fCont)+'%')}${funBox('Compraron',fWon,pct(fWon,fCont)+'%')}</div>
+      <div class="muted" style="font-size:11px;margin-top:8px">Últimos 7 días, por último contacto. Metas: respuesta &gt; 40%, agenda &gt; 15%, compra &gt; 5%.</div>
+    </details>
     ${(()=>{const done=pending===0&&contactsHoy>0; const vacio=pending===0&&contactsHoy===0;
       return `<div style="margin-top:12px;background:${done?'rgba(63,184,79,.10)':(CU_FILTRO==='hoy'?'rgba(226,59,59,.10)':'var(--card2)')};border:1px solid ${done?'var(--ok)':(CU_FILTRO==='hoy'?'var(--rojo)':'var(--line)')};border-radius:14px;padding:14px 16px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1317,8 +1337,8 @@ function renderContactar(){
     const arg=JSON.stringify({id:i.id,email:i.email,telefono:i.telefono,nombre:i.nombre}).replace(/"/g,'&quot;');
     const selId=`est_${(i.id||i.email||Math.random()).toString().replace(/[^a-zA-Z0-9]/g,'')}`;
     const selEst=`<select id="${selId}" class="sm" onchange="marcarLead(${arg},this.value)" style="font-size:12px;padding:8px 10px;min-height:40px;border-radius:9px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===i.contacto_estado?' selected':''}>${t}</option>`).join('')+`</select>`;
-    const seg=GUIONES[cuSegmento(i)]||GUIONES.no_descargo;
-    const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:40px;border-radius:9px;padding:0 14px" title="Abre WhatsApp con el guion de: ${esc(seg.et)} (registra el toque)" onclick="waLead(${arg})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
+    const segEt=SEG_ET[cuSegmento(i)]||'';
+    const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:40px;border-radius:9px;padding:0 14px" title="Abre WhatsApp con el guion de: ${esc(segEt)} (registra el toque)" onclick="waLead(${arg})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
     // Botón de informe de rutina (solo si está en la app: tiene rutina que analizar).
     const infBtn=(i.en_app&&i.app_id)?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="informeWA('${i.app_id}','${esc(i.telefono||'')}','${esc((i.nombre||'').split(' ')[0])}')" title="Manda por WhatsApp el análisis científico de su rutina">Informe rutina</button>`:'';
     const toqueChip=Number(i.toques)>0?` <span class="pill" style="font-size:10px;background:var(--card2);color:#8fb3ff">${i.toques} ${i.toques==1?'toque':'toques'}</span>`:'';
@@ -1402,6 +1422,27 @@ async function guardarNota(o,txt){
 }
 // Historial (últimos 6 eventos) en texto legible.
 function histTexto(h){ if(!Array.isArray(h)||!h.length)return''; const et={contactado:'Contactado',respondio:'Respondió',acepto_regalo:'Aceptó regalo',agendado:'Agendó',seguimiento:'Seguimiento',no_interesado:'No interesado',ganado:'Compró',perdido:'Perdido'}; return h.slice(-6).reverse().map(e=>{const f=e.f?fFechaCorta(e.f):''; if(e.k==='toque')return f+' · toque '+e.v; if(e.k==='nota')return f+' · nota'; if(e.k==='estado')return f+' · '+(et[e.v]||e.v); return f;}).join('<br>'); }
+// Modal para editar los guiones de WhatsApp por segmento (compartidos por el equipo).
+function cuEditarGuiones(){
+  const segs=['no_descargo','prueba','regalo','vencido'];
+  let ov=document.getElementById('cu_gmodal'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='cu_gmodal';
+  ov.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:30px 16px;overflow:auto';
+  const box=segs.map(s=>`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:4px">${esc(SEG_ET[s])}</div><textarea id="g_${s}" style="width:100%;min-height:78px;background:var(--card2);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:10px;font-size:13px;font-family:inherit;box-sizing:border-box">${esc(guionTxt(s))}</textarea></div>`).join('');
+  ov.innerHTML=`<div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:620px;width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:16px">Guiones de WhatsApp</b><button class="sm ghost" onclick="document.getElementById('cu_gmodal').remove()">Cerrar</button></div>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">Usa [nombre] y se reemplaza por el primer nombre de la persona. Los cambios los ve todo el equipo.</div>
+    ${box}
+    <div style="display:flex;gap:8px;margin-top:6px"><button class="sm" style="min-height:40px;border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:9px;padding:0 16px" onclick="cuGuardarGuiones()">Guardar guiones</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+async function cuGuardarGuiones(){
+  const segs=['no_descargo','prueba','regalo','vencido']; const g={};
+  segs.forEach(s=>{const t=document.getElementById('g_'+s); if(t)g[s]=t.value;});
+  try{ await invokeFn('crm-config',{body:{action:'save',guiones:g}}); }catch(e){ toast('No se pudo guardar','warn'); return; }
+  window.CU_GUIONES=g; const ov=document.getElementById('cu_gmodal'); if(ov)ov.remove(); toast('Guiones guardados','win');
+}
 // Enlace "marcar…" progresivo: solo al tocarlo muestra las opciones (sin recargar la lista).
 function abrirMarcar(email,contId){ const c=$(contId); if(!c)return; c.innerHTML=`<button class="sm ghost" style="font-size:10px;padding:4px 8px" onclick="marcarCRM('${email}','cliente','${contId}')">Es cliente</button> <button class="sm ghost" style="font-size:10px;padding:4px 8px" onclick="marcarCRM('${email}','cancelado','${contId}')">Canceló</button> <button class="sm ghost" style="font-size:10px;padding:4px 8px;opacity:.6" onclick="marcarCRM('${email}','','${contId}')">quitar</button>`; }
 async function marcarCRM(email,estado,contId){ const c=contId?$(contId):null; const r=await invokeFn('crm-marcar',{body:{email,estado}}); if(r.error||(r.data&&r.data.error)){ if(c)c.innerHTML='<span class="muted" style="font-size:10px">error</span>'; return; } if(c)c.innerHTML=`<span style="font-size:10px;color:var(--ok)">✓ ${estado||'sin marca'}</span>`; }
