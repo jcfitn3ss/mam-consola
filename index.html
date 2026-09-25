@@ -1222,10 +1222,10 @@ function cuSegmento(i){
 // Editables por el equipo (se guardan en crm_config); estos son los de fábrica.
 const SEG_ET={no_descargo:'No descargó',prueba:'Prueba',regalo:'Regalo sin canjear',vencido:'Winback'};
 const GUION_TXT_DEFAULT={
-  no_descargo:'Hola [nombre], soy del equipo de Juan Camilo. Vi que te interesó entrenar con estrategia. Te regalo el análisis de tu rutina actual con nuestro método: qué estás haciendo bien y qué te está frenando. ¿Te lo mando?',
-  prueba:'Hola [nombre], veo que ya estás dentro. Para que le saques el jugo desde esta semana te armo el análisis de tu rutina y te muestro el primer ajuste. ¿Te va bien una llamada corta hoy o mañana?',
-  regalo:'Hola [nombre], te guardé el acceso de 21 días que te comenté. Se vence pronto y no quiero que lo pierdas. Te dejo el paso a paso, te toma 2 minutos.',
-  vencido:'Hola [nombre], cambió bastante la app desde que estuviste: ahora la rutina se ajusta sola cada semana. Te reactivo el acceso para que la pruebes de nuevo sin costo unos días. ¿Le damos?'
+  no_descargo:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo vas? Vi que te interesó entrenar con nosotros y quería saludarte.',
+  prueba:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo te ha ido con la app estos días?',
+  regalo:'Hola [nombre], soy Miguel del equipo de Juan. Te escribo porque te dejé un acceso separado y no quiero que se te pase. ¿Te cuento?',
+  vencido:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo has estado? Hace un tiempo entrenaste con nosotros y quería saber cómo vas.'
 };
 function guionTxt(seg){ const g=window.CU_GUIONES||{}; return g[seg]||GUION_TXT_DEFAULT[seg]||GUION_TXT_DEFAULT.no_descargo; }
 function cuMensaje(i){ const n=(i.nombre||'').split(' ')[0]||''; return guionTxt(cuSegmento(i)).replace(/\[nombre\]/g,n); }
