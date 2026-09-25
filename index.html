@@ -376,7 +376,7 @@ async function verSalud(){
   ];
   let h=`<div class="card"><h2 style="margin-top:0">Salud de datos <span class="muted" style="font-size:13px;font-weight:400">· ${data.clientes_con_acceso||0} clientes con acceso</span></h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Huecos que hacen que la app no funcione bien. Se actualiza cada vez que abres esta pestaña. <button class="sm ghost" onclick="verSalud()">Actualizar</button></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">${SECC.map(([k,l,c])=>`<span class="pill" style="background:${(res[k]||0)?'var(--card2)':'rgba(95,208,127,.12)'};font-weight:700;color:${(res[k]||0)?c:'var(--ok)'}">${l.replace(/^[^ ]+ /,'')}: ${res[k]||0}</span>`).join('')}</div></div>`;
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${SECC.map(([k,l,c])=>`<span class="pill" style="background:${(res[k]||0)?'var(--card2)':'rgba(95,208,127,.12)'};font-weight:700;color:${(res[k]||0)?c:'var(--ok)'}">${esc(l)}: ${res[k]||0}</span>`).join('')}</div></div>`;
   SECC.forEach(([k,l,c,desc])=>{
     const arr=R[k]||[];
     let cuerpo;
@@ -2009,7 +2009,6 @@ function grupoDe(c){
 }
 // Tarjeta de un cliente (reutilizable en la lista plana y en la vista por grupos).
 function cardClienteHTML(c,enAtencion){
-  const ic=c._sc>=5?"":c._sc>=2?"":"";
   const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
   const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
   const ms=c._mes?`<div style="font-size:12px;margin-top:3px;color:var(--rojo)">Informe mes ${c._mes} listo</div>`:"";
@@ -2025,7 +2024,7 @@ function cardClienteHTML(c,enAtencion){
   const _nc=(c.nombre_completo||'').trim();
   const fullL=(_nc && _nc.toLowerCase()!==(c.nombre||'').trim().toLowerCase())?`<div class="muted" style="font-size:11px;margin-top:1px;user-select:text">${esc(_nc)}</div>`:"";
   const acc=(c._accion&&c._accion!=='En orden')?`<div style="margin-top:4px;font-size:12.5px;font-weight:700;color:${c._accionCol||'var(--warn)'}">→ ${esc(c._accion)}</div>`:"";
-  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${ic} ${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${acc}${inact}${sinAlt}${rs}${ms}</button>`;
+  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${acc}${inact}${sinAlt}${rs}${ms}</button>`;
   return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${cardBtn}<button class="sm ghost" onclick="resolverHoy('${c.user_id}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:cardBtn;
 }
 
