@@ -1162,6 +1162,7 @@ async function verContactar(force){
 function cuFiltrar(){
   const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
   if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
+  if(CU_FILTRO==='reciente') return cuRecientes(all);
   if(CU_FILTRO==='hoy') return cuParaHoy(all);
   if(CU_FILTRO==='dijo_no_canjeo') return all.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21');
   if(CU_FILTRO==='nuevos48'){const lim=Date.now()-48*3600*1000;return all.filter(i=>i.registrado&&new Date(i.registrado).getTime()>=lim);}
@@ -1201,6 +1202,37 @@ function cuGatillo(i){
   if(i.lead_creado) return {t:'Llenó el formulario '+fFechaCorta(i.lead_creado),c:'var(--muted)'};
   return {t:'',c:'var(--muted)'};
 }
+// ¿el último contacto fue HOY? (para la barra gamificada de progreso).
+function cuEsHoy(iso){ if(!iso)return false; const d=new Date(iso),n=new Date(); return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate(); }
+// Recién llegados: iniciaron la prueba hace menos de 1 hora (máxima prioridad de velocidad).
+function cuRecientes(all){ const lim=Date.now()-3600*1000; return (all||[]).filter(i=>i.grupo!=='Cliente'&&i.registrado&&new Date(i.registrado).getTime()>=lim); }
+// Segmento de la persona = qué guion usar.
+function cuSegmento(i){
+  if(i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21') return 'regalo';
+  if(!i.en_app) return 'no_descargo';
+  if(i.grupo==='Vencido') return 'vencido';
+  return 'prueba';
+}
+// Guiones por segmento (voz de marca, sin emojis). {et}=etiqueta corta, {msg}=texto.
+const GUIONES={
+  no_descargo:{et:'No descargó',msg:function(n){return 'Hola '+n+', soy del equipo de Juan Camilo. Vi que te interesó entrenar con estrategia. Te regalo el análisis de tu rutina actual con nuestro método: qué estás haciendo bien y qué te está frenando. ¿Te lo mando?';}},
+  prueba:{et:'Prueba',msg:function(n){return 'Hola '+n+', veo que ya estás dentro. Para que le saques el jugo desde esta semana te armo el análisis de tu rutina y te muestro el primer ajuste. ¿Te va bien una llamada corta hoy o mañana?';}},
+  regalo:{et:'Regalo sin canjear',msg:function(n){return 'Hola '+n+', te guardé el acceso de 21 días que te comenté. Se vence pronto y no quiero que lo pierdas. Te dejo el paso a paso, te toma 2 minutos.';}},
+  vencido:{et:'Winback',msg:function(n){return 'Hola '+n+', cambió bastante la app desde que estuviste: ahora la rutina se ajusta sola cada semana. Te reactivo el acceso para que la pruebes de nuevo sin costo unos días. ¿Le damos?';}}
+};
+function cuMensaje(i){ const n=(i.nombre||'').split(' ')[0]||''; const s=GUIONES[cuSegmento(i)]||GUIONES.no_descargo; return s.msg(n); }
+// Toast de confirmación (sensación de juego: feedback inmediato). Sin librerías.
+let _toastT=null;
+function toast(txt,tipo){
+  let el=document.getElementById('cu_toast');
+  if(!el){ el=document.createElement('div'); el.id='cu_toast';
+    el.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);z-index:9999;background:#1F2024;border:1px solid var(--line);color:var(--txt);padding:11px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;display:flex;align-items:center;gap:8px';
+    document.body.appendChild(el); }
+  const col=tipo==='win'?'#3FB84F':tipo==='warn'?'#D9A21B':'#3FB84F';
+  el.innerHTML='<span style="color:'+col+';font-weight:800">'+(tipo==='warn'?'!':'✓')+'</span>'+esc(txt);
+  requestAnimationFrame(()=>{el.style.opacity='1';el.style.transform='translateX(-50%) translateY(0)';});
+  clearTimeout(_toastT); _toastT=setTimeout(()=>{el.style.opacity='0';el.style.transform='translateX(-50%) translateY(20px)';},2200);
+}
 function renderContactar(){
   const el=$("v-contactar");
   const meta=window.CU_META||{counts:{},nivelCount:{},total_general:0};
@@ -1215,7 +1247,11 @@ function renderContactar(){
   // Vistas de trabajo (distintas de los grupos): esquinas rectas para diferenciarlas.
   const wchip=(label,val,n)=>`<button class="sm ${CU_FILTRO===val?'':'ghost'}" style="border-radius:8px" onclick="CU_FILTRO=CU_FILTRO==='${val}'?'':'${val}';CU_GRUPO='';renderContactar()">${esc(label)}${n?' ('+n+')':''}</button>`;
   const ALL=window.CU_ALL||[];
-  const nHoy=cuParaHoy(ALL).length;
+  const colaHoy=cuParaHoy(ALL);
+  const nHoy=colaHoy.length;
+  const nReciente=cuRecientes(ALL).length;
+  const hechoHoy=colaHoy.filter(i=>cuEsHoy(i.contacto_ultimo)).length; // ya contactados hoy
+  const pctHoy=nHoy?Math.round(hechoHoy/nHoy*100):0;
   const nNuevos=(()=>{const lim=Date.now()-48*3600*1000;return ALL.filter(i=>i.grupo!=='Cliente'&&i.registrado&&new Date(i.registrado).getTime()>=lim).length;})();
   const nSeg=ALL.filter(i=>i.contacto_estado==='seguimiento').length;
   const nCanjeo=ALL.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21').length;
@@ -1226,13 +1262,26 @@ function renderContactar(){
       <div style="display:flex;gap:6px;align-items:center"><button class="sm ghost" onclick="verContactar(true)" title="Volver a traer los datos frescos del servidor">Actualizar</button><a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;background:${CU_FILTRO==='hoy'?'rgba(226,59,59,.10)':'var(--card2)'};border:1px solid ${CU_FILTRO==='hoy'?'var(--rojo)':'var(--line)'};border-radius:12px;padding:12px 14px">
-      <div><div style="font-size:22px;font-weight:800;line-height:1">${nHoy}</div><div class="muted" style="font-size:12px">para contactar hoy · nuevos, regalo sin canjear y seguimiento vencido</div></div>
-      <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:9px;min-height:38px" onclick="CU_FILTRO='hoy';CU_GRUPO='';renderContactar()">Ver cola de hoy</button>
-    </div>
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px">Vistas de trabajo</div>
+    ${(()=>{const done=nHoy&&hechoHoy>=nHoy;
+      return `<div style="margin-top:12px;background:${done?'rgba(63,184,79,.10)':(CU_FILTRO==='hoy'?'rgba(226,59,59,.10)':'var(--card2)')};border:1px solid ${done?'var(--ok)':(CU_FILTRO==='hoy'?'var(--rojo)':'var(--line)')};border-radius:14px;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:${done?'var(--ok)':'var(--txt)'}">${done?'Cola de hoy lista. Crack.':'Cola de hoy'}</div>
+          <div class="muted" style="font-size:12px;margin-top:2px">${done?'Cerraste los '+nHoy+' contactos de hoy.':'Llevas <b style=\"color:var(--txt)\">'+hechoHoy+'</b> de <b style=\"color:var(--txt)\">'+nHoy+'</b> · te faltan '+Math.max(0,nHoy-hechoHoy)}</div>
+        </div>
+        ${done?'':`<button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:42px;padding:0 18px" onclick="CU_FILTRO='hoy';CU_GRUPO='';renderContactar()">Trabajar la cola</button>`}
+      </div>
+      <div style="margin-top:12px;height:10px;background:#0B0C0F;border-radius:999px;overflow:hidden;border:1px solid var(--line)">
+        <div style="height:100%;width:${pctHoy}%;background:linear-gradient(90deg,${done?'#3FB84F,#3FB84F':'#E23B3B,#D9A21B'});border-radius:999px;transition:width .5s ease"></div>
+      </div>
+      ${nReciente>0?`<div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(226,59,59,.12);border:1px solid var(--rojo);border-radius:10px;padding:10px 12px">
+        <div style="font-size:13px;font-weight:700">${nReciente} recién ${nReciente===1?'llegó':'llegaron'} (menos de 1 h) · la velocidad vende</div>
+        <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:9px;min-height:38px" onclick="CU_FILTRO='reciente';CU_GRUPO='';renderContactar()">Contactar ya</button>
+      </div>`:''}
+    </div>`;})()}
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:14px;margin-bottom:4px">Vistas de trabajo</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      ${wchip('Para hoy','hoy',nHoy)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Seguimiento','seguimiento',nSeg)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}
+      ${wchip('Recién llegaron','reciente',nReciente)}${wchip('Para hoy','hoy',nHoy)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Seguimiento','seguimiento',nSeg)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}
     </div>
     <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px">Grupos</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -1254,16 +1303,18 @@ function renderContactar(){
     const q2=i.compromiso?`<div class="muted" style="font-size:11px;margin-top:4px">Compromiso: <b style="color:var(--txt)">${esc(i.compromiso)}</b>${i.quiere_coach?' · Coach: '+esc(i.quiere_coach):''}${i.presupuesto?' · $: '+esc(i.presupuesto):''}${encFecha}</div>`:(i.cuestionario_fecha?`<div class="muted" style="font-size:11px;margin-top:4px"><span style="color:#8fb3ff">Llenó la encuesta ${fFechaCorta(i.cuestionario_fecha)}</span></div>`:(i.que_pidio?`<div class="muted" style="font-size:11px;margin-top:4px">Pidió: ${esc(i.que_pidio)}</div>`:''));
     const arg=JSON.stringify({id:i.id,email:i.email,telefono:i.telefono,nombre:i.nombre}).replace(/"/g,'&quot;');
     const selId=`est_${(i.id||i.email||Math.random()).toString().replace(/[^a-zA-Z0-9]/g,'')}`;
-    const selEst=`<select id="${selId}" class="sm" onchange="marcarLead(${arg},this.value)" style="font-size:11px;padding:6px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===i.contacto_estado?' selected':''}>${t}</option>`).join('')+`</select>`;
-    const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:36px" onclick="waLead(${arg},'${selId}')">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
+    const selEst=`<select id="${selId}" class="sm" onchange="marcarLead(${arg},this.value)" style="font-size:12px;padding:8px 10px;min-height:40px;border-radius:9px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===i.contacto_estado?' selected':''}>${t}</option>`).join('')+`</select>`;
+    const seg=GUIONES[cuSegmento(i)]||GUIONES.no_descargo;
+    const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:40px;border-radius:9px;padding:0 14px" title="Abre WhatsApp con el guion de: ${esc(seg.et)} (registra el toque)" onclick="waLead(${arg})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
     // Botón de informe de rutina (solo si está en la app: tiene rutina que analizar).
-    const infBtn=(i.en_app&&i.app_id)?`<button class="sm ghost" style="min-height:36px" onclick="informeWA('${i.app_id}','${esc(i.telefono||'')}','${esc((i.nombre||'').split(' ')[0])}')" title="Manda por WhatsApp el análisis científico de su rutina">Informe rutina</button>`:'';
+    const infBtn=(i.en_app&&i.app_id)?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="informeWA('${i.app_id}','${esc(i.telefono||'')}','${esc((i.nombre||'').split(' ')[0])}')" title="Manda por WhatsApp el análisis científico de su rutina">Informe rutina</button>`:'';
+    const toqueChip=Number(i.toques)>0?` <span class="pill" style="font-size:10px;background:var(--card2);color:#8fb3ff">${i.toques} ${i.toques==1?'toque':'toques'}</span>`:'';
     const g=cuGatillo(i);
     const formLine=i.lead_creado?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${fFechaCorta(i.lead_creado)}</b>${i.cuando_escribio?' · '+esc(i.cuando_escribio):''}</div>`:(i.cuando_escribio?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${esc(i.cuando_escribio)}</b></div>`:'');
     h+=`<div style="border-top:1px solid var(--line);padding:11px 0">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b> ${niv} ${chip(i.grupo)}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b> ${niv} ${chip(i.grupo)}${toqueChip}</div>
           ${g.t?`<div style="font-size:12px;margin-top:3px;color:${g.c};font-weight:600">${esc(g.t)}</div>`:''}
           <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--muted)">ver más</summary>
             <div class="muted" style="font-size:11px;margin-top:6px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${i.pais?' · '+esc(i.pais):''}</div>
@@ -1282,16 +1333,31 @@ function renderContactar(){
   el.innerHTML=h;
   cuFoco();
 }
-function waLead(o,selId){ const wl=waLink(o.telefono,`Hola ${(o.nombre||'').split(' ')[0]}, soy del equipo de Juan Camilo. ¿Cómo vas?`); if(wl)window.open(wl,'_blank'); const s=selId?$(selId):null; if(!s||!s.value){ if(s)s.value='contactado'; marcarLead(o,'contactado'); } }
-// Manda por WhatsApp el link del análisis científico de la rutina de la persona.
-function informeWA(appId,tel,nom){ const link='https://rzonwwqgbckjsqloosyy.supabase.co/functions/v1/informe-rutina?u='+appId; const msg=`Hola ${nom||''}, te preparamos un análisis de tu rutina con nuestro método: qué estás haciendo bien y qué puedes mejorar. Míralo aquí: ${link}`; const wl=tel?waLink(tel,msg):null; if(wl)window.open(wl,'_blank'); else { navigator.clipboard&&navigator.clipboard.writeText(link); window.open(link,'_blank'); } }
-async function marcarLead(o,estado){
-  try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado}});}catch(e){}
-  // Refleja el cambio en la caché local para no tener que recargar: si lo mandas a
-  // "seguimiento", sale de la lista al instante; el resto solo actualiza su estado.
+// Abre WhatsApp con el GUION del segmento de la persona y registra el toque.
+// Si aún no tenía estado, queda "contactado". Feedback inmediato (toast) = sensación de juego.
+function waLead(o){
   const arr=window.CU_ALL||[];
   const it=arr.find(x=>(o.id&&x.id===o.id)||(o.email&&String(x.email||'').toLowerCase()===String(o.email||'').toLowerCase()));
-  if(it){ it.contacto_estado=estado; it.contacto_ultimo=new Date().toISOString(); if(estado==='seguimiento')renderContactar(); }
+  const msg=it?cuMensaje(it):('Hola '+((o.nombre||'').split(' ')[0])+', soy del equipo de Juan Camilo.');
+  const wl=waLink(o.telefono,msg); if(wl)window.open(wl,'_blank');
+  // Si no tenía estado, pasa a "contactado"; si ya tenía, no lo pisamos (undefined).
+  const nuevoEstado=(it&&it.contacto_estado)?undefined:'contactado';
+  marcarLead(o,nuevoEstado,{toque:true,toastMsg:'WhatsApp abierto · +1 toque'});
+}
+// Manda por WhatsApp el link del análisis científico de la rutina de la persona.
+function informeWA(appId,tel,nom){ const link='https://rzonwwqgbckjsqloosyy.supabase.co/functions/v1/informe-rutina?u='+appId; const msg=`Hola ${nom||''}, te preparamos un análisis de tu rutina con nuestro método: qué estás haciendo bien y qué puedes mejorar. Míralo aquí: ${link}`; const wl=tel?waLink(tel,msg):null; if(wl)window.open(wl,'_blank'); else { navigator.clipboard&&navigator.clipboard.writeText(link); window.open(link,'_blank'); } }
+async function marcarLead(o,estado,opts){
+  opts=opts||{};
+  try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado,toque:!!opts.toque}});}
+  catch(e){ toast('No se pudo guardar','warn'); return; }
+  // Refleja el cambio en la caché local (sin recargar): si lo mandas a "seguimiento"
+  // sale de la lista; el toque suma al contador. Luego re-render para actualizar la
+  // barra de progreso de "hoy" (sensación de avance).
+  const arr=window.CU_ALL||[];
+  const it=arr.find(x=>(o.id&&x.id===o.id)||(o.email&&String(x.email||'').toLowerCase()===String(o.email||'').toLowerCase()));
+  if(it){ if(estado!==undefined)it.contacto_estado=estado; it.contacto_ultimo=new Date().toISOString(); if(opts.toque)it.toques=(Number(it.toques)||0)+1; }
+  if(!opts.silent){ const lbl=estado?((CONTACTAR_ESTADOS.find(e=>e[0]===estado)||['',estado])[1]):''; toast(opts.toastMsg||('Guardado'+(lbl?': '+lbl:'')),'win'); }
+  renderContactar();
 }
 // Enlace "marcar…" progresivo: solo al tocarlo muestra las opciones (sin recargar la lista).
 function abrirMarcar(email,contId){ const c=$(contId); if(!c)return; c.innerHTML=`<button class="sm ghost" style="font-size:10px;padding:4px 8px" onclick="marcarCRM('${email}','cliente','${contId}')">Es cliente</button> <button class="sm ghost" style="font-size:10px;padding:4px 8px" onclick="marcarCRM('${email}','cancelado','${contId}')">Canceló</button> <button class="sm ghost" style="font-size:10px;padding:4px 8px;opacity:.6" onclick="marcarCRM('${email}','','${contId}')">quitar</button>`; }
