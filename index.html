@@ -4883,6 +4883,10 @@ function renderABRec(){
     <td style="white-space:nowrap"><button class="sm" onclick="AB_REC_EDIT=(AB_REC_EDIT==='${a.id}'?null:'${a.id}');renderABRec()" title="Editar macros y aprobar">Editar</button> <button class="sm ghost" onclick="aprobarAlimento('${a.id}')" title="Aprobar tal cual">Aprobar</button> <button class="sm ghost" onclick="rechazarAlimento('${a.id}')">Rechazar</button></td></tr>${AB_REC_EDIT===String(a.id)?editForm(a):''}`).join("")}</table>`;
 }
 // Guarda las correcciones del entrenador y aprueba el alimento al menú oficial MAM.
+// Escrituras de alimentos por el EDGE (service_role): el update/delete directo topaba
+// RLS (ab_write caída) → los "no deja aprobar/ocultar/borrar/guardar". Centralizado.
+async function abUpdate(id,patch){ const {data,error}=await invokeFn("consola-rutina",{body:{action:'alimento_update',id,patch}}); if(error||(data&&data.error))return {err:((data&&data.error)||(error&&error.message)||'error')}; return {alimento:data&&data.alimento}; }
+async function abDelete(id){ const {data,error}=await invokeFn("consola-rutina",{body:{action:'alimento_delete',id}}); if(error||(data&&data.error))return {err:((data&&data.error)||(error&&error.message)||'error')}; return {ok:true}; }
 async function aprobarAlimentoEdit(id){
   const nombre=($("ar_nom").value||'').trim();
   if(!nombre){$("arMsg").textContent="El nombre no puede ir vacío.";return;}
@@ -4890,22 +4894,21 @@ async function aprobarAlimentoEdit(id){
   const k=$("ar_k").value!==''?(+$("ar_k").value||0):Math.round(p*4+c*4+f*9);
   const pg=$("ar_pg").value!==''?(+$("ar_pg").value||null):null;
   const patch={nombre,marca:($("ar_marca").value||'').trim()||null,categoria:$("ar_cat").value,p,c,f,k,porcion_g:pg,aprobado:true,activo:true};
-  const e=errFilas(await sb.from("alimentos_base").update(patch).eq("id",id).select("id"));
-  if(e){$("arMsg").innerHTML=`<span class="alert">${esc(e)}</span>`;return;}
-  AB_REC_EDIT=null;verAlimentos();
+  const r=await abUpdate(id,patch);
+  if(r.err){$("arMsg").innerHTML=`<span class="alert">${esc(r.err)}</span>`;return;}
+  toast('Aprobado','win');AB_REC_EDIT=null;verAlimentos();
 }
 async function aprobarAlimento(id){
-  const {data,error}=await sb.from("alimentos_base").update({aprobado:true,activo:true}).eq("id",id).select();
-  if(error){alert(error.message);return;}
-  if(!data||!data.length){alert("No se pudo aprobar (¿permisos?).");return;}
-  verAlimentos();
+  const r=await abUpdate(id,{aprobado:true,activo:true});
+  if(r.err){toast('No se pudo aprobar: '+r.err,'warn');return;}
+  toast('Aprobado','win');verAlimentos();
 }
 async function rechazarAlimento(id){
   const a=AB_REC.find(x=>String(x.id)===String(id));if(!a)return;
   if(!confirm('¿Rechazar y borrar "'+a.nombre+'"? El cliente lo seguirá teniendo en sus alimentos propios.'))return;
-  const {error}=await sb.from("alimentos_base").delete().eq("id",id);
-  if(error){alert(error.message);return;}
-  verAlimentos();
+  const r=await abDelete(id);
+  if(r.err){toast('No se pudo rechazar: '+r.err,'warn');return;}
+  toast('Rechazado','win');verAlimentos();
 }
 let AB_EDIT=null; // id del alimento del catálogo que se está editando inline
 function abEdit(id){AB_EDIT=String(id);renderAB();}
@@ -4916,10 +4919,10 @@ async function abGuardarEdit(id){
   const p=+g('abe_p')||0,c=+g('abe_c')||0,f=+g('abe_f')||0;const kIn=(g('abe_k')||'').trim();const k=kIn!==''?(+kIn||0):Math.round(p*4+c*4+f*9);
   const optg=key=>{const v=(g(key)||'').trim();return v===''?null:(+v||0);};
   const patch={nombre,marca:(g('abe_marca')||'').trim()||null,categoria:g('abe_cat'),p,c,f,k,porcion_g:optg('abe_pg'),fib:optg('abe_fib'),az:optg('abe_az'),sod:optg('abe_sod')};
-  const e=errFilas(await sb.from("alimentos_base").update(patch).eq("id",id).select("id"));
-  if(e){alert(e);return;}
+  const r=await abUpdate(id,patch);
+  if(r.err){toast('No se pudo guardar: '+r.err,'warn');return;}
   const it=AB.find(x=>String(x.id)===String(id));if(it)Object.assign(it,patch);
-  AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));AB_EDIT=null;renderAB();
+  toast('Guardado','win');AB.sort((x,y)=>(x.nombre||"").localeCompare(y.nombre||""));AB_EDIT=null;renderAB();
 }
 function renderAB(){
   const q=($("a_buscar")?$("a_buscar").value:"").toLowerCase();
@@ -4984,17 +4987,16 @@ async function addAlimento(){
 async function toggleAlimentoActivo(id){
   const a=AB.find(x=>String(x.id)===String(id));if(!a)return;
   const val=(a.activo===false); // destino: si estaba oculto → mostrar(true); si visible → ocultar(false)
-  const e=errFilas(await sb.from("alimentos_base").update({activo:val}).eq("id",id).select("id"));
-  if(e){alert(e);return;}
-  a.activo=val;renderAB();
+  const r=await abUpdate(id,{activo:val});
+  if(r.err){toast('No se pudo cambiar: '+r.err,'warn');return;}
+  a.activo=val;toast(val?'Mostrado':'Ocultado','win');renderAB();
 }
 async function borrarAlimento(id){
   const a=AB.find(x=>String(x.id)===String(id));if(!a)return;
   if(!confirm('¿Quitar "'+a.nombre+'" del catálogo oficial? El cliente dejará de verlo al buscar.'))return;
-  const {data,error}=await sb.from("alimentos_base").delete().eq("id",id).select();
-  if(error){alert(error.message);return;}
-  if(!data||!data.length){alert('No se pudo borrar (¿permisos?).');return;}
-  AB=AB.filter(x=>String(x.id)!==String(id));renderAB();
+  const r=await abDelete(id);
+  if(r.err){toast('No se pudo borrar: '+r.err,'warn');return;}
+  AB=AB.filter(x=>String(x.id)!==String(id));toast('Borrado','win');renderAB();
 }
 
 // PARTE 9: Comunidad / rankings
