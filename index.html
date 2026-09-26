@@ -1166,6 +1166,7 @@ function cuFiltrar(){
   const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
   if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
   if(CU_FILTRO==='reciente') return cuRecientes(all);
+  if(CU_FILTRO==='rutina') return all.filter(i=>/rutina/i.test(i.origen||''));
   if(CU_FILTRO==='hoy') return cuParaHoy(all);
   if(CU_FILTRO==='dijo_no_canjeo') return all.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21');
   if(CU_FILTRO==='nuevos48'){const lim=Date.now()-48*3600*1000;return all.filter(i=>i.registrado&&new Date(i.registrado).getTime()>=lim);}
@@ -1213,6 +1214,7 @@ function cuEsHoy(iso){ if(!iso)return false; const d=new Date(iso),n=new Date();
 function cuRecientes(all){ const lim=Date.now()-3600*1000; return (all||[]).filter(i=>i.grupo!=='Cliente'&&i.registrado&&new Date(i.registrado).getTime()>=lim); }
 // Segmento de la persona = qué guion usar.
 function cuSegmento(i){
+  if(/rutina/i.test(i.origen||'')&&!i.en_app) return 'rutina'; // contacto de la dinámica de la rutina regalo
   if(i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21') return 'regalo';
   if(!i.en_app) return 'no_descargo';
   if(i.grupo==='Vencido') return 'vencido';
@@ -1220,12 +1222,13 @@ function cuSegmento(i){
 }
 // Guiones por segmento (voz de marca, sin emojis). Plantillas con [nombre].
 // Editables por el equipo (se guardan en crm_config); estos son los de fábrica.
-const SEG_ET={no_descargo:'No descargó',prueba:'Prueba',regalo:'Regalo sin canjear',vencido:'Winback'};
+const SEG_ET={no_descargo:'No descargó',prueba:'Prueba',regalo:'Regalo sin canjear',vencido:'Winback',rutina:'Rutina regalo'};
 const GUION_TXT_DEFAULT={
   no_descargo:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo vas? Vi que te interesó entrenar con nosotros y quería saludarte.',
   prueba:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo te ha ido con la app estos días?',
   regalo:'Hola [nombre], soy Miguel del equipo de Juan. Te escribo porque te dejé un acceso separado y no quiero que se te pase. ¿Te cuento?',
-  vencido:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo has estado? Hace un tiempo entrenaste con nosotros y quería saber cómo vas.'
+  vencido:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo has estado? Hace un tiempo entrenaste con nosotros y quería saber cómo vas.',
+  rutina:'Hola [nombre], soy Miguel del equipo de Juan. Te llegó la rutina que te armamos, ¿pudiste verla? Me gustaría mostrarte en una llamada corta cómo sacarle el máximo según tu caso. ¿Te va bien hoy o mañana?'
 };
 function guionTxt(seg){ const g=window.CU_GUIONES||{}; return g[seg]||GUION_TXT_DEFAULT[seg]||GUION_TXT_DEFAULT.no_descargo; }
 function cuMensaje(i){ const n=(i.nombre||'').split(' ')[0]||''; return guionTxt(cuSegmento(i)).replace(/\[nombre\]/g,n); }
@@ -1266,6 +1269,7 @@ function renderContactar(){
   const nNuevos=(()=>{const lim=Date.now()-48*3600*1000;return ALL.filter(i=>i.grupo!=='Cliente'&&i.registrado&&new Date(i.registrado).getTime()>=lim).length;})();
   const nSeg=ALL.filter(i=>i.contacto_estado==='seguimiento').length;
   const nCanjeo=ALL.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21').length;
+  const nRutina=ALL.filter(i=>/rutina/i.test(i.origen||'')).length;
   // Embudo de los últimos 7 días (por último contacto). Solo no-clientes.
   const cupon=meta.cupon;
   const wk=Date.now()-7*86400000;
@@ -1280,7 +1284,7 @@ function renderContactar(){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
       <div><h2 style="margin:0">Contactar <span class="muted" style="font-size:13px;font-weight:400">· ${data.total_general} personas</span></h2>
       <div class="muted" style="font-size:12px;margin-top:4px">Todo en un lugar: los que no descargaron, los que tienen el regalo y los que ya están en la app. Ordenado por propensión a comprar (entrenar pesa más).</div></div>
-      <div style="display:flex;gap:6px;align-items:center"><button class="sm ghost" onclick="cuEditarGuiones()" title="Editar los guiones de WhatsApp por segmento">Editar guiones</button><button class="sm ghost" onclick="verContactar(true)" title="Volver a traer los datos frescos del servidor">Actualizar</button><a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a></div>
+      <div style="display:flex;gap:6px;align-items:center"><button class="sm" onclick="cuImportar()" title="Pegar contactos (nombre + teléfono) para meterlos al CRM">Importar contactos</button><button class="sm ghost" onclick="cuEditarGuiones()" title="Editar los guiones de WhatsApp por segmento">Editar guiones</button><button class="sm ghost" onclick="verContactar(true)" title="Volver a traer los datos frescos del servidor">Actualizar</button><a class="sm ghost" href="${SHEET}" target="_blank" rel="noopener" style="text-decoration:none">Ver Sheet original</a></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">${chip('Calientes '+(nc['Caliente']||0),'rgba(226,59,59,.16)')}${chip('Templados '+(nc['Templado']||0),'rgba(217,162,27,.14)')}${chip('Fríos '+(nc['Frío']||0))}${cupon&&cupon.quedan<=10?`<span class="pill" style="background:rgba(226,59,59,.16);color:#ff8080;font-weight:700">Solo quedan ${cupon.quedan} cupones</span>`:''}</div>
     <details style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
@@ -1307,7 +1311,7 @@ function renderContactar(){
     </div>`;})()}
     <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:14px;margin-bottom:4px">Vistas de trabajo</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      ${wchip('Recién llegaron','reciente',nReciente)}${wchip('Para hoy','hoy',nHoy)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Seguimiento','seguimiento',nSeg)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}
+      ${wchip('Recién llegaron','reciente',nReciente)}${wchip('Para hoy','hoy',nHoy)}${wchip('Rutina regalo','rutina',nRutina)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Seguimiento','seguimiento',nSeg)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}
     </div>
     <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px">Grupos</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -1423,6 +1427,50 @@ async function guardarNota(o,txt){
 }
 // Historial (últimos 6 eventos) en texto legible.
 function histTexto(h){ if(!Array.isArray(h)||!h.length)return''; const et={contactado:'Contactado',respondio:'Respondió',acepto_regalo:'Aceptó regalo',agendado:'Agendó',seguimiento:'Seguimiento',no_interesado:'No interesado',ganado:'Compró',perdido:'Perdido'}; return h.slice(-6).reverse().map(e=>{const f=e.f?fFechaCorta(e.f):''; if(e.k==='toque')return f+' · toque '+e.v; if(e.k==='nota')return f+' · nota'; if(e.k==='estado')return f+' · '+(et[e.v]||e.v); return f;}).join('<br>'); }
+// Importar contactos (nombre + teléfono) al CRM. Pega la lista; cada línea es un
+// contacto. Acepta "Nombre, Teléfono" o "Nombre Teléfono" o "Teléfono, Nombre".
+function cuImportar(){
+  let ov=document.getElementById('cu_impmodal'); if(ov)ov.remove();
+  ov=document.createElement('div'); ov.id='cu_impmodal';
+  ov.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:30px 16px;overflow:auto';
+  ov.innerHTML=`<div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:620px;width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:16px">Importar contactos</b><button class="sm ghost" onclick="document.getElementById('cu_impmodal').remove()">Cerrar</button></div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Pega un contacto por línea: <b>Nombre, Teléfono</b>. Se agregan al CRM como leads (sin duplicar por teléfono) y quedan en el segmento que elijas.</div>
+    <label class="lbl">Origen / segmento</label>
+    <select id="imp_origen" style="margin:0 0 8px">
+      <option value="rutina-regalo">Rutina regalo (dinámica)</option>
+      <option value="importado">Importado (genérico)</option>
+    </select>
+    <textarea id="imp_txt" placeholder="Keila Pérez, 3001234567&#10;Andrés Gómez, 3019876543&#10;..." style="width:100%;min-height:180px;font-family:ui-monospace,monospace;font-size:13px;box-sizing:border-box"></textarea>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="sm" onclick="cuGuardarImport()">Importar</button><span id="imp_msg" class="muted" style="font-size:12px"></span></div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+// Parsea "Nombre, Teléfono" | "Teléfono, Nombre" | "Nombre  Teléfono".
+function cuParseContacto(linea){
+  const s=(linea||'').trim(); if(!s)return null;
+  const partes=s.split(/[,;\t]+/).map(x=>x.trim()).filter(Boolean);
+  const esTel=x=>((x||'').replace(/\D/g,'').length>=7);
+  if(partes.length>=2){
+    const tel=partes.find(esTel)||''; const nombre=partes.filter(x=>x!==tel).join(' ').trim();
+    return {nombre,telefono:tel};
+  }
+  // Sin separador: "Nombre 3001234567" → parte el teléfono del final.
+  const m=s.match(/^(.*?)([+\d][\d\s().-]{6,})$/);
+  if(m)return {nombre:m[1].trim(),telefono:m[2].trim()};
+  return esTel(s)?{nombre:'',telefono:s}:{nombre:s,telefono:''};
+}
+async function cuGuardarImport(){
+  const txt=($("imp_txt")&&$("imp_txt").value)||''; const origen=($("imp_origen")&&$("imp_origen").value)||'rutina-regalo';
+  const rows=txt.split(/\r?\n/).map(cuParseContacto).filter(r=>r&&r.telefono);
+  if(!rows.length){$("imp_msg").textContent='No encontré contactos con teléfono válido.';return;}
+  $("imp_msg").textContent='Importando '+rows.length+'…';
+  const {data,error}=await invokeFn('crm-importar',{body:{rows,origen}});
+  if(error||(data&&data.error)){$("imp_msg").innerHTML='<span class="alert">'+esc((data&&data.error)||(error&&error.message)||'error')+'</span>';return;}
+  const ov=document.getElementById('cu_impmodal'); if(ov)ov.remove();
+  toast('Importados: '+data.creados+' · duplicados: '+data.duplicados+(data.invalidos?' · inválidos: '+data.invalidos:''),'win');
+  verContactar(true);
+}
 // Modal para editar los guiones de WhatsApp por segmento (compartidos por el equipo).
 function cuEditarGuiones(){
   const segs=['no_descargo','prueba','regalo','vencido'];
