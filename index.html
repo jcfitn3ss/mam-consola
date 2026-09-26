@@ -1228,7 +1228,7 @@ const GUION_TXT_DEFAULT={
   prueba:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo te ha ido con la app estos días?',
   regalo:'Hola [nombre], soy Miguel del equipo de Juan. Te escribo porque te dejé un acceso separado y no quiero que se te pase. ¿Te cuento?',
   vencido:'Hola [nombre], soy Miguel del equipo de Juan. ¿Cómo has estado? Hace un tiempo entrenaste con nosotros y quería saber cómo vas.',
-  rutina:'Hola [nombre], soy Miguel del equipo de Juan. ¿Pudiste ver la rutina que te enviamos? Te pregunto algo: aparte de la rutina, ¿qué es lo que más se te dificulta en tu proceso ahorita? Lo comento porque estamos abriendo unos espacios de consultoría gratis con Juan y me encantaría abrirte uno para resolver justo eso. ¿Te gustaría?'
+  rutina:'Hola [nombre], soy Miguel del equipo de Juan. Aparte de la rutina, ¿hay algo más que te cueste en tu proceso? Te pregunto porque estamos abriendo 5 espacios de consultoría gratuita con Juan y podríamos abordar eso en la llamada.'
 };
 function guionTxt(seg){ const g=window.CU_GUIONES||{}; return g[seg]||GUION_TXT_DEFAULT[seg]||GUION_TXT_DEFAULT.no_descargo; }
 function cuMensaje(i){ const n=(i.nombre||'').split(' ')[0]||''; return guionTxt(cuSegmento(i)).replace(/\[nombre\]/g,n); }
