@@ -1187,18 +1187,17 @@ function cuDiasDesde(iso){ if(!iso)return null; const d=Math.floor((Date.now()-n
 // colombiano de 10 dígitos que empieza por 3 (celular) sin prefijo se asume Colombia.
 // Bandera = indicadores regionales unicode a partir del ISO del país.
 const CU_PAIS_PREFIJOS=[['1','US','Estados Unidos'],['57','CO','Colombia'],['52','MX','México'],['34','ES','España'],['54','AR','Argentina'],['51','PE','Perú'],['56','CL','Chile'],['58','VE','Venezuela'],['593','EC','Ecuador'],['591','BO','Bolivia'],['595','PY','Paraguay'],['598','UY','Uruguay'],['55','BR','Brasil'],['507','PA','Panamá'],['506','CR','Costa Rica'],['502','GT','Guatemala'],['503','SV','El Salvador'],['504','HN','Honduras'],['505','NI','Nicaragua'],['809','DO','R. Dominicana'],['44','GB','Reino Unido'],['33','FR','Francia'],['39','IT','Italia'],['49','DE','Alemania'],['61','AU','Australia'],['351','PT','Portugal']];
-function cuBandera(iso){ try{ return (iso||'').toUpperCase().replace(/./g,c=>String.fromCodePoint(127397+c.charCodeAt(0))); }catch(e){ return ''; } }
+// País del número → { iso (2 letras), nombre }. Se muestra el ISO compacto (CO, US…)
+// y el nombre va en el tooltip (title) al pasar el mouse.
 function cuPaisDeTel(tel){
   let s=String(tel||'').trim(); if(!s)return null;
-  const tenia=s.includes('+')||/^00/.test(s.replace(/\D/g,'').slice(0,2)===''?'':s);
   const d=s.replace(/\D/g,'');
   if(!d)return null;
   // Colombia local: 10 dígitos que empiezan por 3 (celular), sin prefijo.
-  if(!s.includes('+')&&d.length===10&&d[0]==='3'){ return {bandera:cuBandera('CO'),nombre:'Colombia'}; }
+  if(!s.includes('+')&&d.length===10&&d[0]==='3'){ return {iso:'CO',nombre:'Colombia'}; }
   let n=d; if(n.startsWith('00'))n=n.slice(2);
-  // Match por prefijo más largo primero.
   for(const [pre,iso,nombre] of [...CU_PAIS_PREFIJOS].sort((a,b)=>b[0].length-a[0].length)){
-    if(n.startsWith(pre)){ return {bandera:cuBandera(iso),nombre}; }
+    if(n.startsWith(pre)){ return {iso,nombre}; }
   }
   return null;
 }
@@ -1378,7 +1377,7 @@ function renderContactar(){
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b> ${niv} ${chip(i.grupo)}${toqueChip}</div>
           ${g.t?`<div style="font-size:12px;margin-top:3px;color:${g.c};font-weight:600">${esc(g.t)}</div>`:''}
           <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--muted)">ver más</summary>
-            <div class="muted" style="font-size:11px;margin-top:6px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${(()=>{const p=cuPaisDeTel(i.telefono);const nm=p?p.nombre:(i.pais||'');const fl=p?p.bandera+' ':'';return nm?` · ${fl}${esc(nm)}`:'';})()}</div>
+            <div class="muted" style="font-size:11px;margin-top:6px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${(()=>{const p=cuPaisDeTel(i.telefono);if(p)return ` · <span title="${esc(p.nombre)}" style="font-weight:700;color:var(--txt);cursor:default;border-bottom:1px dotted var(--line)">${p.iso}</span>`;return i.pais?` · ${esc(i.pais)}`:'';})()}</div>
             ${i.en_app&&i.registrado?`<div class="muted" style="font-size:11px;margin-top:2px">Inició la prueba: <b style="color:var(--txt)">${fFechaCorta(i.registrado)}</b>${i.fin_prueba?' · vence '+fFechaCorta(i.fin_prueba):''}</div>`:''}
             <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">${senales}</div>
             ${formLine}
