@@ -1983,14 +1983,16 @@ async function reuBorrar(rid,id){if(!confirm("¿Borrar esta reunión?"))return;c
 // Conectar Google (abre el consentimiento de Google en otra pestaña).
 async function agendarReunion(id){
   const dt=$("ag_dt")?$("ag_dt").value:"";const dur=$("ag_dur")?+$("ag_dur").value:45;
+  const invitados=$("ag_inv")?$("ag_inv").value.trim():"";
   const m=$("agMsg");
   if(!dt){if(m)m.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
   if(m){m.style.color='';m.textContent="Agendando en tu Google Calendar…";}
-  const {data,error}=await invokeFn("agendar-reunion",{body:{cliente_id:id,inicio:dt,duracion_min:dur}});
+  const {data,error}=await invokeFn("agendar-reunion",{body:{cliente_id:id,inicio:dt,duracion_min:dur,invitados}});
   if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
   let txt=`<b>Reunión agendada</b> para ${esc(data.fecha)}.`;
   if(data.meetLink)txt+=` <a href="${esc(data.meetLink)}" target="_blank">Abrir enlace Meet</a>.`;
   txt+=data.invitado?` Invitación enviada a <b>${esc(data.correo||'el cliente')}</b>.`:` <span style="color:var(--warn)">El cliente no tiene correo registrado: no se le invitó, avísale tú.</span>`;
+  if(data.invitados_extra>0)txt+=` +${data.invitados_extra} invitado(s) extra.`;
   if(m){m.style.color='var(--ok)';m.innerHTML=txt;}
   setTimeout(()=>verCliente(id),1800);
 }
@@ -2340,7 +2342,8 @@ async function verCliente(id){
         <div><label class="lbl">Duración</label><select id="ag_dur" style="margin:0"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></div>
         <div><button class="sm" onclick="agendarReunion('${id}')">Confirmar y agendar</button></div>
       </div>
-      <div class="muted" style="font-size:11px;margin-top:5px">Se crea en tu <b>Google Calendar</b> con enlace de <b>Meet</b> y se le envía invitación al cliente por correo. Requiere Google conectado (pestaña Llamadas).</div>
+      <div class="row" style="margin-top:6px"><div style="flex:2"><label class="lbl">Invitar a alguien más (correo, opcional)</label><input id="ag_inv" type="email" data-nocaps placeholder="correo@ejemplo.com — puedes poner varios separados por coma" style="margin:0"></div></div>
+      <div class="muted" style="font-size:11px;margin-top:5px">Se crea en tu <b>Google Calendar</b> con enlace de <b>Meet</b> y se le envía invitación al cliente (y a los invitados extra) por correo. Requiere Google conectado (pestaña Llamadas).</div>
       <div style="margin-top:6px"><button class="sm ghost" onclick="sincronizarMeet('${id}')">Sincronizar resúmenes de Meet</button> <span id="meetMsg" class="muted" style="font-size:12px"></span></div>
       <div id="agMsg" style="font-size:12px;margin-top:5px"></div>
     </div>`;
