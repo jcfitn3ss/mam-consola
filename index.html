@@ -1201,8 +1201,11 @@ function cuTemp(i){
   return 'TIBIO';
 }
 function cuEncuesta(all){
+  // Orden: primero lo que nadie ha tocado, y dentro de eso lo más nuevo arriba. Si se
+  // ordenara solo por fecha, el que ya contactaste hoy seguiría de primero mañana.
+  const hecho=i=>(!i.contacto_estado||i.contacto_estado==='sin_contactar')?0:1;
   return (all||[]).filter(i=>cuEsEncuesta(i)&&i.grupo!=='Cliente')
-    .sort((a,b)=>new Date(b.lead_creado||0).getTime()-new Date(a.lead_creado||0).getTime());
+    .sort((a,b)=>hecho(a)-hecho(b)||new Date(b.lead_creado||0).getTime()-new Date(a.lead_creado||0).getTime());
 }
 // Sin contactar = nadie le ha escrito todavía (estado vacío o "sin contactar").
 function cuEncPendientes(all){
@@ -1217,6 +1220,15 @@ function cuHaceCuanto(iso){
   if(hs<24) return 'hace '+hs+(hs===1?' hora':' horas');
   const d=Math.round(hs/24);
   return d===1?'ayer':'hace '+d+' días';
+}
+
+// El botón del aviso: cambia a la cola de la encuesta Y BAJA a la lista. Sin el scroll
+// parecía que el botón no hacía nada, porque el cambio ocurría fuera de la pantalla.
+function cuAbrirEncuesta(){
+  CU_FILTRO='encuesta'; CU_GRUPO=''; CU_Q='';
+  renderContactar();
+  const n=document.getElementById('cu_lista');
+  if(n) try{ n.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ n.scrollIntoView(); }
 }
 
 function cuFiltrar(){
@@ -1325,6 +1337,10 @@ function renderContactar(){
   const meta=window.CU_META||{counts:{},nivelCount:{},total_general:0};
   const q=CU_Q;
   const data={counts:meta.counts,nivelCount:meta.nivelCount,total_general:meta.total_general};
+  // Vista inicial: si alguien llenó la encuesta y nadie le ha escrito, la consola abre ahí.
+  // TIENE que decidirse ANTES de cuFiltrar(), o la lista se arma con el filtro anterior.
+  // Solo se decide una vez por sesión: después manda lo que el setter elija.
+  if(!CU_ARRANQUE){ CU_ARRANQUE=true; if(!CU_FILTRO&&!CU_GRUPO&&!CU_Q&&cuEncPendientes(window.CU_ALL||[]).length) CU_FILTRO='encuesta'; }
   const lista=cuFiltrar();
   const items=lista.slice(0,300); data.total=lista.length;
   const counts=data.counts||{}, nc=data.nivelCount||{};
@@ -1334,10 +1350,6 @@ function renderContactar(){
   // Vistas de trabajo (distintas de los grupos): esquinas rectas para diferenciarlas.
   const wchip=(label,val,n)=>`<button class="sm ${CU_FILTRO===val?'':'ghost'}" style="border-radius:8px" onclick="CU_FILTRO=CU_FILTRO==='${val}'?'':'${val}';CU_GRUPO='';renderContactar()">${esc(label)}${n?' ('+n+')':''}</button>`;
   const ALL=window.CU_ALL||[];
-  // Vista inicial: si alguien llenó la encuesta y nadie le ha escrito, la consola abre ahí.
-  // Es lo más urgente del día y antes quedaba enterrado. Solo se decide una vez por sesión:
-  // después manda lo que el setter elija.
-  if(!CU_ARRANQUE){ CU_ARRANQUE=true; if(!CU_FILTRO&&!CU_GRUPO&&!CU_Q&&cuEncPendientes(ALL).length) CU_FILTRO='encuesta'; }
   const colaHoy=cuParaHoy(ALL);
   const nHoy=colaHoy.length;
   const nReciente=cuRecientes(ALL).length;
@@ -1387,7 +1399,7 @@ function renderContactar(){
             <div class="muted" style="font-size:12.5px">Sin contactar${encUltimo?'. El más nuevo llegó '+esc(cuHaceCuanto(encUltimo)):''}.</div>
           </div>
         </div>
-        <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:44px;padding:0 18px" onclick="CU_FILTRO='encuesta';CU_GRUPO='';CU_Q='';renderContactar()">Abrir ${nEncPend===1?'el':'los'} ${nEncPend}</button>
+        <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:44px;padding:0 18px" onclick="cuAbrirEncuesta()">Abrir ${nEncPend===1?'el':'los'} ${nEncPend}</button>
       </div>
     </div>`:''}
     ${(()=>{const done=pending===0&&contactsHoy>0; const vacio=pending===0&&contactsHoy===0;
@@ -1437,7 +1449,7 @@ function renderContactar(){
       seguimiento:['Nadie en seguimiento.','Los que marques como "en seguimiento" salen aquí cuando toque volver a escribirles.']
     };
     const v=vacios[CU_FILTRO];
-    h+=`<div class="card" style="text-align:center;padding:30px 20px">
+    h+=`<div class="card" id="cu_lista" style="text-align:center;padding:30px 20px">
       <div style="font-weight:700;font-size:15px">${v?esc(v[0]):'Nadie en este filtro.'}</div>
       ${v?`<div class="muted" style="font-size:13px;margin-top:6px;max-width:420px;margin-left:auto;margin-right:auto">${esc(v[1])}</div>`:''}
       ${CU_Q?`<button class="sm ghost" style="margin-top:14px;min-height:44px" onclick="CU_Q='';renderContactar()">Limpiar la búsqueda</button>`:''}
@@ -1450,7 +1462,7 @@ function renderContactar(){
       <button class="sm" style="min-height:36px;border-radius:8px" onclick="cuBulk('seguimiento')">Enviar a seguimiento</button>
       <button class="sm ghost" style="min-height:36px" onclick="cuSelLimpiar()">Quitar selección</button>
     </div>`:'';
-  h+=`<div class="card">${barra}<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap"><div class="muted" style="font-size:12px">Mostrando ${items.length} de ${data.total}${data.total>items.length?' — afina con el buscador o un grupo':''}.</div><button class="sm ghost" style="font-size:11px" onclick="cuSelVisibles()">Seleccionar los ${items.length} visibles</button></div>`;
+  h+=`<div class="card" id="cu_lista">${barra}<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap"><div class="muted" style="font-size:12px">Mostrando ${items.length} de ${data.total}${data.total>items.length?' — afina con el buscador o un grupo':''}.</div><button class="sm ghost" style="font-size:11px" onclick="cuSelVisibles()">Seleccionar los ${items.length} visibles</button></div>`;
   for(const i of items){
     const primerNom=(i.nombre||'').split(' ')[0]||'';
     const msg=`Hola ${primerNom}, soy del equipo de Juan Camilo. ¿Cómo vas?`;
