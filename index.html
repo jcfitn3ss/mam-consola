@@ -311,6 +311,7 @@ let CU_GRUPO=''; // filtro de grupo del CRM unificado (Contactar)
 let CU_SINCLI=true; // Contactar: ocultar clientes (Miguel contacta prospectos, no clientes)
 let CU_Q=''; // texto del buscador de Contactar (persiste entre re-renders)
 let CU_FILTRO=''; // filtro especial (ej. 'dijo_no_canjeo')
+let CU_ARRANQUE=false; // ya se eligió la vista inicial de Contactar (una sola vez por sesión)
 let _cuTimer=null;
 function cuBuscar(){ clearTimeout(_cuTimer); _cuTimer=setTimeout(()=>renderContactar(),120); } // búsqueda en vivo (client-side, instantánea)
 function cuFoco(){ if(!CU_Q)return; const b=document.getElementById('cu_q'); if(b){b.focus(); try{b.setSelectionRange(b.value.length,b.value.length);}catch(e){}} } // mantiene el foco tras re-render
@@ -1162,9 +1163,66 @@ async function verContactar(force){
   renderContactar();
 }
 // Aplica los filtros/búsqueda EN EL NAVEGADOR (mismo criterio que tenía el servidor).
+// ───────── Cola de la encuesta propia (aplica.musculoalmaximo.com/captar) ─────────
+// El problema que resuelve: las vistas "Recién llegaron", "Para hoy" y "Nuevos 48h" filtran
+// por `registrado` = fecha en que la persona se registró EN LA APP. Quien solo llenó la
+// encuesta tiene ese campo vacío, así que no salía en ninguna, y como el puntaje premia
+// entrenar/tener la app, caía al fondo de ~9.900 personas y quedaba fuera de las 300 que se
+// dibujan. Esta vista filtra por `lead_creado` (cuándo llenó el formulario) y ordena por
+// fecha, no por puntaje.
+// Se lee de `tags`, que YA llega a la consola: no depende de desplegar la función.
+const ENC_MAPA={
+  meta:{grasa:'bajar grasa',musculo:'ganar músculo',recomposicion:'recomposición',salud:'salud y hábitos',otro:'otro'},
+  nivel:{empezando:'está empezando',novato:'menos de 1 año',intermedio:'de 1 a 3 años',avanzado:'más de 3 años'},
+  empezar:{ya:'Quiere empezar ya',semana:'Empieza esta semana',mes:'Empieza este mes',explorando:'Solo explorando'},
+  invertir:{listo:'Listo para invertir',depende:'Depende del plan',info:'Solo busca info'},
+  'coach-antes':{si:'Ya tuvo coach',no:'Nunca tuvo coach'}
+};
+function cuEncDatos(i){
+  const out={meta:'',nivel:'',empezar:'',invertir:'',coach:'',edad:'',comentario:''};
+  String(i.tags||'').split(',').forEach(t=>{
+    t=t.trim(); const p=t.indexOf(':'); if(p<0)return;
+    const k=t.slice(0,p), v=t.slice(p+1);
+    if(k==='edad') out.edad=v;
+    else if(k==='coach-antes') out.coach=(ENC_MAPA['coach-antes'][v]||'');
+    else if(ENC_MAPA[k]) out[k]=(ENC_MAPA[k][v]||v);
+  });
+  const m=String(i.respuestas||'').match(/•\s*Comentario:\s*([\s\S]+)$/);
+  if(m) out.comentario=m[1].replace(/\s+/g,' ').trim();
+  return out;
+}
+// Es un lead de la encuesta propia si trae las etiquetas que solo pone ese formulario.
+function cuEsEncuesta(i){ const t=String(i.tags||''); return /invertir:|empezar:/.test(t); }
+// Temperatura calculada del lado del navegador (no depende del puntaje del servidor).
+function cuTemp(i){
+  const t=String(i.tags||'');
+  if(/invertir:info/.test(t)||/empezar:explorando/.test(t)) return 'FRÍO';
+  if(/invertir:listo/.test(t)&&/empezar:(ya|semana)/.test(t)) return 'CALIENTE';
+  return 'TIBIO';
+}
+function cuEncuesta(all){
+  return (all||[]).filter(i=>cuEsEncuesta(i)&&i.grupo!=='Cliente')
+    .sort((a,b)=>new Date(b.lead_creado||0).getTime()-new Date(a.lead_creado||0).getTime());
+}
+// Sin contactar = nadie le ha escrito todavía (estado vacío o "sin contactar").
+function cuEncPendientes(all){
+  return cuEncuesta(all).filter(i=>!i.contacto_estado||i.contacto_estado==='sin_contactar');
+}
+function cuHaceCuanto(iso){
+  if(!iso) return '';
+  const min=Math.round((Date.now()-new Date(iso).getTime())/60000);
+  if(min<1) return 'ahora mismo';
+  if(min<60) return 'hace '+min+' min';
+  const hs=Math.round(min/60);
+  if(hs<24) return 'hace '+hs+(hs===1?' hora':' horas');
+  const d=Math.round(hs/24);
+  return d===1?'ayer':'hace '+d+' días';
+}
+
 function cuFiltrar(){
   const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
   if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
+  if(CU_FILTRO==='encuesta') return cuEncuesta(all);
   if(CU_FILTRO==='reciente') return cuRecientes(all);
   if(CU_FILTRO==='rutina') return all.filter(i=>/rutina/i.test(i.origen||''));
   if(CU_FILTRO==='hoy') return cuParaHoy(all);
@@ -1276,9 +1334,19 @@ function renderContactar(){
   // Vistas de trabajo (distintas de los grupos): esquinas rectas para diferenciarlas.
   const wchip=(label,val,n)=>`<button class="sm ${CU_FILTRO===val?'':'ghost'}" style="border-radius:8px" onclick="CU_FILTRO=CU_FILTRO==='${val}'?'':'${val}';CU_GRUPO='';renderContactar()">${esc(label)}${n?' ('+n+')':''}</button>`;
   const ALL=window.CU_ALL||[];
+  // Vista inicial: si alguien llenó la encuesta y nadie le ha escrito, la consola abre ahí.
+  // Es lo más urgente del día y antes quedaba enterrado. Solo se decide una vez por sesión:
+  // después manda lo que el setter elija.
+  if(!CU_ARRANQUE){ CU_ARRANQUE=true; if(!CU_FILTRO&&!CU_GRUPO&&!CU_Q&&cuEncPendientes(ALL).length) CU_FILTRO='encuesta'; }
   const colaHoy=cuParaHoy(ALL);
   const nHoy=colaHoy.length;
   const nReciente=cuRecientes(ALL).length;
+  // Cola de la encuesta propia: lo que llenó el formulario y nadie ha contactado.
+  const encTodos=cuEncuesta(ALL);
+  const encPend=cuEncPendientes(ALL);
+  const nEnc=encTodos.length, nEncPend=encPend.length;
+  const encUltimo=encPend.length?encPend[0].lead_creado:(encTodos.length?encTodos[0].lead_creado:'');
+  const nEncCal=encPend.filter(i=>cuTemp(i)==='CALIENTE').length;
   // Contactos de hoy = actividad del setter (solo sube, sensación de puntos).
   const contactsHoy=ALL.filter(i=>i.grupo!=='Cliente'&&cuEsHoy(i.contacto_ultimo)).length;
   const pending=nHoy;                       // lo que queda en la cola
@@ -1310,6 +1378,18 @@ function renderContactar(){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${funBox('Contactados',fCont,'')}${funBox('Respondieron',fResp,pct(fResp,fCont)+'%')}${funBox('Agendó o canjeó',fAg,pct(fAg,fCont)+'%')}${funBox('Compraron',fWon,pct(fWon,fCont)+'%')}</div>
       <div class="muted" style="font-size:11px;margin-top:8px">Últimos 7 días, por último contacto. Metas: respuesta &gt; 40%, agenda &gt; 15%, compra &gt; 5%.</div>
     </details>
+    ${nEncPend>0?`<div style="margin-top:12px;background:linear-gradient(180deg,rgba(226,59,59,.16),rgba(226,59,59,.07));border:1px solid var(--rojo);border-radius:14px;padding:16px 18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:14px;align-items:center">
+          <div style="font-size:30px;font-weight:800;line-height:1;letter-spacing:-.02em">${nEncPend}</div>
+          <div>
+            <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.6px">${nEncPend===1?'Llenó la encuesta':'Llenaron la encuesta'}${nEncCal?` · ${nEncCal} caliente${nEncCal===1?'':'s'}`:''}</div>
+            <div class="muted" style="font-size:12.5px">Sin contactar${encUltimo?'. El más nuevo llegó '+esc(cuHaceCuanto(encUltimo)):''}.</div>
+          </div>
+        </div>
+        <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:44px;padding:0 18px" onclick="CU_FILTRO='encuesta';CU_GRUPO='';CU_Q='';renderContactar()">Abrir ${nEncPend===1?'el':'los'} ${nEncPend}</button>
+      </div>
+    </div>`:''}
     ${(()=>{const done=pending===0&&contactsHoy>0; const vacio=pending===0&&contactsHoy===0;
       return `<div style="margin-top:12px;background:${done?'rgba(63,184,79,.10)':(CU_FILTRO==='hoy'?'rgba(226,59,59,.10)':'var(--card2)')};border:1px solid ${done?'var(--ok)':(CU_FILTRO==='hoy'?'var(--rojo)':'var(--line)')};border-radius:14px;padding:14px 16px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1327,19 +1407,42 @@ function renderContactar(){
         <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:9px;min-height:38px" onclick="CU_FILTRO='reciente';CU_GRUPO='';renderContactar()">Contactar ya</button>
       </div>`:''}
     </div>`;})()}
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:14px;margin-bottom:4px">Vistas de trabajo</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      ${wchip('Recién llegaron','reciente',nReciente)}${wchip('Para hoy','hoy',nHoy)}${wchip('Rutina regalo','rutina',nRutina)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Seguimiento','seguimiento',nSeg)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}
-    </div>
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px">Grupos</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
-    </div>
+    ${(()=>{
+      // Tres pestañas en vez de doce chips: lo que se trabaja todos los días. El resto
+      // sigue existiendo, colapsado, para que deje de competir por la atención.
+      const tab=(label,val,n)=>{const on=CU_FILTRO===val;
+        return `<button onclick="CU_FILTRO='${val}';CU_GRUPO='';renderContactar()" style="min-height:44px;padding:0 14px;background:none;border:none;border-bottom:2px solid ${on?'var(--rojo)':'transparent'};border-radius:0;color:${on?'var(--txt)':'var(--muted)'};font-weight:700;font-size:13px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:7px">${esc(label)}${n?`<span style="font-size:11px;background:${on?'var(--rojo)':'var(--card2)'};color:${on?'#fff':'inherit'};border-radius:9px;padding:1px 7px;font-weight:800">${n}</span>`:''}</button>`;};
+      return `<div style="display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:14px;flex-wrap:wrap">
+        ${tab('Encuesta nueva','encuesta',nEnc)}${tab('Para hoy','hoy',nHoy)}${tab('Seguimiento','seguimiento',nSeg)}
+      </div>
+      <details${CU_FILTRO&&!['encuesta','hoy','seguimiento'].includes(CU_FILTRO)||CU_GRUPO?' open':''}>
+        <summary style="cursor:pointer;font-size:12px;color:var(--muted);padding:10px 2px;min-height:44px;display:flex;align-items:center;font-weight:600">Más filtros y grupos</summary>
+        <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Vistas de trabajo</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${wchip('Recién llegaron','reciente',nReciente)}${wchip('Rutina regalo','rutina',nRutina)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}
+        </div>
+        <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px">Grupos</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${gchip('Todos','')}${gchip('En app · con regalo','En app · con regalo')}${gchip('En app · prueba','En app · prueba')}${gchip('Canceló','Vencido')}${gchip('Clientes','Cliente')}${gchip('No descargó','No descargó')}
+        </div>
+      </details>`;})()}
     <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-top:12px"><input type="checkbox" ${CU_SINCLI?'checked':''} onchange="CU_SINCLI=this.checked;renderContactar()"> Solo no-clientes (ocultar a quienes ya pagan)</label>
     <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')renderContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';renderContactar()">Limpiar</button>`:''}</div>
   </div>`;
   window._CU_VIS=items.map(cuKey); // claves visibles (para "seleccionar todos")
-  if(!items.length){h+='<div class="card"><div class="muted">Nadie en este filtro.</div></div>';el.innerHTML=h;cuFoco();return;}
+  if(!items.length){
+    const vacios={
+      encuesta:['Todavía nadie ha llenado la encuesta.','El formulario está en aplica.musculoalmaximo.com/captar. En cuanto alguien lo llene, aparece aquí de primero.'],
+      hoy:['Nada urgente por ahora.','Buen momento para trabajar la pestaña de Seguimiento.'],
+      seguimiento:['Nadie en seguimiento.','Los que marques como "en seguimiento" salen aquí cuando toque volver a escribirles.']
+    };
+    const v=vacios[CU_FILTRO];
+    h+=`<div class="card" style="text-align:center;padding:30px 20px">
+      <div style="font-weight:700;font-size:15px">${v?esc(v[0]):'Nadie en este filtro.'}</div>
+      ${v?`<div class="muted" style="font-size:13px;margin-top:6px;max-width:420px;margin-left:auto;margin-right:auto">${esc(v[1])}</div>`:''}
+      ${CU_Q?`<button class="sm ghost" style="margin-top:14px;min-height:44px" onclick="CU_Q='';renderContactar()">Limpiar la búsqueda</button>`:''}
+    </div>`;
+    el.innerHTML=h;cuFoco();return;}
   const nSel=window.CU_SEL.size;
   const barra=nSel>0?`<div style="position:sticky;top:0;z-index:5;background:var(--card2);border:1px solid var(--rojo);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <b style="font-size:13px">${nSel} seleccionados</b>
@@ -1369,12 +1472,36 @@ function renderContactar(){
     const k=cuKey(i); const sel=window.CU_SEL.has(k); const notaId='nota_'+selId;
     const formLine=i.lead_creado?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${fFechaCorta(i.lead_creado)}</b>${i.cuando_escribio?' · '+esc(i.cuando_escribio):''}</div>`:(i.cuando_escribio?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${esc(i.cuando_escribio)}</b></div>`:'');
     const ht=histTexto(i.historial);
-    h+=`<div style="border-top:1px solid var(--line);padding:11px 0;${sel?'background:rgba(226,59,59,.06);border-radius:8px':''}">
+    // ── Lo que contestó en la encuesta, VISIBLE sin abrir "ver más". Para quien no está en
+    // la app, esto es lo único que dice si vale la llamada. Si no es lead de encuesta, vacío.
+    const esEnc=cuEsEncuesta(i);
+    const temp=esEnc?cuTemp(i):'';
+    const bordeTemp=temp==='CALIENTE'?'var(--rojo)':temp==='TIBIO'?'var(--warn)':temp==='FRÍO'?'var(--line2)':'';
+    const encNuevo=esEnc&&i.lead_creado&&(Date.now()-new Date(i.lead_creado).getTime())<24*3600*1000;
+    const encBloque=(()=>{
+      if(!esEnc) return '';
+      const d=cuEncDatos(i);
+      const sCol=temp==='CALIENTE'
+        ?'background:var(--rojoSoft);color:#ff8f8f;border:1px solid rgba(226,59,59,.4)'
+        :temp==='TIBIO'
+        ?'background:rgba(224,184,74,.12);color:var(--warn);border:1px solid rgba(224,184,74,.35)'
+        :'background:var(--card2);color:var(--muted);border:1px solid var(--line)';
+      const sen=(t)=>t?`<span style="font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;padding:4px 9px;border-radius:7px;${sCol}">${esc(t)}</span>`:'';
+      const donde=[i.ciudad||'',d.edad?d.edad+' años':'',d.nivel?'entrena '+d.nivel:''].filter(Boolean).join(' · ');
+      return `${donde?`<div class="muted" style="font-size:12.5px;margin-top:3px">${esc(donde)}</div>`:''}
+        ${d.meta?`<div style="font-size:13px;margin-top:8px">Quiere <b>${esc(d.meta)}</b>${d.coach?' · '+esc(d.coach.toLowerCase()):''}</div>`:''}
+        ${(d.empezar||d.invertir)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">${sen(d.empezar)}${sen(d.invertir)}</div>`:''}
+        ${d.comentario?`<div style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-left:2px solid var(--line2);border-radius:8px;padding:10px 12px;font-size:13px;color:#ddd9e2;font-style:italic">${esc(d.comentario)}</div>`:''}`;
+    })();
+    // Instagram como segundo canal: si el WhatsApp falla, por ahí se le escribe.
+    const igBtn=i.instagram?`<a class="sm ghost" href="https://instagram.com/${encodeURIComponent(String(i.instagram).replace(/^@+/,''))}" target="_blank" rel="noopener" style="min-height:40px;border-radius:9px;text-decoration:none;display:inline-flex;align-items:center" title="Abrir su Instagram">@${esc(String(i.instagram).replace(/^@+/,''))}</a>`:'';
+    h+=`<div style="border-top:1px solid var(--line);padding:11px 0;${bordeTemp?`border-left:3px solid ${bordeTemp};padding-left:11px;`:''}${sel?'background:rgba(226,59,59,.06);border-radius:8px':''}">
       <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <div style="display:flex;gap:10px;flex:1;min-width:200px">
           <input type="checkbox" ${sel?'checked':''} onchange="cuToggleSel('${k}',this.checked)" title="Seleccionar" style="width:18px;height:18px;margin-top:3px;flex:none;cursor:pointer">
           <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b> ${niv} ${chip(i.grupo)}${toqueChip}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b>${encNuevo?` <span style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;background:var(--rojo);color:#fff;border-radius:5px;padding:2px 7px">nuevo</span>`:''} ${niv} ${chip(i.grupo)}${toqueChip}${esEnc&&i.lead_creado?` <span class="muted" style="font-size:11.5px">${esc(cuHaceCuanto(i.lead_creado))}</span>`:''}</div>
+          ${encBloque}
           ${g.t?`<div style="font-size:12px;margin-top:3px;color:${g.c};font-weight:600">${esc(g.t)}</div>`:''}
           <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--muted)">ver más</summary>
             <div class="muted" style="font-size:11px;margin-top:6px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${(()=>{const p=cuPaisDeTel(i.telefono);if(p)return ` · <span title="${esc(p.nombre)}" style="font-weight:700;color:var(--txt);cursor:default;border-bottom:1px dotted var(--line)">${p.iso}</span>`;return i.pais?` · ${esc(i.pais)}`:'';})()}</div>
@@ -1391,7 +1518,7 @@ function renderContactar(){
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          ${selEst}${waBtn}${infBtn}
+          ${selEst}${waBtn}${igBtn}${infBtn}
         </div>
       </div></div>`;
   }
