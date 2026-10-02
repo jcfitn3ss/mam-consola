@@ -3211,31 +3211,53 @@ async function verCliente(id){
 
   // Plan de alimentación MULTI-DÍA: generar con IA -> revisar/editar en texto -> aprobar -> exportar PDF.
   h+=`<div class="card"><h2 style="margin-top:0">Plan de alimentación <span class="pill" style="background:rgba(226,59,59,.16);color:#ff8a8a;font-weight:700;font-size:10px">PDF DESCARGABLE</span></h2>
-    <div class="muted" style="margin-bottom:8px"><b>Este es el DOCUMENTO PDF</b> que el cliente descarga/comparte (no las tarjetas de arriba). La IA arma un plan de varios días (alimentos y gramos, según lo que le gusta al cliente). <b>Revísalo y edítalo aquí</b>; cuando quede bien, apruébalo y expórtalo en PDF. No se exporta hasta que lo apruebes.</div>
-    <label class="lbl">Alimentos para este plan (opcional) — descríbelos o lístalos</label>
-    <textarea id="plan_foods" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: pollo, arroz, avena, huevo, atún, papa, aguacate, banano, whey Gold Standard… Si lo dejas vacío, uso los alimentos que el cliente registró."></textarea>
-    <div class="muted" style="font-size:11px;margin:2px 0 6px">Si escribes aquí, la IA arma el plan SOLO con estos alimentos (manda sobre la lista del cliente).</div>
-    <label class="lbl">Estructura / instrucciones (opcional) — cómo quieres los platos</label>
-    <textarea id="plan_instrucciones" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: Desayuno siempre huevos con arepa; almuerzo pollo o carne con arroz y ensalada; cena proteína con verduras; nada de yogur ni avena en almuerzo/cena."></textarea>
-    <div class="muted" style="font-size:11px;margin:2px 0 6px">Instrucciones de estructura que la IA debe obedecer (además de lo que el cliente contó en su registro).</div>
-    <div class="row" style="align-items:flex-end;margin-bottom:6px">
-      <div style="flex:0"><label class="lbl">Días del plan</label><input id="plan_dias" type="number" min="1" max="10" value="4" style="width:80px"></div>
-      <div style="flex:0"><label class="lbl">Comidas al día</label><input id="plan_comidas" type="number" min="2" max="7" value="4" style="width:90px"></div>
-      <div><button onclick="planGenerar('${id}')">Generar con IA</button></div>
+    <div class="muted" style="margin-bottom:10px;font-size:12px"><b>Documento PDF</b> que el cliente descarga y ve en la app. Tres pasos: <b>1)</b> defines, <b>2)</b> revisas y ajustas, <b>3)</b> apruebas y entregas.</div>
+
+    <!-- ===== PASO 1: DEFINIR ===== -->
+    <div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Paso 1 · Definir</div>
+      <label class="lbl">¿Cómo armamos el plan?</label>
+      <div style="display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;max-width:520px;margin:2px 0 4px">
+        <button type="button" id="modo_ia" class="plmodo on" onclick="planSetModo('ia')" style="flex:1;margin:0;border:0;border-radius:0;padding:10px;font-weight:700;cursor:pointer">La IA lo arma</button>
+        <button type="button" id="modo_ex" class="plmodo" onclick="planSetModo('exacto')" style="flex:1;margin:0;border:0;border-left:1px solid var(--line);border-radius:0;padding:10px;font-weight:700;cursor:pointer">Yo defino (exacto)</button>
+      </div>
+      <input type="checkbox" id="plan_exacto" style="display:none">
+      <div id="modoHelp" class="muted" style="font-size:11px;margin-bottom:8px"></div>
+      <label class="lbl">Alimentos para este plan (opcional) — descríbelos o lístalos</label>
+      <textarea id="plan_foods" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: pollo, arroz, avena, huevo, atún, papa, aguacate, banano, whey Gold Standard… Si lo dejas vacío, uso los alimentos que el cliente registró."></textarea>
+      <div class="muted" style="font-size:11px;margin:2px 0 6px">Si escribes aquí, el plan usa SOLO estos alimentos (manda sobre la lista del cliente). Lista cerrada 100%: no entra nada que no pongas.</div>
+      <label class="lbl">Estructura / instrucciones (opcional) — cómo quieres los platos</label>
+      <textarea id="plan_instrucciones" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: Desayuno siempre huevos con arepa; almuerzo pollo o carne con arroz y ensalada; cena proteína con verduras; nada de yogur ni avena en almuerzo/cena."></textarea>
+      <div class="muted" style="font-size:11px;margin:2px 0 8px">Instrucciones de estructura que debe obedecer (además de lo que el cliente contó).</div>
+      <div class="row" style="align-items:flex-end;margin-bottom:6px">
+        <div style="flex:0"><label class="lbl">Días del plan</label><input id="plan_dias" type="number" min="1" max="10" value="4" style="width:80px"></div>
+        <div style="flex:0"><label class="lbl">Comidas al día</label><input id="plan_comidas" type="number" min="2" max="7" value="4" style="width:90px"></div>
+        <div><button id="btnGenerar" onclick="planGenerar('${id}')">Generar con IA</button></div>
+      </div>
+      <label id="lblVariar" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;margin-bottom:2px" title="Cada día usa alimentos distintos (misma estructura). Desmárcalo para dar el MISMO plan todos los días."><input type="checkbox" id="plan_variar" ${(pln.data&&pln.data.variar_dias===false)?'':'checked'} onchange="setVariarDias('${id}',this.checked)"> Variar comidas entre días</label>
+      <div><span id="planMsg" class="muted" style="font-size:12px"></span></div>
     </div>
-    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;margin-bottom:6px" title="Cada día del plan usa alimentos distintos (misma estructura). Desmárcalo para dar el MISMO plan todos los días."><input type="checkbox" id="plan_variar" ${(pln.data&&pln.data.variar_dias===false)?'':'checked'} onchange="setVariarDias('${id}',this.checked)"> Variar comidas entre días</label>
-    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;margin:0 0 6px 16px" title="Respeta EXACTAMENTE los gramos y cantidades que pongas: NO los reescala a las kcal objetivo, ni al generar ni al aprobar. Úsalo para peak week / planes de competencia donde tú defines las porciones."><input type="checkbox" id="plan_exacto"> <b>Cantidades exactas</b> (no reescalar a kcal)</label>
-    <span id="planMsg" class="muted" style="font-size:12px"></span>
-    <div id="plan_editor" style="margin-top:10px"></div>
-    <div id="plan_acciones" class="hide" style="margin-top:10px">
-      <button onclick="planGuardar('${id}')">Aprobar y guardar</button>
-      <button class="ghost" onclick="planAjustar('${id}')" title="Reescala los GRAMOS para pegar a las kcal objetivo actuales del cliente SIN cambiar los alimentos ni la estructura. Para dieta reversa: primero cambia sus calorías (arriba), y si quieres que las kcal extra vengan de un alimento puntual agrégalo a la comida; luego pulsa Ajustar.">Ajustar a kcal (mantener estructura)</button>
-      <button class="ghost" onclick="planExportar()">Exportar PDF</button>
-      <button class="ghost" onclick="marcarPlanEnviado('${id}')">Enviar por correo</button>
-      <button class="ghost" onclick="planPreview()">Actualizar vista previa</button>
-      <span id="planMsg2" class="muted" style="font-size:12px"></span>
+
+    <!-- ===== PASO 2: REVISAR ===== -->
+    <div id="plan_paso2" class="hide" style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Paso 2 · Revisar y ajustar <span id="modoBadge"></span></div>
+      <div id="planSinDato" class="hide" style="background:rgba(224,184,74,.12);border:1px solid rgba(224,184,74,.35);color:var(--warn);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:10px"></div>
+      <div id="plan_editor"></div>
     </div>
-    <iframe id="plan_prev" class="hide" style="width:100%;height:560px;border:1px solid var(--line);border-radius:8px;margin-top:10px;background:#fff"></iframe>
+
+    <!-- ===== PASO 3: APROBAR Y ENTREGAR ===== -->
+    <div id="plan_acciones" class="hide" style="border:1px solid var(--rojo);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--card2)">
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Paso 3 · Aprobar y entregar</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button id="btnAprobar" onclick="planGuardar('${id}')">Aprobar y guardar</button>
+        <button class="ghost" onclick="planExportar()">Exportar PDF</button>
+        <button class="ghost" onclick="planPreview()">Actualizar vista previa</button>
+        <button id="btnAjustar" class="ghost" onclick="planAjustar('${id}')" title="Reescala los GRAMOS para pegar a las kcal objetivo actuales SIN cambiar los alimentos ni la estructura (dieta reversa). No disponible en modo exacto.">Ajustar a kcal</button>
+        <button class="ghost" onclick="marcarPlanEnviado('${id}')" title="Marca este plan como entregado (registro interno). El cliente ya lo ve en la app al aprobar; el envío por correo está pendiente de activar.">Marcar como entregado</button>
+      </div>
+      <div><span id="planMsg2" class="muted" style="font-size:12px"></span></div>
+    </div>
+    <iframe id="plan_prev" class="hide" style="width:100%;height:560px;border:1px solid var(--line);border-radius:8px;margin-top:4px;background:#fff"></iframe>
   </div>`;
 
   // ===== Análisis de entreno (gráficas) =====
@@ -4035,6 +4057,49 @@ function planMealTot(c){
   return {...t,sin};
 }
 function planDayTot(dia){return (dia.comidas||[]).reduce((a,c)=>{const m=planMealTot(c);return{k:a.k+m.k,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f};},{k:0,p:0,c:0,f:0});}
+// Selector de modo: IA arma vs exacto (yo defino). Driva el checkbox oculto plan_exacto
+// que leen planGenerar/planGuardar, y refleja el estado en toda la UI para que NUNCA
+// se reescale en silencio (etiqueta en el editor + texto de los botones).
+function planSetModo(m){
+  const ex=(m==='exacto');
+  const cb=$("plan_exacto");if(cb)cb.checked=ex;
+  const bIA=$("modo_ia"),bEX=$("modo_ex");
+  const on={bg:'var(--rojo)',col:'#fff'},off={bg:'transparent',col:'var(--muted)'};
+  if(bIA){bIA.style.background=ex?off.bg:on.bg;bIA.style.color=ex?off.col:on.col;}
+  if(bEX){bEX.style.background=ex?on.bg:off.bg;bEX.style.color=ex?on.col:off.col;}
+  const help=$("modoHelp");if(help)help.innerHTML=ex?'<b>Exacto:</b> respeta tus gramos y unidades tal cual, no reescala a las kcal. Para peak week / competencia.':'<b>IA:</b> arma el plan y cuadra los macros al objetivo. Puedes ajustar después.';
+  const g=$("btnGenerar");if(g)g.textContent=ex?'Generar borrador (ajusto a mano)':'Generar con IA';
+  const a=$("btnAprobar");if(a)a.textContent=ex?'Aprobar exacto y guardar':'Aprobar y guardar';
+  const badge=$("modoBadge");if(badge)badge.innerHTML=ex?'· <span style="color:var(--warn);font-weight:700;text-transform:none;letter-spacing:0">modo exacto (sin reescalar)</span>':'';
+  const lv=$("lblVariar");if(lv)lv.style.display=ex?'none':'inline-flex';
+  const aj=$("btnAjustar");if(aj){aj.disabled=ex;aj.style.opacity=ex?'.4':'';aj.title=ex?'No disponible en modo exacto (reescalaría tus cantidades).':'Reescala los gramos a las kcal objetivo sin cambiar alimentos (dieta reversa).';}
+}
+// "Armar a mano": abre el editor vacío (1 día, 4 comidas) sin IA, para cuando la IA
+// está caída o el entrenador quiere escribir todo él mismo.
+function planArmarManual(id){
+  const moms=["DESAYUNO","ALMUERZO","MEDIA TARDE","CENA"];
+  PLAN_DATOS={cliente:"",fecha:"",objetivoLabel:"",objetivo:(PLAN_DATOS&&PLAN_DATOS.objetivo)||{},dias:[{titulo:"",comidas:moms.map(mm=>({momento:mm,alimentos:"",foods:[]}))}],reglas:[]};
+  $("planMsg").innerHTML="Editor manual: agrega alimentos y gramos. Los macros se calculan solos.";
+  planRenderEditor();
+  const p2=$("plan_paso2");if(p2)p2.classList.remove("hide");
+  $("plan_acciones").classList.remove("hide");
+}
+// Cambia la unidad de un alimento (unid <-> g) por decisión del entrenador. Convierte
+// el valor usando la porción del catálogo para no perder la cantidad.
+function planToggleUnidad(di,ci,fi){
+  planRecoger();
+  const c=PLAN_DATOS&&PLAN_DATOS.dias[di]&&PLAN_DATOS.dias[di].comidas[ci];if(!c||!c.foods||!c.foods[fi])return;
+  const f=c.foods[fi];const cat=planCatDe(f.nombre);const esU=(f.uniForz!=null)?f.uniForz:planEsUnidad(f.nombre);
+  f.uniForz=!esU; // fuerza el modo opuesto
+  // Conserva la cantidad real: si pasa a unidad, estima unidades desde gramos; si pasa a g, calcula gramos.
+  if(f.uniForz){const g=planGramosDe(f)||+f.gramos||0;f.unidades=cat&&cat.pg?Math.max(1,Math.round(g/cat.pg)):(+f.unidades||1);f.gramos=0;}
+  else{const g=planGramosDe(f)||((+f.unidades||0)*((cat&&cat.pg)||0));f.gramos=Math.round(g)||0;f.unidades=0;}
+  planRenderEditor();
+}
+// Duplica un día (copia exacta) — para planes de varios días iguales sin reescribir.
+function planDuplicarDia(di){planRecoger();const d=PLAN_DATOS&&PLAN_DATOS.dias[di];if(!d)return;const copia=JSON.parse(JSON.stringify(d));PLAN_DATOS.dias.splice(di+1,0,copia);planRenderEditor();}
+// Aplica el día 1 a TODOS los días (mismo plan cada día). Pide confirmación.
+function planAplicarATodos(){planRecoger();if(!PLAN_DATOS||!PLAN_DATOS.dias.length)return;if(PLAN_DATOS.dias.length<2){alert("Solo hay un día.");return;}if(!confirm("¿Copiar el Día 1 a TODOS los días? Se reemplaza lo que tengan los demás."))return;const base=JSON.parse(JSON.stringify(PLAN_DATOS.dias[0]));PLAN_DATOS.dias=PLAN_DATOS.dias.map(()=>JSON.parse(JSON.stringify(base)));planRenderEditor();}
 async function planGenerar(id){
   const dias=Math.max(1,Math.min(10,+$("plan_dias").value||4));
   const comidas=Math.max(2,Math.min(7,+$("plan_comidas").value||4));
@@ -4044,13 +4109,22 @@ async function planGenerar(id){
   $("planMsg").textContent=exacto?"Generando plan (cantidades exactas, sin reescalar)…":"Generando plan con IA… (unos segundos)";$("plan_editor").innerHTML="";
   await planCargarCatalogo(id);
   const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,comidas,alimentos,instrucciones,exacto}});
-  if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
+  if(error||!data||data.error){
+    const raw=((error&&error.message)||(data&&data.error)||"error");
+    // Error amable: si la IA no respondió (créditos / non-2xx), ofrece armar a mano.
+    const iaCaida=/non-2xx|2xx|edge|timeout|network|fetch|500|502|503|límite|limit|credit/i.test(String(raw));
+    $("planMsg").innerHTML=iaCaida
+      ? `<span class="alert">La IA no respondió en este momento.</span> <button class="sm" onclick="planGenerar('${id}')" style="margin-left:6px">Reintentar</button> <button class="sm ghost" onclick="planArmarManual('${id}')" style="margin-left:4px">Armar a mano</button>`
+      : `<span class="alert">${esc(raw)}</span>`;
+    return;
+  }
   PLAN_DATOS=data.datos;
   // Convierte cada comida a filas de alimentos editables (nombre + gramos).
   (PLAN_DATOS.dias||[]).forEach(dia=>(dia.comidas||[]).forEach(c=>{c.foods=planParseFoods(c.alimentos);}));
   const notaFuente=data.fuente==="catalogo"?" <b style='color:#e0b84a'>El cliente aún no registró sus alimentos, así que este plan usa el catálogo oficial.</b> Ajústalo a sus gustos.":"";
-  $("planMsg").innerHTML="✓ Plan generado. Ajusta alimentos y gramos (los macros se recalculan solos). Cuando quede bien, <b>Aprobar y guardar</b>."+notaFuente;
+  $("planMsg").innerHTML=(exacto?"✓ Borrador listo (modo exacto). Ajusta los gramos tal cual; no se reescalan.":"✓ Plan generado. Ajusta alimentos y gramos (los macros se recalculan solos).")+" Cuando quede bien, <b>Aprobar</b>."+notaFuente;
   planRenderEditor();$("plan_acciones").classList.remove("hide");
+  const p2=$("plan_paso2");if(p2)p2.classList.remove("hide");
   const f=$("plan_prev");if(f)f.classList.add("hide");
   // Deja lista la vista previa/PDF de inmediato (sin tener que pulsar "Actualizar
   // vista previa" antes de "Exportar PDF").
@@ -4061,8 +4135,9 @@ async function planGenerar(id){
 // hay borrador (datos sin html aprobado), lo muestra y avisa que falta aprobar.
 async function planCargarGuardado(id){
   PLAN_DATOS=null;PLAN_HTML=null;
-  const msg=$("planMsg");const acc=$("plan_acciones");const f=$("plan_prev");
-  if(acc)acc.classList.add("hide");if(f)f.classList.add("hide");
+  const msg=$("planMsg");const acc=$("plan_acciones");const f=$("plan_prev");const p2=$("plan_paso2");
+  try{planSetModo('ia');}catch(e){} // estado inicial del selector de modo
+  if(acc)acc.classList.add("hide");if(f)f.classList.add("hide");if(p2)p2.classList.add("hide");
   // Lee por el EDGE (service_role): RLS bloquea que el entrenador lea la fila del cliente
   // con sb.from → el plan "desaparecía" al recargar. El edge 'ver' devuelve datos+html.
   let fila=null;
@@ -4073,6 +4148,7 @@ async function planCargarGuardado(id){
     PLAN_DATOS=fila.datos;
     (PLAN_DATOS.dias||[]).forEach(dia=>(dia.comidas||[]).forEach(c=>{c.foods=planParseFoods(c.alimentos);}));
     planRenderEditor();
+    const p2=$("plan_paso2");if(p2)p2.classList.remove("hide");
   }
   if(fila.html){PLAN_HTML=fila.html;if(f){f.classList.remove("hide");f.srcdoc=fila.html;}}
   if(acc)acc.classList.remove("hide");
@@ -4093,6 +4169,7 @@ function planRenderEditor(){
         <b style="white-space:nowrap">Día ${di+1}</b>
         <input class="plDiaTit" data-d="${di}" value="${esc(dia.titulo||'')}" placeholder="Resumen (ej: Pollo con arroz + arepa)" style="flex:1;margin:0">
         <span id="daytot-${di}" class="muted" style="font-size:11px;white-space:nowrap"></span>
+        <button class="sm ghost" onclick="planDuplicarDia(${di})" title="Duplicar este día" style="margin:0;padding:2px 8px">Duplicar</button>
         <button class="sm ghost" onclick="planQuitarDia(${di})" title="Quitar día" style="margin:0">×</button>
       </div>`;
     (dia.comidas||[]).forEach((c,ci)=>{
@@ -4108,15 +4185,15 @@ function planRenderEditor(){
           </span>
         </div>`;
       (c.foods||[]).forEach((f,fi)=>{
-        const esU=planEsUnidad(f.nombre);const cat=planCatDe(f.nombre);const esMl=planEsMl(f.nombre);
+        const esU=(f.uniForz!=null)?f.uniForz:planEsUnidad(f.nombre);const cat=planCatDe(f.nombre);const esMl=planEsMl(f.nombre);
         const valU=esU?((+f.unidades||(cat&&cat.pg?Math.round((+f.gramos||0)/cat.pg):0))||0):(Math.round(planGramosDe(f)||+f.gramos||0));
         // Solo un aviso discreto si el alimento NO se encontró (no aporta macros).
         // El resto se edita igual que siempre: el nombre es libre y editable.
         const hint=cat?'':`<span style="color:var(--warn);font-size:10px;white-space:nowrap" title="No está en el catálogo: no aporta macros. Cámbialo por uno del catálogo o revisa el nombre">sin dato</span>`;
         h+=`<div style="display:flex;gap:6px;align-items:center;margin:3px 0;flex-wrap:wrap">
           <input list="planCat" value="${esc(f.nombre||'')}" placeholder="Alimento" style="flex:1;min-width:120px;margin:0" oninput="planSet(${di},${ci},${fi},'nombre',this.value)">
-          <input type="number" min="0" step="${esU?'1':'1'}" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
-          <span class="muted" style="font-size:11px">${esU?'unid':(esMl?'ml':'g')}</span>
+          <input type="number" min="0" step="1" value="${valU}" style="width:70px;margin:0;text-align:right" oninput="planSet(${di},${ci},${fi},'${esU?'unidades':'gramos'}',this.value)">
+          ${esMl?`<span class="muted" style="font-size:11px;width:46px">ml</span>`:`<button type="button" class="sm ghost" onclick="planToggleUnidad(${di},${ci},${fi})" title="Cambiar entre unidades y gramos (ej: huevo en unidades, clara en gramos)" style="font-size:11px;padding:3px 7px;margin:0;min-width:46px">${esU?'unid':'g'} ⇄</button>`}
           <span id="foodk-${di}-${ci}-${fi}" class="muted" style="font-size:11px;width:64px;text-align:right"></span>
           ${hint}
           <button class="sm ghost" onclick="planFoodDel(${di},${ci},${fi})" title="Quitar alimento" style="margin:0">×</button>
@@ -4128,6 +4205,7 @@ function planRenderEditor(){
     h+=`<button class="sm ghost" onclick="planAgregarComida(${di})" style="margin-top:6px">+ Agregar comida / snack</button></div>`;
   });
   h+=`<button class="sm ghost" onclick="planAgregarDia()">+ Agregar día</button>`;
+  if((d.dias||[]).length>1)h+=` <button class="sm ghost" onclick="planAplicarATodos()" title="Copia el Día 1 a todos los días (mismo plan cada día)">Aplicar Día 1 a todos</button>`;
   // Recuento TOTAL del plan (promedio por día + gran total), al final para el entrenador.
   h+=`<div id="plantot" style="margin-top:12px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px"></div>`;
   // Reglas operativas
@@ -4180,9 +4258,21 @@ function planActualizarTotales(){
     const pr={k:g.k/n,p:g.p/n,c:g.c/n,f:g.f/n};
     const diff=o.kcal?Math.round(pr.k)-o.kcal:0;
     const col=(o.kcal&&Math.abs(diff)>o.kcal*0.08)?'#c0392b':'#2e7d32';
+    // Barra de kcal vs objetivo (verde=en rango ±8%, rojo=fuera). Lectura de un vistazo.
+    let barra='';
+    if(o.kcal){const pct=Math.max(2,Math.min(130,Math.round(pr.k/o.kcal*100)));barra=`<div style="height:7px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:7px"><div style="height:100%;width:${pct}%;background:${col};border-radius:5px"></div></div>`;}
     tot.innerHTML=`<div style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Recuento del plan</div>`
       +`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>Promedio por día</b><b style="color:${col}">${Math.round(pr.k)} kcal · P${Math.round(pr.p)}/C${Math.round(pr.c)}/G${Math.round(pr.f)}${o.kcal?` (obj ${o.kcal}${diff>0?' +'+diff:diff<0?' '+diff:' ✓'})`:''}</b></div>`
-      +(dias.length>1?`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:4px;color:var(--muted);font-size:12px"><span>Total ${dias.length} días</span><span>${Math.round(g.k)} kcal · P${Math.round(g.p)}/C${Math.round(g.c)}/G${Math.round(g.f)}</span></div>`:'');
+      +barra
+      +(dias.length>1?`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:6px;color:var(--muted);font-size:12px"><span>Total ${dias.length} días</span><span>${Math.round(g.k)} kcal · P${Math.round(g.p)}/C${Math.round(g.c)}/G${Math.round(g.f)}</span></div>`:'');
+  }
+  // Banner de alimentos SIN DATO (no suman macros): avisa y lista cuáles corregir.
+  const ban=$("planSinDato");
+  if(ban){
+    const sin=new Set();
+    (d.dias||[]).forEach(dia=>(dia.comidas||[]).forEach(c=>(c.foods||[]).forEach(f=>{const nm=(f.nombre||"").trim();if(nm&&!planCatDe(nm))sin.add(nm);})));
+    if(sin.size){ban.classList.remove("hide");ban.innerHTML=`<b>${sin.size} alimento${sin.size>1?'s':''} sin datos</b> (no suman calorías ni macros): ${[...sin].slice(0,6).map(esc).join(', ')}${sin.size>6?'…':''}. Cámbialos por uno del catálogo o revisa el nombre.`;}
+    else ban.classList.add("hide");
   }
 }
 function planFoodAdd(di,ci){planRecoger();const c=PLAN_DATOS.dias[di].comidas[ci];c.foods=c.foods||[];c.foods.push({nombre:"",gramos:0});planRenderEditor();}
@@ -4201,12 +4291,13 @@ function planRecoger(){
       const fs=(c.foods||[]).filter(f=>(f.nombre||"").trim());
       c.alimentos=fs.map(f=>{
         const cat=planCatDe(f.nombre);
-        if(planEsUnidad(f.nombre)&&cat&&cat.pg>0){ // discreto (huevo/fruta/pan): "N unidades"
+        const esU=(f.uniForz!=null)?f.uniForz:planEsUnidad(f.nombre); // respeta el toggle del entrenador
+        if(esU&&cat&&cat.pg>0){ // discreto (huevo/fruta/pan): "N unidades"
           let u=+f.unidades||0; if(!u&&+f.gramos>0)u=Math.round((+f.gramos)/cat.pg);
           return `${u} ${u===1?'unidad':'unidades'} ${f.nombre.trim()}`;
         }
-        if(planEsMl(f.nombre)) return `${Math.round(+f.gramos||0)} ml ${f.nombre.trim()}`; // leche/líquidos en ml
-        return `${Math.round(+f.gramos||0)} g ${f.nombre.trim()}`; // resto (incl. clara) en gramos
+        if(f.uniForz!==true&&planEsMl(f.nombre)) return `${Math.round(planGramosDe(f)||+f.gramos||0)} ml ${f.nombre.trim()}`; // leche/líquidos en ml
+        return `${Math.round(planGramosDe(f)||+f.gramos||0)} g ${f.nombre.trim()}`; // resto (incl. clara) en gramos
       }).join(" + ");
       const mt=planMealTot(c);c.kcal=Math.round(mt.k);c.prot=Math.round(mt.p);c.carb=Math.round(mt.c);c.fat=Math.round(mt.f);
     });
