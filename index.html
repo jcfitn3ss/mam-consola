@@ -1191,6 +1191,26 @@ function cuEncDatos(i){
   if(m) out.comentario=m[1].replace(/\s+/g,' ').trim();
   return out;
 }
+// Parsea el texto crudo de la encuesta (viñetas "• Pregunta? Respuesta" / "• Label: valor")
+// en filas limpias {q,a} + fecha + comentario, para mostrarlo ordenado en "Ver respuestas".
+function cuRespParse(s){
+  s=String(s||'').trim();
+  const fm=s.match(/^\[([^\]]+)\]/); const fecha=fm?fm[1].trim():'';
+  const filas=[]; let comentario='';
+  s.split('\n').forEach(raw=>{
+    let ln=raw.trim(); if(!ln.startsWith('•')) return;
+    ln=ln.replace(/^•\s*/,'');
+    const cm=ln.match(/^Comentario\s*:\s*([\s\S]+)$/i);
+    if(cm){ comentario=cm[1].trim(); return; }
+    const qi=ln.indexOf('?'), ci=ln.indexOf(':');
+    let q='',a='';
+    if(qi>=0 && (ci<0 || qi<ci)){ q=ln.slice(0,qi+1).trim(); a=ln.slice(qi+1).trim(); }
+    else if(ci>=0){ q=ln.slice(0,ci).trim(); a=ln.slice(ci+1).trim(); }
+    else { a=ln.trim(); }
+    if(a) filas.push({q,a});
+  });
+  return {fecha,filas,comentario};
+}
 // Es un lead de la encuesta propia si trae las etiquetas que solo pone ese formulario.
 function cuEsEncuesta(i){ const t=String(i.tags||''); return /invertir:|empezar:/.test(t); }
 // Temperatura calculada del lado del navegador (no depende del puntaje del servidor).
@@ -1291,7 +1311,7 @@ function cuGatillo(i){
   if(i.proximo_seguimiento&&String(i.proximo_seguimiento).slice(0,10)<=new Date().toISOString().slice(0,10)&&i.contacto_estado!=='seguimiento') return {t:'Toque '+((Number(i.toques)||0)+1)+' · toca seguir hoy',c:'#D9A21B'};
   if(i.contacto_estado==='seguimiento'){const d=cuDiasDesde(i.contacto_ultimo);return {t:'En seguimiento'+(d!=null?' · hace '+d+' d'+(d>=21?' — ya toca':''):''),c:d!=null&&d>=21?'#D9A21B':'var(--muted)'};}
   if(i.grupo==='Vencido') return {t:'Canceló'+(i.fin_prueba?' · venció '+fFechaCorta(i.fin_prueba):'')+' · winback',c:'#D9A21B'};
-  if(i.en_app&&i.fin_prueba){const dd=cuDiasDesde(i.fin_prueba);if(dd!=null&&dd<0)return {t:'En prueba · vence en '+(-dd)+' d',c:'#8fb3ff'};}
+  if(i.en_app&&i.fin_prueba){const dd=cuDiasDesde(i.fin_prueba);if(dd!=null&&dd<0)return {t:'En prueba · vence en '+(-dd)+' d',c:'var(--warn)'};}
   if(!i.en_app) return {t:'No descargó'+(i.lead_creado?' · escribió '+fFechaCorta(i.lead_creado):''),c:'var(--muted)'};
   if(i.lead_creado) return {t:'Llenó el formulario '+fFechaCorta(i.lead_creado),c:'var(--muted)'};
   return {t:'',c:'var(--muted)'};
@@ -1470,8 +1490,8 @@ function renderContactar(){
     const niv=i.nivel==='Caliente'?chip('Caliente','rgba(226,59,59,.18)'):i.nivel==='Templado'?chip('Templado','rgba(217,162,27,.14)'):chip('Frío');
     const sig=(t,ok)=>`<span class="pill" style="font-size:10px;background:${ok?'rgba(63,184,79,.16)':'var(--card2)'};color:${ok?'var(--ok)':'var(--muted)'}">${esc(t)}</span>`;
     const senales=i.en_app?`${sig('Activó',i.activo==='Sí')} ${sig('Entrenó',i.entreno==='Sí')}${i.regalo?' '+chip(i.regalo):''}`:chip('No descargó','rgba(226,59,59,.10)');
-    const encFecha=i.cuestionario_fecha?` · <span style="color:#8fb3ff">Encuesta ${fFechaCorta(i.cuestionario_fecha)}</span>`:'';
-    const q2=i.compromiso?`<div class="muted" style="font-size:11px;margin-top:4px">Compromiso: <b style="color:var(--txt)">${esc(i.compromiso)}</b>${i.quiere_coach?' · Coach: '+esc(i.quiere_coach):''}${i.presupuesto?' · $: '+esc(i.presupuesto):''}${encFecha}</div>`:(i.cuestionario_fecha?`<div class="muted" style="font-size:11px;margin-top:4px"><span style="color:#8fb3ff">Llenó la encuesta ${fFechaCorta(i.cuestionario_fecha)}</span></div>`:(i.que_pidio?`<div class="muted" style="font-size:11px;margin-top:4px">Pidió: ${esc(i.que_pidio)}</div>`:''));
+    const encFecha=i.cuestionario_fecha?` · <span style="color:var(--muted)">Encuesta ${fFechaCorta(i.cuestionario_fecha)}</span>`:'';
+    const q2=i.compromiso?`<div class="muted" style="font-size:11px;margin-top:4px">Compromiso: <b style="color:var(--txt)">${esc(i.compromiso)}</b>${i.quiere_coach?' · Coach: '+esc(i.quiere_coach):''}${i.presupuesto?' · $: '+esc(i.presupuesto):''}${encFecha}</div>`:(i.cuestionario_fecha?`<div class="muted" style="font-size:11px;margin-top:4px"><span style="color:var(--muted)">Llenó la encuesta ${fFechaCorta(i.cuestionario_fecha)}</span></div>`:(i.que_pidio?`<div class="muted" style="font-size:11px;margin-top:4px">Pidió: ${esc(i.que_pidio)}</div>`:''));
     const arg=JSON.stringify({id:i.id,email:i.email,telefono:i.telefono,nombre:i.nombre}).replace(/"/g,'&quot;');
     const selId=`est_${(i.id||i.email||Math.random()).toString().replace(/[^a-zA-Z0-9]/g,'')}`;
     const selEst=`<select id="${selId}" class="sm" onchange="marcarLead(${arg},this.value)" style="font-size:12px;padding:8px 10px;min-height:40px;border-radius:9px">`+CONTACTAR_ESTADOS.map(([v,t])=>`<option value="${v}"${v===i.contacto_estado?' selected':''}>${t}</option>`).join('')+`</select>`;
@@ -1479,7 +1499,7 @@ function renderContactar(){
     const waBtn=wl?`<button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:40px;border-radius:9px;padding:0 14px" title="Abre WhatsApp con el guion de: ${esc(segEt)} (registra el toque)" onclick="waLead(${arg})">WhatsApp</button>`:'<span class="muted" style="font-size:11px">sin tel.</span>';
     // Botón de informe de rutina (solo si está en la app: tiene rutina que analizar).
     const infBtn=(i.en_app&&i.app_id)?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="informeWA('${i.app_id}','${esc(i.telefono||'')}','${esc((i.nombre||'').split(' ')[0])}')" title="Manda por WhatsApp el análisis científico de su rutina">Informe rutina</button>`:'';
-    const toqueChip=Number(i.toques)>0?` <span class="pill" style="font-size:10px;background:var(--card2);color:#8fb3ff">${i.toques} ${i.toques==1?'toque':'toques'}</span>`:'';
+    const toqueChip=Number(i.toques)>0?` <span class="pill" style="font-size:10px;background:var(--card2);color:var(--muted)">${i.toques} ${i.toques==1?'toque':'toques'}</span>`:'';
     const g=cuGatillo(i);
     const k=cuKey(i); const sel=window.CU_SEL.has(k); const notaId='nota_'+selId;
     const formLine=i.lead_creado?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${fFechaCorta(i.lead_creado)}</b>${i.cuando_escribio?' · '+esc(i.cuando_escribio):''}</div>`:(i.cuando_escribio?`<div class="muted" style="font-size:11px;margin-top:4px">Llenó el formulario: <b style="color:var(--txt)">${esc(i.cuando_escribio)}</b></div>`:'');
@@ -1511,10 +1531,18 @@ function renderContactar(){
     const btnIA=i.telefono?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIARedactar('${k}')" title="La IA escribe el mensaje con la voz de Juan, usando lo que esta persona contestó">Escribir con IA</button>`:'';
     const btnCal=esEnc?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIACalificar('${k}')" title="La IA lee sus respuestas y dice si vale la llamada">Calificar</button>`:'';
     const btnRes=String(i.respuestas||'').trim()?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuRespToggle('${k}')">${abRes?'Ocultar respuestas':'Ver todo lo que contestó'}</button>`:'';
-    const panelRes=abRes?`<div style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px">
-      <div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px">Lo que contestó, tal cual</div>
-      <div style="font-size:13px;white-space:pre-wrap;line-height:1.65">${esc(String(i.respuestas||'').trim())}</div>
-    </div>`:'';
+    const panelRes=abRes?(()=>{
+      const R=cuRespParse(i.respuestas);
+      const filasHtml=R.filas.map((f,idx)=>`<div style="${idx>0?'border-top:1px solid var(--line);':''}padding:9px 2px">
+          ${f.q?`<div class="muted" style="font-size:11px;line-height:1.4;margin-bottom:2px">${esc(f.q)}</div>`:''}
+          <div style="font-size:13.5px;color:var(--txt);font-weight:600;line-height:1.45">${esc(f.a)}</div>
+        </div>`).join('');
+      return `<div style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:4px 14px 12px">
+        <div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:11px 0 4px">Lo que contestó${R.fecha?` <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)">· ${esc(R.fecha)}</span>`:''}</div>
+        ${filasHtml||`<div class="muted" style="font-size:12.5px;padding:6px 0">Sin respuestas estructuradas.</div>`}
+        ${R.comentario?`<div style="margin-top:12px"><div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px">Comentario</div><div style="background:var(--bg2);border:1px solid var(--line);border-left:2px solid var(--rojo);border-radius:8px;padding:10px 12px;font-size:13px;color:#e7e3ec;font-style:italic;line-height:1.55">${esc(R.comentario)}</div></div>`:''}
+      </div>`;
+    })():'';
     const panelIA=eIA.abierto?(()=>{
       const cargando=eIA.cargando;
       const cal=eIA.cal;
@@ -2285,7 +2313,7 @@ function renderClientes(){
       <span class="pill" style="background:rgba(95,208,127,.16);color:var(--ok);font-weight:700">${pagan} pagando</span>
       <span class="pill" style="background:rgba(226,59,59,.16);color:#ff8a8a;font-weight:700">${sinPagar} sin pagar</span>
       ${sinAltura?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${sinAltura} sin altura</span>`:''}
-      ${nPrueba?`<span class="pill" style="background:rgba(143,179,255,.18);color:#8fb3ff;font-weight:700">${nPrueba} en prueba</span>`:''}
+      ${nPrueba?`<span class="pill" style="background:rgba(224,184,74,.15);color:var(--warn);font-weight:700">${nPrueba} en prueba</span>`:''}
       <span style="flex:1"></span><button class="sm ghost" style="padding:5px 10px" onclick="copiarCorreos()" title="Copiar los correos (para invitar testers de Android o contactar)">Copiar correos</button>${chip('atencion','Atención')}${chip('grupos','Grupos')}${chip('sinpagar','Sin pagar')}${sinAltura?chip('sinaltura','Sin altura'):''}${nPrueba?chip('prueba','En prueba'):''}${chip('todos','Todos')}
     </div>`;
   if(PRIO_FALLO.length)head=`<div class="alert" style="margin-bottom:8px">No cargó: <b>${esc(PRIO_FALLO.join(", "))}</b>. El orden de prioridad puede estar incompleto. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>`+head;
@@ -2305,7 +2333,7 @@ function renderClientes(){
     const secc=(titulo,color,arr,nota)=>arr.length?`<div style="margin:16px 0 6px;border-top:1px solid var(--line);padding-top:10px"><span style="font-weight:800;color:${color};font-size:14px">${titulo}</span> <span class="muted">(${arr.length})</span>${nota?`<div class="muted" style="font-size:11px;margin-top:1px">${nota}</div>`:''}</div>`+arr.slice().sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(c=>cardClienteHTML(c,false)).join(''):'';
     $("clientes").innerHTML=head
       +secc('Pagando','var(--ok)',GR.pagando,'Suscripción activa (mensual/anual/preferencial).')
-      +secc('Equipo interno / cortesía','#8fb3ff',GR.interno,'Fundadores y accesos gratis — NO pagan.')
+      +secc('Equipo interno / cortesía','#b6a7d9',GR.interno,'Fundadores y accesos gratis — NO pagan.')
       +secc('Sin pagar / otros','#ff8a8a',GR.otros,'Sin suscripción, en prueba o vencidos.');
     return;
   }
