@@ -4128,6 +4128,8 @@ function planRenderEditor(){
     h+=`<button class="sm ghost" onclick="planAgregarComida(${di})" style="margin-top:6px">+ Agregar comida / snack</button></div>`;
   });
   h+=`<button class="sm ghost" onclick="planAgregarDia()">+ Agregar día</button>`;
+  // Recuento TOTAL del plan (promedio por día + gran total), al final para el entrenador.
+  h+=`<div id="plantot" style="margin-top:12px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px"></div>`;
   // Reglas operativas
   h+=`<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:10px"><b>Reglas operativas</b>`;
   (d.reglas||[]).forEach((r,ri)=>{
@@ -4170,6 +4172,18 @@ function planActualizarTotales(){
     const dt=planDayTot(dia);const el=document.getElementById(`daytot-${di}`);
     if(el){const diff=o.kcal?Math.round(dt.k)-o.kcal:0;const col=(o.kcal&&Math.abs(diff)>o.kcal*0.08)?'#c0392b':'#2e7d32';el.innerHTML=`<b style="color:${col}">${Math.round(dt.k)} kcal</b> · P${Math.round(dt.p)}/C${Math.round(dt.c)}/G${Math.round(dt.f)}${o.kcal?` (obj ${o.kcal}${diff>0?' +'+diff:diff<0?' '+diff:' ✓'})`:''}`;}
   });
+  // Recuento del plan completo: promedio por día (lo que importa para el objetivo) + total.
+  const tot=$("plantot");
+  if(tot){
+    const dias=(d.dias||[]);const n=Math.max(1,dias.length);
+    const g=dias.reduce((a,dia)=>{const m=planDayTot(dia);return{k:a.k+m.k,p:a.p+m.p,c:a.c+m.c,f:a.f+m.f};},{k:0,p:0,c:0,f:0});
+    const pr={k:g.k/n,p:g.p/n,c:g.c/n,f:g.f/n};
+    const diff=o.kcal?Math.round(pr.k)-o.kcal:0;
+    const col=(o.kcal&&Math.abs(diff)>o.kcal*0.08)?'#c0392b':'#2e7d32';
+    tot.innerHTML=`<div style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Recuento del plan</div>`
+      +`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>Promedio por día</b><b style="color:${col}">${Math.round(pr.k)} kcal · P${Math.round(pr.p)}/C${Math.round(pr.c)}/G${Math.round(pr.f)}${o.kcal?` (obj ${o.kcal}${diff>0?' +'+diff:diff<0?' '+diff:' ✓'})`:''}</b></div>`
+      +(dias.length>1?`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:4px;color:var(--muted);font-size:12px"><span>Total ${dias.length} días</span><span>${Math.round(g.k)} kcal · P${Math.round(g.p)}/C${Math.round(g.c)}/G${Math.round(g.f)}</span></div>`:'');
+  }
 }
 function planFoodAdd(di,ci){planRecoger();const c=PLAN_DATOS.dias[di].comidas[ci];c.foods=c.foods||[];c.foods.push({nombre:"",gramos:0});planRenderEditor();}
 function planFoodDel(di,ci,fi){planRecoger();PLAN_DATOS.dias[di].comidas[ci].foods.splice(fi,1);planRenderEditor();}
