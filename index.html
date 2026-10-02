@@ -3224,6 +3224,7 @@ async function verCliente(id){
       <div><button onclick="planGenerar('${id}')">Generar con IA</button></div>
     </div>
     <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;margin-bottom:6px" title="Cada día del plan usa alimentos distintos (misma estructura). Desmárcalo para dar el MISMO plan todos los días."><input type="checkbox" id="plan_variar" ${(pln.data&&pln.data.variar_dias===false)?'':'checked'} onchange="setVariarDias('${id}',this.checked)"> Variar comidas entre días</label>
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;margin:0 0 6px 16px" title="Respeta EXACTAMENTE los gramos y cantidades que pongas: NO los reescala a las kcal objetivo, ni al generar ni al aprobar. Úsalo para peak week / planes de competencia donde tú defines las porciones."><input type="checkbox" id="plan_exacto"> <b>Cantidades exactas</b> (no reescalar a kcal)</label>
     <span id="planMsg" class="muted" style="font-size:12px"></span>
     <div id="plan_editor" style="margin-top:10px"></div>
     <div id="plan_acciones" class="hide" style="margin-top:10px">
@@ -4039,9 +4040,10 @@ async function planGenerar(id){
   const comidas=Math.max(2,Math.min(7,+$("plan_comidas").value||4));
   const foodsEl=$("plan_foods");const alimentos=(foodsEl&&foodsEl.value.trim())||"";
   const insEl=$("plan_instrucciones");const instrucciones=(insEl&&insEl.value.trim())||"";
-  $("planMsg").textContent="Generando plan con IA… (unos segundos)";$("plan_editor").innerHTML="";
+  const exacto=!!($("plan_exacto")&&$("plan_exacto").checked);
+  $("planMsg").textContent=exacto?"Generando plan (cantidades exactas, sin reescalar)…":"Generando plan con IA… (unos segundos)";$("plan_editor").innerHTML="";
   await planCargarCatalogo(id);
-  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,comidas,alimentos,instrucciones}});
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,comidas,alimentos,instrucciones,exacto}});
   if(error||!data||data.error){$("planMsg").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   PLAN_DATOS=data.datos;
   // Convierte cada comida a filas de alimentos editables (nombre + gramos).
@@ -4214,8 +4216,10 @@ async function planPreview(){
   PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}$("planMsg2").textContent="✓ Vista previa actualizada";
 }
 async function planGuardar(id){
-  const d=planRecoger();if(!d)return;$("planMsg2").textContent="Guardando y aprobando…";
-  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"guardar",user_id:id,datos:d}});
+  const d=planRecoger();if(!d)return;
+  const exacto=!!($("plan_exacto")&&$("plan_exacto").checked);
+  $("planMsg2").textContent=exacto?"Guardando con tus cantidades exactas (sin reescalar)…":"Guardando y aprobando…";
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"guardar",user_id:id,datos:d,exacto}});
   if(error||!data||data.error){$("planMsg2").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
   PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}
   $("planMsg2").innerHTML="✓ Plan aprobado y guardado. El cliente ya puede verlo. Ahora puedes exportarlo.";
