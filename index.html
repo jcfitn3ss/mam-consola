@@ -1505,6 +1505,46 @@ function renderContactar(){
         ${(d.empezar||d.invertir)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">${sen(d.empezar)}${sen(d.invertir)}</div>`:''}
         ${d.comentario?`<div style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-left:2px solid var(--line2);border-radius:8px;padding:10px 12px;font-size:13px;color:#ddd9e2;font-style:italic">${esc(d.comentario)}</div>`:''}`;
     })();
+    // ── Panel de la IA del CRM + respuestas completas, dentro de la tarjeta ──
+    const eIA=window.CU_IA[k]||{};
+    const abRes=!!window.CU_RESP[k];
+    const btnIA=i.telefono?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIARedactar('${k}')" title="La IA escribe el mensaje con la voz de Juan, usando lo que esta persona contestó">Escribir con IA</button>`:'';
+    const btnCal=esEnc?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIACalificar('${k}')" title="La IA lee sus respuestas y dice si vale la llamada">Calificar</button>`:'';
+    const btnRes=String(i.respuestas||'').trim()?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuRespToggle('${k}')">${abRes?'Ocultar respuestas':'Ver todo lo que contestó'}</button>`:'';
+    const panelRes=abRes?`<div style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+      <div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px">Lo que contestó, tal cual</div>
+      <div style="font-size:13px;white-space:pre-wrap;line-height:1.65">${esc(String(i.respuestas||'').trim())}</div>
+    </div>`:'';
+    const panelIA=eIA.abierto?(()=>{
+      const cargando=eIA.cargando;
+      const cal=eIA.cal;
+      const nivCol=cal?(cal.nivel==='ALTO'?'var(--rojo)':cal.nivel==='MEDIO'?'var(--warn)':'var(--muted)'):'';
+      return `<div style="margin-top:10px;background:var(--card2);border:1px solid var(--line2);border-radius:10px;padding:12px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px">
+          <div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase">Asistente del CRM</div>
+          <button class="sm ghost" style="min-height:32px;font-size:11px;padding:0 10px" onclick="cuIACerrar('${k}')">Cerrar</button>
+        </div>
+        ${eIA.error?`<div style="background:rgba(226,59,59,.12);border:1px solid var(--rojo);border-radius:8px;padding:10px 12px;font-size:12.5px;color:#ffb3b3;margin-bottom:9px">${esc(eIA.error)}</div>`:''}
+        ${cal?`<div style="border-left:3px solid ${nivCol};padding-left:11px;margin-bottom:11px">
+          <div style="font-size:13px;font-weight:800;color:${nivCol}">${esc(cal.nivel)} · ${cal.score}/100</div>
+          <div style="font-size:13px;margin-top:3px">${esc(cal.razon)}</div>
+          ${cal.paso?`<div class="muted" style="font-size:12.5px;margin-top:5px"><b style="color:var(--txt)">Hoy:</b> ${esc(cal.paso)}</div>`:''}
+        </div>`:''}
+        ${cargando==='calificar'?`<div class="muted" style="font-size:12.5px">Leyendo sus respuestas…</div>`:''}
+        ${cargando==='redactar'?`<div class="muted" style="font-size:12.5px">Escribiendo el mensaje…</div>`:''}
+        ${eIA.texto?`
+          <textarea id="iatxt_${k}" style="width:100%;background:#0f0f0f;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:11px 12px;font-size:13.5px;line-height:1.6;min-height:120px;font-family:inherit;box-sizing:border-box">${esc(eIA.texto)}</textarea>
+          <div class="muted" style="font-size:11px;margin-top:5px">Edítalo si quieres. Nada se manda solo.</div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">
+            <button class="sm" style="background:#25d366;color:#000;font-weight:700;border:none;min-height:42px;border-radius:9px;padding:0 14px" onclick="cuWAIA('${k}')">Abrir WhatsApp con esto</button>
+            <button class="sm ghost" style="min-height:42px;border-radius:9px" onclick="copiarMsg(this,document.getElementById('iatxt_${k}').value)">Copiar</button>
+            <button class="sm ghost" style="min-height:42px;border-radius:9px" onclick="cuIARedactar('${k}',true)">Otra versión</button>
+          </div>`:''}
+        ${(!cargando)?`<div style="margin-top:11px">
+          <input id="iactx_${k}" placeholder="¿Otro enfoque? Ej: no contestó hace 3 días" style="width:100%;background:#0f0f0f;border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:10px 12px;font-size:12.5px;box-sizing:border-box">
+          <button class="sm ghost" style="min-height:40px;border-radius:9px;margin-top:7px;font-size:12px" onclick="cuIARedactar('${k}',true)">Escribir con ese enfoque</button>
+        </div>`:''}
+      </div>`;})():'';
     // Instagram como segundo canal: si el WhatsApp falla, por ahí se le escribe.
     const igBtn=i.instagram?`<a class="sm ghost" href="https://instagram.com/${encodeURIComponent(String(i.instagram).replace(/^@+/,''))}" target="_blank" rel="noopener" style="min-height:40px;border-radius:9px;text-decoration:none;display:inline-flex;align-items:center" title="Abrir su Instagram">@${esc(String(i.instagram).replace(/^@+/,''))}</a>`:'';
     h+=`<div style="border-top:1px solid var(--line);padding:11px 0;${bordeTemp?`border-left:3px solid ${bordeTemp};padding-left:11px;`:''}${sel?'background:rgba(226,59,59,.06);border-radius:8px':''}">
@@ -1514,6 +1554,8 @@ function renderContactar(){
           <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b>${encNuevo?` <span style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;background:var(--rojo);color:#fff;border-radius:5px;padding:2px 7px">nuevo</span>`:''} ${niv} ${chip(i.grupo)}${toqueChip}${esEnc&&i.lead_creado?` <span class="muted" style="font-size:11.5px">${esc(cuHaceCuanto(i.lead_creado))}</span>`:''}</div>
           ${encBloque}
+          ${panelRes}
+          ${panelIA}
           ${g.t?`<div style="font-size:12px;margin-top:3px;color:${g.c};font-weight:600">${esc(g.t)}</div>`:''}
           <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--muted)">ver más</summary>
             <div class="muted" style="font-size:11px;margin-top:6px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${(()=>{const p=cuPaisDeTel(i.telefono);if(p)return ` · <span title="${esc(p.nombre)}" style="font-weight:700;color:var(--txt);cursor:default;border-bottom:1px dotted var(--line)">${p.iso}</span>`;return i.pais?` · ${esc(i.pais)}`:'';})()}</div>
@@ -1530,7 +1572,7 @@ function renderContactar(){
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          ${selEst}${waBtn}${igBtn}${infBtn}
+          ${selEst}${waBtn}${igBtn}${btnIA}${btnCal}${btnRes}${infBtn}
         </div>
       </div></div>`;
   }
@@ -1566,6 +1608,66 @@ async function marcarLead(o,estado,opts){
 }
 // --- Selección múltiple / acciones en lote ---
 window.CU_SEL=window.CU_SEL||new Set();
+// ───────── La IA del CRM, dentro de la consola ─────────
+// Antes había que salirse a aplica.musculoalmaximo.com/crm para escribir el mensaje o
+// calificar un lead. Ahora lo hace la función crm-ia: la llave de IA vive en el servidor
+// (esta consola es HTML público, ahí no puede ir ninguna llave).
+// Estado por lead, para que un re-render no borre lo que la IA ya escribió.
+window.CU_IA = window.CU_IA || {};   // key -> {abierto, cargando, error, texto, cal}
+window.CU_RESP = window.CU_RESP || {}; // key -> true si están abiertas sus respuestas
+
+function cuPorKey(k){ return (window.CU_ALL||[]).find(x=>cuKey(x)===k)||null; }
+
+function cuIAEstado(k){ if(!window.CU_IA[k]) window.CU_IA[k]={}; return window.CU_IA[k]; }
+
+// Lo que se le manda a la IA: solo los campos que necesita, no el objeto entero.
+function cuLeadParaIA(i){
+  return {nombre:i.nombre,ciudad:i.ciudad,pais:i.pais,respuestas:i.respuestas,tags:i.tags,
+          que_pidio:i.que_pidio,notas:i.notas,contacto_estado:i.contacto_estado,
+          toques:i.toques,en_app:i.en_app};
+}
+
+async function cuIARedactar(k,rehacer){
+  const i=cuPorKey(k); if(!i) return;
+  const e=cuIAEstado(k);
+  e.abierto=true; e.cargando='redactar'; e.error=''; if(rehacer) e.texto='';
+  const ctx=(document.getElementById('iactx_'+k)||{}).value||'';
+  renderContactar();
+  const {data,error}=await invokeFn('crm-ia',{body:{action:'redactar',lead:cuLeadParaIA(i),contexto:ctx}});
+  e.cargando='';
+  if(error||(data&&data.error)) e.error=(data&&data.error)||error.message||'No se pudo escribir el mensaje.';
+  else e.texto=(data&&data.texto)||'';
+  renderContactar();
+}
+
+async function cuIACalificar(k){
+  const i=cuPorKey(k); if(!i) return;
+  const e=cuIAEstado(k);
+  e.abierto=true; e.cargando='calificar'; e.error='';
+  renderContactar();
+  const {data,error}=await invokeFn('crm-ia',{body:{action:'calificar',lead:cuLeadParaIA(i)}});
+  e.cargando='';
+  if(error||(data&&data.error)) e.error=(data&&data.error)||error.message||'No se pudo calificar.';
+  else e.cal={nivel:data.nivel,score:data.score,razon:data.razon,paso:data.siguiente_paso};
+  renderContactar();
+}
+
+function cuIACerrar(k){ const e=cuIAEstado(k); e.abierto=false; renderContactar(); }
+function cuRespToggle(k){ window.CU_RESP[k]=!window.CU_RESP[k]; renderContactar(); }
+
+// Abre WhatsApp con el texto que la IA escribió (y lo que el setter haya editado a mano).
+function cuWAIA(k){
+  const i=cuPorKey(k); if(!i) return;
+  const ta=document.getElementById('iatxt_'+k);
+  const txt=(ta&&ta.value||'').trim();
+  if(!txt){ toast('Primero escribe o genera el mensaje.','warn'); return; }
+  const wl=waLink(i.telefono,txt);
+  if(!wl){ toast('Esta persona no tiene teléfono.','warn'); return; }
+  window.open(wl,'_blank');
+  const arg={id:i.id,email:i.email,telefono:i.telefono,nombre:i.nombre};
+  marcarLead(arg, i.contacto_estado?undefined:'contactado', {toque:true,toastMsg:'WhatsApp abierto · +1 toque'});
+}
+
 function cuKey(o){ return (o&&o.id)?String(o.id):String((o&&o.email)||'').toLowerCase(); }
 function cuToggleSel(k,on){ if(on)window.CU_SEL.add(k); else window.CU_SEL.delete(k); renderContactar(); }
 function cuSelVisibles(){ (window._CU_VIS||[]).forEach(k=>window.CU_SEL.add(k)); renderContactar(); }
