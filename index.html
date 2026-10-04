@@ -1533,14 +1533,34 @@ function renderContactar(){
     const btnRes=String(i.respuestas||'').trim()?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuRespToggle('${k}')">${abRes?'Ocultar respuestas':'Ver todo lo que contestó'}</button>`:'';
     const panelRes=abRes?(()=>{
       const R=cuRespParse(i.respuestas);
-      const filasHtml=R.filas.map((f,idx)=>`<div style="${idx>0?'border-top:1px solid var(--line);':''}padding:9px 2px">
-          ${f.q?`<div class="muted" style="font-size:11px;line-height:1.4;margin-bottom:2px">${esc(f.q)}</div>`:''}
-          <div style="font-size:13.5px;color:var(--txt);font-weight:600;line-height:1.45">${esc(f.a)}</div>
+      // Grilla pregunta/respuesta (se escanea de un vistazo), 2 columnas que se adaptan.
+      const celdas=R.filas.map(f=>`<div style="background:var(--card2);padding:10px 12px">
+          ${f.q?`<div class="muted" style="font-size:10.5px;line-height:1.35;margin-bottom:3px">${esc(f.q)}</div>`:''}
+          <div style="font-size:13.5px;color:var(--txt);font-weight:700;line-height:1.35">${esc(f.a)}</div>
         </div>`).join('');
-      return `<div style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:4px 14px 12px">
-        <div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:11px 0 4px">Lo que contestó${R.fecha?` <span style="font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)">· ${esc(R.fecha)}</span>`:''}</div>
-        ${filasHtml||`<div class="muted" style="font-size:12.5px;padding:6px 0">Sin respuestas estructuradas.</div>`}
-        ${R.comentario?`<div style="margin-top:12px"><div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px">Comentario</div><div style="background:var(--bg2);border:1px solid var(--line);border-left:2px solid var(--rojo);border-radius:8px;padding:10px 12px;font-size:13px;color:#e7e3ec;font-style:italic;line-height:1.55">${esc(R.comentario)}</div></div>`:''}
+      const grid=celdas?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden">${celdas}</div>`:`<div class="muted" style="font-size:12.5px;padding:6px 0">Sin respuestas estructuradas.</div>`;
+      // Encabezado con temperatura (prioriza a quién llamar).
+      const tCol=temp==='CALIENTE'?'background:var(--rojoSoft);color:#ff8f8f;border:1px solid rgba(226,59,59,.4)':temp==='TIBIO'?'background:rgba(224,184,74,.12);color:var(--warn);border:1px solid rgba(224,184,74,.35)':'background:var(--card2);color:var(--muted);border:1px solid var(--line)';
+      const chip=temp?`<span style="font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:4px 10px;border-radius:7px;${tCol}">${temp==='CALIENTE'?'Caliente':temp==='TIBIO'?'Tibio':'Frío'}</span>`:'';
+      // Comentario: si menciona salud/lesión, alerta ámbar; si no, nota normal.
+      let comentario='';
+      if(R.comentario){
+        const salud=/lesi|cirug|hernia|dolor|operad|fractur|m[eé]dic|enferm|embaraz|lumbar|ci[aá]tic|rodilla|hombro|espalda/i.test(R.comentario);
+        const estilo=salud?'border:1px solid rgba(224,184,74,.35);background:rgba(224,184,74,.08);border-left:3px solid var(--warn)':'border:1px solid var(--line);background:var(--bg2);border-left:3px solid var(--line2)';
+        const lblCol=salud?'color:var(--warn)':'color:var(--muted)';
+        const lbl=salud?'Comentario · ojo salud':'Comentario';
+        const txtCol=salud?'#efe7cf':'#e7e3ec';
+        comentario=`<div style="margin-top:13px;border-radius:9px;padding:11px 13px;${estilo}">
+          <div style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px;${lblCol}">${lbl}</div>
+          <div style="font-size:13px;font-style:italic;line-height:1.5;color:${txtCol}">${esc(R.comentario)}</div>
+        </div>`;
+      }
+      return `<div style="margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:12px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)">
+          <span class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase">Lo que contestó</span>
+          <span style="display:flex;align-items:center;gap:9px">${R.fecha?`<span class="muted" style="font-size:11.5px">${esc(R.fecha)}</span>`:''}${chip}</span>
+        </div>
+        <div style="padding:14px">${grid}${comentario}</div>
       </div>`;
     })():'';
     const panelIA=eIA.abierto?(()=>{
