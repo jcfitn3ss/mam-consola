@@ -3265,6 +3265,15 @@ async function verCliente(id){
         <div style="flex:0"><label class="lbl">Comidas al día</label><input id="plan_comidas" type="number" min="2" max="7" value="4" style="width:90px"></div>
         <div><button id="btnGenerar" onclick="planGenerar('${id}')">Generar con IA</button></div>
       </div>
+      <input type="hidden" id="plan_kcal" value="${o.kcal||0}">
+      <label class="lbl" style="margin-top:4px">Distribución de macros (%) — proteína / carbos / grasa</label>
+      <div class="row" style="align-items:flex-end;margin-bottom:4px;gap:8px">
+        <div style="flex:0"><input id="plan_pP" type="number" min="5" max="60" value="${o.kcal?Math.round((o.prot*4/o.kcal)*100):30}" style="width:66px" oninput="planPctSync()" title="% de las calorías en proteína"></div>
+        <div style="flex:0"><input id="plan_pC" type="number" min="5" max="75" value="${o.kcal?Math.round((o.carb*4/o.kcal)*100):45}" style="width:66px" oninput="planPctSync()" title="% de las calorías en carbohidratos"></div>
+        <div style="flex:0"><input id="plan_pG" type="number" min="5" max="60" value="${o.kcal?Math.round((o.fat*9/o.kcal)*100):25}" style="width:66px" oninput="planPctSync()" title="% de las calorías en grasa"></div>
+        <div style="flex:1"><span id="plan_pctMsg" class="muted" style="font-size:11px"></span></div>
+      </div>
+      <div class="muted" style="font-size:11px;margin:0 0 8px">Cambia el reparto de macros para ESTE plan. Se calcula sobre las kcal objetivo del cliente. Si no lo tocas, usa su distribución actual.</div>
       <label id="lblVariar" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;margin-bottom:2px" title="Cada día usa alimentos distintos (misma estructura). Desmárcalo para dar el MISMO plan todos los días."><input type="checkbox" id="plan_variar" ${(pln.data&&pln.data.variar_dias===false)?'':'checked'} onchange="setVariarDias('${id}',this.checked)"> Variar comidas entre días</label>
       <div><span id="planMsg" class="muted" style="font-size:12px"></span></div>
     </div>
@@ -4131,15 +4140,30 @@ function planToggleUnidad(di,ci,fi){
 function planDuplicarDia(di){planRecoger();const d=PLAN_DATOS&&PLAN_DATOS.dias[di];if(!d)return;const copia=JSON.parse(JSON.stringify(d));PLAN_DATOS.dias.splice(di+1,0,copia);planRenderEditor();}
 // Aplica el día 1 a TODOS los días (mismo plan cada día). Pide confirmación.
 function planAplicarATodos(){planRecoger();if(!PLAN_DATOS||!PLAN_DATOS.dias.length)return;if(PLAN_DATOS.dias.length<2){alert("Solo hay un día.");return;}if(!confirm("¿Copiar el Día 1 a TODOS los días? Se reemplaza lo que tengan los demás."))return;const base=JSON.parse(JSON.stringify(PLAN_DATOS.dias[0]));PLAN_DATOS.dias=PLAN_DATOS.dias.map(()=>JSON.parse(JSON.stringify(base)));planRenderEditor();}
+// Muestra los gramos que resultan de la distribución de macros (%) + avisa si no suma ~100.
+function planPctSync(){
+  const kcal=+(($("plan_kcal")||{}).value)||0;const pP=+(($("plan_pP")||{}).value)||0,pC=+(($("plan_pC")||{}).value)||0,pG=+(($("plan_pG")||{}).value)||0;
+  const el=$("plan_pctMsg");if(!el)return;
+  if(!kcal){el.textContent="";return;}
+  const suma=pP+pC+pG;const gP=Math.round(kcal*pP/100/4),gC=Math.round(kcal*pC/100/4),gG=Math.round(kcal*pG/100/9);
+  el.innerHTML=`= P ${gP}g · C ${gC}g · G ${gG}g `+(Math.abs(suma-100)>1?`<span style="color:var(--warn)">(suma ${suma}%, ajusta a 100%)</span>`:`<span style="color:#2e7d32">(100%)</span>`);
+}
+// Macros por % → gramos, listos para enviar al generador (null si no hay kcal/%).
+function planMacrosDeUI(){
+  const kcal=+(($("plan_kcal")||{}).value)||0;const pP=+(($("plan_pP")||{}).value)||0,pC=+(($("plan_pC")||{}).value)||0,pG=+(($("plan_pG")||{}).value)||0;
+  if(!kcal||!pP||!pC||!pG)return null;
+  return {kcal,prot:Math.round(kcal*pP/100/4),carb:Math.round(kcal*pC/100/4),fat:Math.round(kcal*pG/100/9)};
+}
 async function planGenerar(id){
   const dias=Math.max(1,Math.min(10,+$("plan_dias").value||4));
   const comidas=Math.max(2,Math.min(7,+$("plan_comidas").value||4));
   const foodsEl=$("plan_foods");const alimentos=(foodsEl&&foodsEl.value.trim())||"";
   const insEl=$("plan_instrucciones");const instrucciones=(insEl&&insEl.value.trim())||"";
   const exacto=!!($("plan_exacto")&&$("plan_exacto").checked);
+  const macros=planMacrosDeUI();
   $("planMsg").textContent=exacto?"Generando plan (cantidades exactas, sin reescalar)…":"Generando plan con IA… (unos segundos)";$("plan_editor").innerHTML="";
   await planCargarCatalogo(id);
-  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,comidas,alimentos,instrucciones,exacto}});
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"generar",user_id:id,dias,comidas,alimentos,instrucciones,exacto,...(macros?{macros}:{})}});
   if(error||!data||data.error){
     const raw=((error&&error.message)||(data&&data.error)||"error");
     // Error amable: si la IA no respondió (créditos / non-2xx), ofrece armar a mano.
@@ -4168,6 +4192,7 @@ async function planCargarGuardado(id){
   PLAN_DATOS=null;PLAN_HTML=null;
   const msg=$("planMsg");const acc=$("plan_acciones");const f=$("plan_prev");const p2=$("plan_paso2");
   try{planSetModo('ia');}catch(e){} // estado inicial del selector de modo
+  try{planPctSync();}catch(e){} // muestra los gramos de la distribución de macros
   if(acc)acc.classList.add("hide");if(f)f.classList.add("hide");if(p2)p2.classList.add("hide");
   // Aviso de RESPALDO: si quedó un guardado fallido de este cliente, ofrecer restaurarlo.
   let bannerBk='';
