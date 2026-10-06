@@ -4169,11 +4169,14 @@ async function planCargarGuardado(id){
   const msg=$("planMsg");const acc=$("plan_acciones");const f=$("plan_prev");const p2=$("plan_paso2");
   try{planSetModo('ia');}catch(e){} // estado inicial del selector de modo
   if(acc)acc.classList.add("hide");if(f)f.classList.add("hide");if(p2)p2.classList.add("hide");
+  // Aviso de RESPALDO: si quedó un guardado fallido de este cliente, ofrecer restaurarlo.
+  let bannerBk='';
+  try{const raw=localStorage.getItem('plan_backup_'+id);if(raw){const bk=JSON.parse(raw);if(bk&&bk.d&&(bk.d.dias||[]).length){const cuando=new Date(bk.t).toLocaleString();bannerBk=`<div style="background:rgba(224,184,74,.12);border:1px solid rgba(224,184,74,.35);border-radius:8px;padding:8px 11px;font-size:12px;color:var(--warn);margin-bottom:8px">Tienes cambios sin guardar de un intento anterior (${cuando}). <button class="sm" style="margin-left:6px" onclick="planRestaurarBackup('${id}')">Restaurar</button> <button class="sm ghost" onclick="localStorage.removeItem('plan_backup_'+'${id}');this.closest('div').remove()">Descartar</button></div>`;}}}catch(e){}
   // Lee por el EDGE (service_role): RLS bloquea que el entrenador lea la fila del cliente
   // con sb.from → el plan "desaparecía" al recargar. El edge 'ver' devuelve datos+html.
   let fila=null;
-  try{const {data:v}=await invokeFn("plan-alimentacion",{body:{action:"ver",user_id:id}});if(v&&!v.error)fila={datos:v.datos||null,html:v.html||null,generado_en:v.generado_en||null,enviado_en:v.enviado_en||null,solicitado_en:v.solicitado_en||null};}catch(e){return;}
-  if(!fila||(!fila.html&&!fila.datos))return; // nada guardado aún
+  try{const {data:v}=await invokeFn("plan-alimentacion",{body:{action:"ver",user_id:id}});if(v&&!v.error)fila={datos:v.datos||null,html:v.html||null,generado_en:v.generado_en||null,enviado_en:v.enviado_en||null,solicitado_en:v.solicitado_en||null};}catch(e){if(msg&&bannerBk)msg.innerHTML=bannerBk;return;}
+  if(!fila||(!fila.html&&!fila.datos)){if(msg&&bannerBk)msg.innerHTML=bannerBk;return;} // nada guardado aún
   try{await planCargarCatalogo(id);}catch(e){}
   if(fila.datos){
     PLAN_DATOS=fila.datos;
@@ -4185,8 +4188,8 @@ async function planCargarGuardado(id){
   if(acc)acc.classList.remove("hide");
   if(msg){
     const fecha=fila.generado_en?(' ('+new Date(fila.generado_en).toLocaleDateString()+')'):'';
-    if(fila.html) msg.innerHTML=`✓ <b>Plan aprobado guardado</b>${fecha}. El cliente ya puede verlo y descargarlo en la app. Aquí puedes <b>Exportar PDF</b> para descargarlo, o editarlo y volver a <b>Aprobar y guardar</b>.`;
-    else msg.innerHTML=`Hay un <b>borrador</b> de plan sin aprobar${fecha}. Revísalo y pulsa <b>Aprobar y guardar</b> para que el cliente pueda verlo y descargarlo en la app.`;
+    if(fila.html) msg.innerHTML=bannerBk+`✓ <b>Plan aprobado guardado</b>${fecha}. El cliente ya puede verlo y descargarlo en la app. Aquí puedes <b>Exportar PDF</b> para descargarlo, o editarlo y volver a <b>Aprobar y guardar</b>.`;
+    else msg.innerHTML=bannerBk+`Hay un <b>borrador</b> de plan sin aprobar${fecha}. Revísalo y pulsa <b>Aprobar y guardar</b> para que el cliente pueda verlo y descargarlo en la app.`;
   }
 }
 function planRenderEditor(){
@@ -4354,11 +4357,33 @@ async function planPreview(){
 async function planGuardar(id){
   const d=planRecoger();if(!d)return;
   const exacto=!!($("plan_exacto")&&$("plan_exacto").checked);
+  // RESPALDO LOCAL antes de guardar: si el guardado falla (token vencido, red, etc.),
+  // el trabajo NO se pierde — queda para reintentar o restaurar al reabrir. (JC 2026-10-06)
+  try{localStorage.setItem('plan_backup_'+id, JSON.stringify({d,exacto,t:Date.now()}));}catch(e){}
   $("planMsg2").textContent=exacto?"Guardando con tus cantidades exactas (sin reescalar)…":"Guardando y aprobando…";
   const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"guardar",user_id:id,datos:d,exacto}});
-  if(error||!data||data.error){$("planMsg2").innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"error")}</span>`;return;}
+  if(error||!data||data.error){
+    $("planMsg2").innerHTML=`<span class="alert">No se pudo guardar: ${esc((error&&error.message)||(data&&data.error)||"error")}</span> — tus cambios quedaron respaldados. <button class="sm" style="margin-left:6px" onclick="planGuardar('${id}')">Reintentar</button>`;
+    return; // se conserva el respaldo para reintentar
+  }
+  try{localStorage.removeItem('plan_backup_'+id);}catch(e){} // guardado OK → limpia el respaldo
   PLAN_HTML=data.html||"";const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=PLAN_HTML;}
   $("planMsg2").innerHTML="✓ Plan aprobado y guardado. El cliente ya puede verlo. Ahora puedes exportarlo.";
+}
+// Restaura al editor un respaldo local de un guardado que falló antes (mismo cliente).
+async function planRestaurarBackup(id){
+  try{
+    const raw=localStorage.getItem('plan_backup_'+id);if(!raw){$("planMsg").textContent="No hay respaldo.";return;}
+    const bk=JSON.parse(raw);if(!bk||!bk.d||!(bk.d.dias||[]).length){$("planMsg").textContent="El respaldo está vacío.";return;}
+    try{await planCargarCatalogo(id);}catch(e){}
+    PLAN_DATOS=bk.d;
+    (PLAN_DATOS.dias||[]).forEach(dia=>(dia.comidas||[]).forEach(c=>{c.foods=c.foods||planParseFoods(c.alimentos);}));
+    if($("plan_exacto"))$("plan_exacto").checked=!!bk.exacto;
+    planRenderEditor();
+    const p2=$("plan_paso2");if(p2)p2.classList.remove("hide");
+    $("plan_acciones").classList.remove("hide");
+    $("planMsg").innerHTML="✓ Restauré tus cambios sin guardar. Revísalos y pulsa <b>Aprobar</b>.";
+  }catch(e){$("planMsg").textContent="No se pudo restaurar el respaldo.";}
 }
 // DIETA REVERSA / cambio de kcal manteniendo la estructura: reescala los gramos
 // del plan que hay en el editor para pegar al objetivo ACTUAL del cliente (las
