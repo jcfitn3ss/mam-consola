@@ -264,6 +264,17 @@ async function invokeFn(name,opts){
   const body=(opts&&opts.body)||{};
   let session=null;
   try{const r=await sb.auth.getSession();session=r.data&&r.data.session;}catch(e){}
+  // Refrescar el token ANTES de llamar si está vencido o por vencer (<2 min). Armar un
+  // plan toma rato; sin esto, al Guardar después de >1h el token venció y el guardado
+  // fallaba ("aparecía bien pero no se podía guardar"). Con esto, las sesiones largas
+  // siempre guardan. (JC 2026-10-06)
+  try{
+    const exp=(session&&session.expires_at)?session.expires_at*1000:0;
+    if(!session||!exp||(exp-Date.now())<120000){
+      const rr=await sb.auth.refreshSession();
+      if(rr&&rr.data&&rr.data.session)session=rr.data.session;
+    }
+  }catch(e){}
   if(!session||!session.access_token){return {data:null,error:{message:"Tu sesión venció. Cierra sesión y vuelve a entrar a la consola."}};}
   const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),90000);
   try{
