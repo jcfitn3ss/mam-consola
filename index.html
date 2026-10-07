@@ -4412,8 +4412,11 @@ async function planGuardar(id){
   // RESPALDO LOCAL antes de guardar: si el guardado falla (token vencido, red, etc.),
   // el trabajo NO se pierde — queda para reintentar o restaurar al reabrir. (JC 2026-10-06)
   try{localStorage.setItem('plan_backup_'+id, JSON.stringify({d,exacto,t:Date.now()}));}catch(e){}
-  $("planMsg2").textContent=exacto?"Guardando con tus cantidades exactas (sin reescalar)…":"Guardando y aprobando…";
-  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"guardar",user_id:id,datos:d,exacto}});
+  $("planMsg2").textContent="Guardando lo que ves en la vista previa…";
+  // WYSIWYG (JC 2026-10-07): Aprobar guarda EXACTAMENTE lo que está en el editor/preview.
+  // Antes el guardar re-nivelaba a las kcal y reescribía los gramos/alimentos editados →
+  // "el plan volvía a lo de antes". El nivelado ahora es SOLO el botón "Ajustar a kcal".
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"guardar",user_id:id,datos:d,exacto:true}});
   if(error||!data||data.error){
     $("planMsg2").innerHTML=`<span class="alert">No se pudo guardar: ${esc((error&&error.message)||(data&&data.error)||"error")}</span> — tus cambios quedaron respaldados. <button class="sm" style="margin-left:6px" onclick="planGuardar('${id}')">Reintentar</button>`;
     return; // se conserva el respaldo para reintentar
