@@ -1539,17 +1539,32 @@ function renderContactar(){
     // ── Panel de la IA del CRM + respuestas completas, dentro de la tarjeta ──
     const eIA=window.CU_IA[k]||{};
     const abRes=!!window.CU_RESP[k];
+    const abAge=!!(window.CU_AGE&&window.CU_AGE[k]);
     const btnIA=i.telefono?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIARedactar('${k}')" title="La IA escribe el mensaje con la voz de Juan, usando lo que esta persona contestó">Escribir con IA</button>`:'';
     const btnCal=esEnc?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIACalificar('${k}')" title="La IA lee sus respuestas y dice si vale la llamada">Calificar</button>`:'';
     const btnRes=String(i.respuestas||'').trim()?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuRespToggle('${k}')">${abRes?'Ocultar respuestas':'Ver todo lo que contestó'}</button>`:'';
+    // Agendar la llamada inicial de consultoría (Google Calendar + Meet). Requiere correo.
+    const nomAge=(i.nombre||'').replace(/['\\]/g,'');
+    const btnAgendar=i.email?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuAgendaToggle('${k}')" title="Agenda la llamada inicial en tu Google Calendar e invita al lead por correo">${abAge?'Cerrar agenda':'Agendar consultoría'}</button>`:'';
+    const panelAgenda=abAge?`<div style="margin-top:10px;background:var(--card2);border:1px solid var(--rojo);border-radius:11px;padding:13px 15px">
+        <div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:9px">Agendar llamada inicial de consultoría</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div><label class="lbl">Fecha y hora</label><input type="datetime-local" id="age_${k}" style="margin:0"></div>
+          <div style="flex:0"><label class="lbl">Minutos</label><input type="number" id="agedur_${k}" value="45" min="15" max="120" style="width:78px;margin:0"></div>
+          <button class="sm" onclick="cuAgendarLead('${k}','${esc(i.email||'')}','${esc(nomAge)}','${i.id||''}')">Confirmar y agendar</button>
+        </div>
+        <div style="margin-top:7px"><span id="ageMsg_${k}" class="muted" style="font-size:12px"></span></div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Crea el evento con Google Meet e invita a <b>${esc(i.email||'')}</b>. El lead queda marcado como <b>agendado</b>.</div>
+      </div>`:'';
     const panelRes=abRes?(()=>{
       const R=cuRespParse(i.respuestas);
-      // Grilla pregunta/respuesta (se escanea de un vistazo), 2 columnas que se adaptan.
-      const celdas=R.filas.map(f=>`<div style="background:var(--card2);padding:10px 12px">
-          ${f.q?`<div class="muted" style="font-size:10.5px;line-height:1.35;margin-bottom:3px">${esc(f.q)}</div>`:''}
-          <div style="font-size:13.5px;color:var(--txt);font-weight:700;line-height:1.35">${esc(f.a)}</div>
+      // Celdas pregunta/respuesta: etiqueta (pregunta sin "?") arriba en gris, respuesta
+      // abajo en grande. Cada una en su caja con borde → se escanea limpio, sin líneas raras.
+      const celdas=R.filas.map(f=>`<div style="background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;min-width:0">
+          ${f.q?`<div class="muted" style="font-size:9.5px;line-height:1.3;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">${esc(f.q.replace(/\s*\?\s*$/,''))}</div>`:''}
+          <div style="font-size:13.5px;color:var(--txt);font-weight:700;line-height:1.3;overflow-wrap:anywhere">${esc(f.a)}</div>
         </div>`).join('');
-      const grid=celdas?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden">${celdas}</div>`:`<div class="muted" style="font-size:12.5px;padding:6px 0">Sin respuestas estructuradas.</div>`;
+      const grid=celdas?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px">${celdas}</div>`:`<div class="muted" style="font-size:12.5px;padding:6px 0">Sin respuestas estructuradas.</div>`;
       // Encabezado con temperatura (prioriza a quién llamar).
       const tCol=temp==='CALIENTE'?'background:var(--rojoSoft);color:#ff8f8f;border:1px solid rgba(226,59,59,.4)':temp==='TIBIO'?'background:rgba(224,184,74,.12);color:var(--warn);border:1px solid rgba(224,184,74,.35)':'background:var(--card2);color:var(--muted);border:1px solid var(--line)';
       const chip=temp?`<span style="font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:4px 10px;border-radius:7px;${tCol}">${temp==='CALIENTE'?'Caliente':temp==='TIBIO'?'Tibio':'Frío'}</span>`:'';
@@ -1614,6 +1629,7 @@ function renderContactar(){
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b>${encNuevo?` <span style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;background:var(--rojo);color:#fff;border-radius:5px;padding:2px 7px">nuevo</span>`:''} ${niv} ${chip(i.grupo)}${toqueChip}${esEnc&&i.lead_creado?` <span class="muted" style="font-size:11.5px">${esc(cuHaceCuanto(i.lead_creado))}</span>`:''}</div>
           ${encBloque}
           ${panelRes}
+          ${panelAgenda}
           ${panelIA}
           ${g.t?`<div style="font-size:12px;margin-top:3px;color:${g.c};font-weight:600">${esc(g.t)}</div>`:''}
           <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--muted)">ver más</summary>
@@ -1631,7 +1647,7 @@ function renderContactar(){
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          ${selEst}${waBtn}${igBtn}${btnIA}${btnCal}${btnRes}${infBtn}
+          ${selEst}${waBtn}${igBtn}${btnIA}${btnCal}${btnRes}${btnAgendar}${infBtn}
         </div>
       </div></div>`;
   }
@@ -1713,6 +1729,20 @@ async function cuIACalificar(k){
 
 function cuIACerrar(k){ const e=cuIAEstado(k); e.abierto=false; renderContactar(); }
 function cuRespToggle(k){ window.CU_RESP[k]=!window.CU_RESP[k]; renderContactar(); }
+window.CU_AGE = window.CU_AGE || {}; // key -> true si el panel de agendar está abierto
+function cuAgendaToggle(k){ window.CU_AGE[k]=!window.CU_AGE[k]; renderContactar(); }
+// Agenda la llamada inicial de consultoría de un LEAD (sin cuenta) en Google Calendar.
+async function cuAgendarLead(k,email,nombre,leadId){
+  const inp=document.getElementById('age_'+k);const dur=+(((document.getElementById('agedur_'+k))||{}).value)||45;
+  const msg=document.getElementById('ageMsg_'+k);
+  if(!inp||!inp.value){if(msg)msg.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
+  if(msg){msg.style.color='';msg.textContent='Agendando en tu Google Calendar…';}
+  const {data,error}=await invokeFn("agendar-reunion",{body:{lead_email:email,lead_nombre:nombre,lead_id:leadId,inicio:inp.value,duracion_min:dur,titulo:`Consultoría inicial · ${nombre||'Lead'} (Músculo al Máximo)`}});
+  if(error||!data||data.error){if(msg)msg.innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"No se pudo agendar")}</span>`;return;}
+  if(msg)msg.innerHTML=`✓ <b>Agendada</b> para ${esc(data.fecha||inp.value)}.${data.meetLink?` <a href="${esc(data.meetLink)}" target="_blank" style="color:var(--rojoTxt)">Abrir Meet</a>`:''} El lead quedó como agendado.`;
+  // Refresca para que el estado del lead muestre "agendado".
+  try{setTimeout(()=>verCRM&&verCRM(),1200);}catch(e){}
+}
 
 // Abre WhatsApp con el texto que la IA escribió (y lo que el setter haya editado a mano).
 function cuWAIA(k){
