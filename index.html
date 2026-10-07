@@ -4457,7 +4457,19 @@ async function setVariarDias(id,val){
   const e=errFilas(await sb.from("planes").update({variar_dias:!!val,updated_at:new Date().toISOString()}).eq("user_id",id).select("user_id"));
   if(e&&m)m.innerHTML='<span class="alert">'+esc(e)+'</span>';
 }
-function planExportar(){if(!PLAN_HTML){alert("Primero aprueba/guarda o actualiza la vista previa.");return;}imprimirIframe("plan_prev",PLAN_HTML);}
+async function planExportar(){
+  // Exporta SIEMPRE el plan GUARDADO/APROBADO (lo que el cliente ve en la app), NO el
+  // borrador del editor. Antes exportaba la vista previa del editor sin guardar, así que
+  // el PDF decía una cosa y la app mostraba otra (caso Juan Burgueño). (JC 2026-10-07)
+  if(!RECUID){alert("Abre un cliente primero.");return;}
+  $("planMsg2").textContent="Trayendo el plan aprobado…";
+  const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"ver",user_id:RECUID}});
+  const html=(!error&&data&&data.html)||"";
+  if(!html){$("planMsg2").innerHTML='<span class="alert">Primero <b>Aprueba y guarda</b> el plan. El PDF exporta lo que el cliente ve en la app, no el borrador.</span>';return;}
+  PLAN_HTML=html;const f=$("plan_prev");if(f){f.classList.remove("hide");f.srcdoc=html;}
+  $("planMsg2").textContent="";
+  imprimirIframe("plan_prev",html);
+}
 async function marcarPlanEnviado(id){
   $("planMsg").textContent="Enviando por correo…";
   const {data,error}=await invokeFn("plan-alimentacion",{body:{action:"enviar",user_id:id}});
