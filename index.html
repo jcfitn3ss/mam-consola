@@ -1628,9 +1628,6 @@ function renderContactar(){
           <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${esc(i.nombre||i.email||'(sin nombre)')}</b>${encNuevo?` <span style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;background:var(--rojo);color:#fff;border-radius:5px;padding:2px 7px">nuevo</span>`:''} ${niv} ${chip(i.grupo)}${toqueChip}${esEnc&&i.lead_creado?` <span class="muted" style="font-size:11.5px">${esc(cuHaceCuanto(i.lead_creado))}</span>`:''}</div>
           ${encBloque}
-          ${panelRes}
-          ${panelAgenda}
-          ${panelIA}
           ${g.t?`<div style="font-size:12px;margin-top:3px;color:${g.c};font-weight:600">${esc(g.t)}</div>`:''}
           <details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;color:var(--muted)">ver más</summary>
             <div class="muted" style="font-size:11px;margin-top:6px">${esc(i.email||'')}${i.telefono?' · '+esc(i.telefono):''}${(()=>{const p=cuPaisDeTel(i.telefono);if(p)return ` · <span title="${esc(p.nombre)}" style="font-weight:700;color:var(--txt);cursor:default;border-bottom:1px dotted var(--line)">${p.iso}</span>`;return i.pais?` · ${esc(i.pais)}`:'';})()}</div>
@@ -1649,7 +1646,7 @@ function renderContactar(){
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           ${selEst}${waBtn}${igBtn}${btnIA}${btnCal}${btnRes}${btnAgendar}${infBtn}
         </div>
-      </div></div>`;
+      </div>${panelRes}${panelAgenda}${panelIA}</div>`;
   }
   h+='</div>';
   el.innerHTML=h;
