@@ -1740,8 +1740,8 @@ async function cuAgendarLead(k,email,nombre,leadId){
   const {data,error}=await invokeFn("agendar-reunion",{body:{lead_email:email,lead_nombre:nombre,lead_id:leadId,inicio:inp.value,duracion_min:dur,titulo:`Consultoría inicial · ${nombre||'Lead'} (Músculo al Máximo)`}});
   if(error||!data||data.error){if(msg)msg.innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"No se pudo agendar")}</span>`;return;}
   if(msg)msg.innerHTML=`✓ <b>Agendada</b> para ${esc(data.fecha||inp.value)}.${data.meetLink?` <a href="${esc(data.meetLink)}" target="_blank" style="color:var(--rojoTxt)">Abrir Meet</a>`:''} El lead quedó como agendado.`;
-  // Refresca para que el estado del lead muestre "agendado".
-  try{setTimeout(()=>verCRM&&verCRM(),1200);}catch(e){}
+  // Refresca (force) para que el lead muestre "agendado" con datos frescos.
+  try{window.CU_AGE[k]=false;setTimeout(()=>verContactar&&verContactar(true),1300);}catch(e){}
 }
 
 // Abre WhatsApp con el texto que la IA escribió (y lo que el setter haya editado a mano).
