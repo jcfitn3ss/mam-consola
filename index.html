@@ -193,7 +193,7 @@
         <button id="t-sugerencias" onclick="tab('sugerencias')">Sugerencias</button>
         <button id="t-interno" onclick="tab('interno')">Mejorar consola</button>
       </div>
-      <span id="buildVer" title="Versión de la consola. Si no coincide con la última, recarga con Ctrl/Cmd+Shift+R." style="font-size:10px;color:var(--muted);margin-left:10px;align-self:center">v2026-10-07b · guardar WYSIWYG</span>
+      <span id="buildVer" title="Versión de la consola. Si no coincide con la última, recarga con Ctrl/Cmd+Shift+R." style="font-size:10px;color:var(--muted);margin-left:10px;align-self:center">v2026-10-11 · versión app por cliente</span>
     </div>
 
     <div id="v-clientes">
@@ -3398,7 +3398,27 @@ async function verCliente(id){
   // en OTRO cliente, SEL ya cambió. No pintamos la ficha vieja encima de la nueva.
   if(id!==SEL)return;
   const nomCli=(CLIENTES.find(c=>c.user_id===id)||{}).nombre||'';
-  $("detalle").innerHTML=`<div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;margin-bottom:6px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)"><button class="sm" onclick="volverLista()" style="margin:0">← Volver a la lista</button><b style="font-size:15px">${esc(nomCli)}</b></div>`+h;
+  // HEARTBEAT de versión: muestra en qué build corre el cliente y si está al día. La
+  // referencia es el build más RECIÉN visto entre todos (el del último OTA que alguien
+  // abrió). Así, si Jaccson dice "no me deja registrar", se ve de un vistazo si quedó en
+  // un build viejo sin recibir el arreglo. (JC 2026-10-11)
+  let _hbHtml='';
+  try{
+    const [{data:_hbC},{data:_hbRef}]=await Promise.all([
+      sb.from('app_heartbeat').select('update_id,plataforma,app_version,visto_en').eq('user_id',id).maybeSingle(),
+      sb.from('app_heartbeat').select('update_id,visto_en').order('visto_en',{ascending:false}).limit(1),
+    ]);
+    const refId=(_hbRef&&_hbRef[0])?_hbRef[0].update_id:null;
+    if(!_hbC){
+      _hbHtml=`<span title="Aún no ha abierto la versión con heartbeat" style="font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 7px">app: sin datos</span>`;
+    }else{
+      const fch=(_hbC.visto_en||'').slice(0,10);
+      const alDia=refId&&_hbC.update_id===refId;
+      const col=alDia?'var(--ok)':'var(--warn)';
+      _hbHtml=`<span title="${esc(_hbC.plataforma||'')} · v${esc(_hbC.app_version||'?')} · build ${esc(String(_hbC.update_id||'base').slice(0,8))} · visto ${fch}" style="font-size:11px;color:${col};border:1px solid ${col};border-radius:6px;padding:2px 7px">app ${alDia?'al día':'build viejo'} · ${fch}</span>`;
+    }
+  }catch(e){}
+  $("detalle").innerHTML=`<div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;margin-bottom:6px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)"><button class="sm" onclick="volverLista()" style="margin:0">← Volver a la lista</button><b style="font-size:15px">${esc(nomCli)}</b>${_hbHtml}</div>`+h;
   recetaRender();rcInit();hacerColapsables();
   verProgreso(id); // gráfica de peso + objetivo mensual + calendario del atleta (carga aparte)
   // Restaura el scroll en recargas del mismo cliente (tras editar/guardar) para no
