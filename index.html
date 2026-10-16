@@ -3034,7 +3034,7 @@ async function verCliente(id){
     </div>
     ${RUT&&RUT.rotativo?`<div class="muted" style="font-size:12px;border-left:3px solid var(--rojo);padding:6px 10px;margin-bottom:8px">Rutina <b>rotativa por semanas</b> (3 días seguidos): abajo editas la <b>semana A</b> (2 inferior + 1 superior); la semana B (2 superior + 1 inferior) se alterna sola en la app.</div>`:''}
     ${rutGruposHTML()}<div id="editorRut">${editorRutinaHTML()}</div>`;
-  if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><button class="ghost" onclick="plGuardarComo('${id}')" title="Guardar esta rutina en la biblioteca de rutinas estándar">Guardar como plantilla</button><span id="rutMsg" class="muted"></span></div>`;
+  if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><button class="ghost" onclick="plGuardarComo('${id}')" title="Guardar esta rutina en la biblioteca de rutinas estándar">Guardar como plantilla</button><button class="ghost" onclick="renovarMesociclo('${id}')" title="Reinicia al cliente a la semana 1 / bloque 1 con la rutina actual (empezar un nuevo mesociclo)">Empezar nuevo mesociclo</button><span id="rutMsg" class="muted"></span></div>`;
   h+=`</div>`;
 
   // ===== PROGRESO FÍSICO (peso) + COMPARACIONES organizadas (fotos/medidas/pliegues) =====
@@ -4865,6 +4865,16 @@ async function generarRutina(id){
   const _fr=await invokeFn("consola-rutina",{body:{action:'get',cliente:id}});const fresh={data:(_fr.data&&_fr.data.rutina)||null};
   if(fresh){RUT=fresh;rutRefrescar();}
   if(m)m.textContent="✓ Rutina generada ("+nd+" días"+(plan.rotativo?", rotativa por semanas":dist?", "+dist:"")+"). Revísala y edítala abajo; luego Guardar rutina.";
+}
+// EMPEZAR NUEVO MESOCICLO: tras cambiar la rutina, reinicia al cliente a la semana 1 /
+// bloque 1 (inicio = hoy) para que arranque el plan nuevo desde el principio, en vez de
+// quedar al final del plan viejo con todo "realizado" (caso Jaccson). (JC 2026-10-16)
+async function renovarMesociclo(id){
+  if(!confirm("¿Empezar un nuevo mesociclo para este cliente?\n\nLo deja en SEMANA 1 / bloque 1 con la rutina actual. Las semanas anteriores pasan a historial. Guarda primero los cambios de la rutina."))return;
+  const m=$("rutMsg");if(m)m.textContent="Renovando mesociclo…";
+  const {data,error}=await invokeFn("consola-rutina",{body:{action:'renovar_mesociclo',cliente:id}});
+  if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message||"No se pudo renovar")}</span>`;return;}
+  if(m)m.innerHTML=`<span style="color:var(--ok)">Nuevo mesociclo iniciado (semana 1, desde ${esc(data&&data.inicio||'hoy')}). El cliente lo verá al abrir/actualizar la app.</span>`;
 }
 async function guardarRutina(id){
   $("rutMsg").textContent="Guardando…";
