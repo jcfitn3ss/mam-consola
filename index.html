@@ -3034,7 +3034,17 @@ async function verCliente(id){
     </div>
     ${RUT&&RUT.rotativo?`<div class="muted" style="font-size:12px;border-left:3px solid var(--rojo);padding:6px 10px;margin-bottom:8px">Rutina <b>rotativa por semanas</b> (3 días seguidos): abajo editas la <b>semana A</b> (2 inferior + 1 superior); la semana B (2 superior + 1 inferior) se alterna sola en la app.</div>`:''}
     ${rutGruposHTML()}<div id="editorRut">${editorRutinaHTML()}</div>`;
-  if(RUT&&RUT.dias)h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><button class="ghost" onclick="plGuardarComo('${id}')" title="Guardar esta rutina en la biblioteca de rutinas estándar">Guardar como plantilla</button><button class="ghost" onclick="renovarMesociclo('${id}')" title="Reinicia al cliente a la semana 1 / bloque 1 con la rutina actual (empezar un nuevo mesociclo)">Empezar nuevo mesociclo</button><span id="rutMsg" class="muted"></span></div>`;
+  if(RUT&&RUT.dias){
+    // "Empezar nuevo mesociclo" SOLO se habilita si el cliente ya TERMINÓ su mesociclo
+    // (semana en curso >= semanas del plan). Evita reiniciar por error a mitad de plan. (JC 2026-10-16)
+    const _semanas=(plan.semanas||12);
+    const _semCli=(plan.semana_entreno!=null)?Math.round(Number(plan.semana_entreno)):semanaActual(plan.inicio,_semanas);
+    const _finMeso=!!plan.inicio && _semCli>=_semanas;
+    const _btnRenov=_finMeso
+      ? `<button class="ghost" onclick="renovarMesociclo('${id}')" title="El cliente ya terminó su mesociclo: reinícialo a la semana 1 / bloque 1 con la rutina actual.">Empezar nuevo mesociclo</button>`
+      : `<button class="ghost" disabled style="opacity:.45;cursor:not-allowed" title="Disponible cuando el cliente termine su mesociclo. Va en la semana ${_semCli} de ${_semanas}.">Empezar nuevo mesociclo (sem ${_semCli}/${_semanas})</button>`;
+    h+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button onclick="guardarRutina('${id}')">Guardar rutina</button><button class="ghost" onclick="rutDeshacer()">Deshacer</button><button class="ghost" onclick="rutDescartar('${id}')">Descartar cambios</button><button class="ghost" onclick="plGuardarComo('${id}')" title="Guardar esta rutina en la biblioteca de rutinas estándar">Guardar como plantilla</button>${_btnRenov}<span id="rutMsg" class="muted"></span></div>`;
+  }
   h+=`</div>`;
 
   // ===== PROGRESO FÍSICO (peso) + COMPARACIONES organizadas (fotos/medidas/pliegues) =====
