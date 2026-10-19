@@ -173,6 +173,7 @@
       <button id="t-seguimiento" onclick="tab('seguimiento')">Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
+      <button id="t-finanzas" class="hide" onclick="tab('finanzas')">Finanzas</button>
       <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
       <div class="menu" id="masMenu">
@@ -218,6 +219,7 @@
     <div id="v-seguimiento" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
+    <div id="v-finanzas" class="hide"></div>
     <div id="v-salud" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
@@ -361,7 +363,7 @@ async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr"
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","finanzas","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -567,6 +569,7 @@ async function guardarSegmento(uid,segv){
   verPagos();
 }
 
+let MI_SOCIO=false;
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
   // OJO: select("*") — NO nombrar es_setter aquí: esa columna se crea en la migración que
@@ -574,11 +577,23 @@ async function trasLogin(){
   // y deja a TODOS sin poder entrar (huevo/gallina). Con "*" toma es_setter si ya existe.
   const {data:p}=await sb.from("perfiles").select("*").eq("user_id",MIID).maybeSingle();
   const _esEnt=p&&p.rol==="entrenador"; const _esSet=p&&!!p.es_setter;
-  if(!_esEnt&&!_esSet){show("login",true);$("loginErr").textContent="Esta cuenta no tiene acceso a la consola.";await sb.auth.signOut();return;}
+  // SOCIO: ve la pestaña privada de Finanzas. La columna es_socio la crea la edge
+  // `finanzas` (acción migrar); con select("*") no rompe si todavía no existe.
+  const _esSoc=p&&!!p.es_socio; MI_SOCIO=_esSoc;
+  if(!_esEnt&&!_esSet&&!_esSoc){show("login",true);$("loginErr").textContent="Esta cuenta no tiene acceso a la consola.";await sb.auth.signOut();return;}
   MI_PRINCIPAL=!!(p&&p.es_principal); // entrenador principal: puede asignar clientes a otros entrenadores
   MI_SETTER=_esSet;
   // SETTER de ventas (no entrenador): solo ve la cola de contacto. Salta toda la carga
   // pesada de entrenador (rutinas, biblioteca, RLS) que además no le está permitida.
+  // SOCIO que no es entrenador (ej. María): entra SOLO a Finanzas, nada más.
+  if(_esSoc&&!_esEnt&&!_esSet){
+    show("login",false);show("app",true);show("logout",true);
+    document.querySelectorAll('.nav button').forEach(b=>{ if(b.id!=='t-finanzas') b.classList.add('hide'); });
+    const _mb=$("masBtn");if(_mb)_mb.classList.add('hide');
+    const _tf=$("t-finanzas");if(_tf)_tf.classList.remove('hide');
+    tab('finanzas');
+    return;
+  }
   if(_esSet&&!_esEnt){
     show("login",false);show("app",true);show("logout",true);
     document.querySelectorAll('.nav button').forEach(b=>{ if(b.id!=='t-contactar') b.classList.add('hide'); });
@@ -596,6 +611,7 @@ async function trasLogin(){
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
+  if(_esSoc){const _tf=$("t-finanzas");if(_tf)_tf.classList.remove("hide");}
   const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
   // Lista vía edge (service_role): NO depende del RLS → SIEMPRE salen todos.
@@ -6474,6 +6490,353 @@ $("lb").addEventListener('touchmove',e=>{if(!LB_touch)return;if(e.touches.length
 $("lb").addEventListener('touchend',()=>{if(LB_touch&&LB_s<=1&&Math.abs(LB_touch.dx||0)>60)lbGo(LB_touch.dx<0?1:-1);LB_touch=null;},{passive:true});
 
 init();
+
+// ===================== FINANZAS DE LA EMPRESA (privado: solo socios) =====================
+// Pestaña cerrada con doble llave: la cuenta debe tener perfiles.es_socio=true Y
+// hay que escribir la clave de finanzas (se verifica contra un hash en el servidor).
+// La clave vive solo en sessionStorage: al cerrar la pestaña del navegador se borra.
+let FIN=null;
+const finClave=()=>sessionStorage.getItem('fin_clave')||'';
+const finCOP=(usd,trm)=>usd==null?'—':'$'+Math.round(Number(usd)*(trm||3900)).toLocaleString('es-CO');
+const finUSD=(n)=>n==null?'—':'US$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+const finNum=(id)=>{const e=$(id);return e?(e.value===''?null:Number(e.value)):null;};
+
+async function finCall(action,extra){
+  return await invokeFn('finanzas',{body:Object.assign({action:action,clave:finClave()},extra||{})});
+}
+
+// Pantalla de bloqueo / preparación. Devuelve true si ya se puede pintar el tablero.
+function finPintarCandado(modo,msg){
+  const crear=modo==='crear';
+  $("v-finanzas").innerHTML=`<div class="card" style="max-width:420px;margin:40px auto">
+    <h2 style="margin-top:0">Finanzas de la empresa</h2>
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">${crear?'Esta sección todavía no tiene clave. Crea una: sin ella nadie la abre, ni con tu sesión.':'Sección privada. Escribe la clave de finanzas para abrirla.'}</div>
+    ${msg?`<div class="alert" style="margin-bottom:8px">${esc(msg)}</div>`:''}
+    <label class="lbl">${crear?'Clave nueva (mínimo 6 caracteres)':'Clave de finanzas'}</label>
+    <input id="finClaveInput" type="password" onkeydown="if(event.key==='Enter')${crear?'finCrearClave()':'finEntrar()'}" />
+    ${crear?'<label class="lbl">Repítela</label><input id="finClaveInput2" type="password" onkeydown="if(event.key===\'Enter\')finCrearClave()" />':''}
+    <button style="width:100%;margin-top:10px" onclick="${crear?'finCrearClave()':'finEntrar()'}">${crear?'Crear clave y entrar':'Entrar'}</button>
+  </div>`;
+  setTimeout(()=>{const i=$("finClaveInput");if(i)i.focus();},50);
+}
+
+async function finEntrar(){
+  const v=($("finClaveInput")||{}).value||'';
+  if(!v){finPintarCandado('pedir','Escribe la clave.');return;}
+  sessionStorage.setItem('fin_clave',v);
+  await verFinanzas();
+}
+
+async function finCrearClave(){
+  const a=($("finClaveInput")||{}).value||'', b=($("finClaveInput2")||{}).value||'';
+  if(a.length<6){finPintarCandado('crear','La clave debe tener al menos 6 caracteres.');return;}
+  if(a!==b){finPintarCandado('crear','Las dos claves no son iguales.');return;}
+  const r=await invokeFn('finanzas',{body:{action:'set_clave',clave_nueva:a}});
+  if(r.error){finPintarCandado('crear',r.error.message);return;}
+  sessionStorage.setItem('fin_clave',a);
+  await verFinanzas();
+}
+
+async function finPrepararTablas(){
+  $("v-finanzas").innerHTML='<div class="card"><div class="muted">Preparando las tablas de finanzas…</div></div>';
+  const r=await invokeFn('finanzas',{body:{action:'migrar'}});
+  if(r.error){$("v-finanzas").innerHTML='<div class="card"><div class="alert">No se pudo preparar: '+esc(r.error.message)+'</div></div>';return;}
+  await verFinanzas();
+}
+
+async function verFinanzas(){
+  const cont=$("v-finanzas");if(!cont)return;
+  if(!finClave()){finPintarCandado('pedir');return;}
+  cont.innerHTML='<div class="card"><div class="muted">Cargando finanzas…</div></div>';
+  const r=await finCall('estado');
+  if(r.error){
+    const m=r.error.message||'';
+    if(m.indexOf('sin_migrar')>=0){cont.innerHTML='<div class="card" style="max-width:420px;margin:40px auto"><h2 style="margin-top:0">Finanzas</h2><div class="muted" style="margin-bottom:10px">Todavía no existen las tablas de finanzas. Se crean una sola vez.</div><button onclick="finPrepararTablas()">Preparar finanzas</button></div>';return;}
+    if(m.indexOf('sin_clave')>=0){finPintarCandado('crear');return;}
+    if(m.indexOf('incorrecta')>=0){sessionStorage.removeItem('fin_clave');finPintarCandado('pedir','Clave incorrecta.');return;}
+    cont.innerHTML='<div class="card"><div class="alert">'+esc(m)+'</div></div>';return;
+  }
+  FIN=r.data;
+  finRender();
+}
+
+function finRender(){
+  const d=FIN,trm=d.trm,ing=d.ingresos,gas=d.gastos,res=d.resultado,cfg=d.cfg||{},st=d.stripe||{};
+  const kpi=(tit,usd,color,sub)=>`<div style="flex:1;min-width:150px">
+    <div class="muted" style="font-size:11px">${tit}</div>
+    <div style="font-weight:800;font-size:19px;color:${color||'var(--txt)'}">${finCOP(usd,trm)}</div>
+    <div class="muted" style="font-size:11px">${finUSD(usd)}${sub?' · '+sub:''}</div></div>`;
+
+  // --- 1. El mes -----------------------------------------------------------
+  let h=`<div class="card">
+    <h2 style="margin-top:0">Finanzas de la empresa
+      <button class="sm ghost" style="float:right" onclick="finRefrescar()">Releer Stripe</button>
+      <button class="sm ghost" style="float:right;margin-right:6px" onclick="verFinanzas()">Actualizar</button></h2>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Stripe leído ${esc((st.fecha||'').replace('T',' ').slice(0,16))||'—'} · ${st.cobrando||0} cobros activos${st.fallando?' · <span style="color:var(--warn)">'+st.fallando+' fallando</span>':''}${st.error?' · <span style="color:var(--rojo2)">'+esc(st.error)+'</span>':''}</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      ${kpi('Entra neto al mes',ing.neto_usd,'var(--ok)','bruto '+finUSD(ing.bruto_usd))}
+      ${kpi('Sale al mes (gastos)',gas.total_usd,'var(--bad)')}
+      ${kpi('Utilidad antes de impuestos',res.utilidad_antes_imp,res.utilidad_antes_imp>=0?'var(--ok)':'var(--rojo2)')}
+      ${kpi('Queda para repartir',res.para_repartir,res.para_repartir>=0?'#5f93e0':'var(--rojo2)','tras impuestos, reserva y fijos')}
+    </div>
+    ${gas.total_usd===0?'<div class="muted" style="font-size:12px;margin-top:10px;color:var(--warn)">Todavía no hay ni un gasto cargado. Hasta que los cargues, la utilidad de arriba está inflada: es ingreso, no ganancia.</div>':''}
+  </div>`;
+
+  // --- 2. Lo que se está cayendo ------------------------------------------
+  const rg=d.riesgo||{lista:[],total_usd:0};
+  if(rg.lista.length){
+    h+=`<div class="card" style="border-color:var(--warn)">
+      <h3 style="margin-top:0">Cobros que están fallando ahora mismo · ${finCOP(rg.total_usd,trm)} / mes</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        ${rg.lista.map(f=>`<tr style="border-top:1px solid var(--line)">
+          <td style="padding:6px 0">${esc(f.correo||'(sin correo)')}</td>
+          <td class="muted">${esc(f.producto)}</td>
+          <td class="muted">${esc(f.estado)}</td>
+          <td style="text-align:right;font-weight:700">${finUSD(f.mensual)}</td></tr>`).join('')}
+      </table>
+      <div class="muted" style="font-size:12px;margin-top:8px">Stripe no les pudo cobrar. Si nadie los contacta, esa plata se pierde.</div>
+    </div>`;
+  }
+
+  // --- 3. De dónde entra, producto por producto ---------------------------
+  const TIPOS=[['sin_clasificar','sin clasificar'],['app','App'],['mentoria','Mentoría'],['legacy','Producto viejo'],['otro','Otro']];
+  h+=`<div class="card"><h3 style="margin-top:0">De dónde entra la plata</h3>
+    ${ing.sin_clasificar?`<div class="muted" style="font-size:12.5px;margin-bottom:8px;color:var(--warn)">Hay ${ing.sin_clasificar} producto(s) sin clasificar. Mientras no digas cuáles son recurrentes, el piso de abajo sale corto.</div>`:''}
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Producto</th><th>Clientes</th><th style="text-align:right">Bruto</th><th style="text-align:right">Comisión</th><th style="text-align:right">Neto</th><th style="text-align:right">Neto COP</th><th>Qué es</th><th>¿Recurrente?</th></tr>
+      ${(ing.lineas||[]).map((l,n)=>`<tr style="border-top:1px solid var(--line)">
+        <td style="padding:6px 0">${esc(l.linea)}</td>
+        <td>${l.clientes}</td>
+        <td style="text-align:right">${finUSD(l.bruto)}</td>
+        <td style="text-align:right;color:var(--bad)">−${finUSD(l.bruto-l.neto)}</td>
+        <td style="text-align:right;font-weight:700">${finUSD(l.neto)}</td>
+        <td style="text-align:right" class="muted">${finCOP(l.neto,trm)}</td>
+        <td>${l.via==='stripe'?`<select style="margin:0;padding:4px 6px;font-size:12px" onchange="finClasificar('${encodeURIComponent(l.linea)}',this.value,null)">${TIPOS.map(t=>`<option value="${t[0]}"${l.tipo===t[0]?' selected':''}>${t[1]}</option>`).join('')}</select>`:`<span class="muted">${esc(l.tipo)}</span>`}</td>
+        <td>${l.via==='stripe'?`<input type="checkbox" style="width:auto;margin:0" ${l.recurrente?'checked':''} onchange="finClasificar('${encodeURIComponent(l.linea)}',null,this.checked)" />`:(l.recurrente?'sí':'no')}</td></tr>`).join('')}
+      <tr style="border-top:2px solid var(--line2);font-weight:800">
+        <td style="padding:6px 0">Total</td><td></td>
+        <td style="text-align:right">${finUSD(ing.bruto_usd)}</td>
+        <td style="text-align:right;color:var(--bad)">−${finUSD(ing.bruto_usd-ing.neto_usd)}</td>
+        <td style="text-align:right;color:var(--ok)">${finUSD(ing.neto_usd)}</td>
+        <td style="text-align:right">${finCOP(ing.neto_usd,trm)}</td><td></td><td></td></tr>
+    </table>
+  </div>`;
+
+  // --- 4. El piso ----------------------------------------------------------
+  const e1=d.escenario_sin_mentoria||{};
+  h+=`<div class="card" style="border-color:${e1.utilidad_usd>=0?'var(--line)':'var(--warn)'}">
+    <h3 style="margin-top:0">Si se acaban los contratos y solo queda lo recurrente</h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      ${kpi('Ingreso recurrente de verdad',ing.piso_usd,'#5f93e0')}
+      ${kpi('Utilidad en ese escenario',e1.utilidad_usd,e1.utilidad_usd>=0?'var(--ok)':'var(--rojo2)')}
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:8px">La mentoría tiene fecha de vencimiento, no es ingreso recurrente. El sueldo fijo de cada socio debería caber dentro de este piso; lo de la mentoría va al bono variable.</div>
+  </div>`;
+
+  // --- 5. Stripe cobra pero la app no lo sabe -----------------------------
+  const des=d.desajustes||[];
+  if(des.length){
+    const top=des.slice(0,40);
+    h+=`<div class="card"><h3 style="margin-top:0">Stripe les cobra pero la app no los reconoce · ${des.length} persona(s)</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">Están pagando. O son clientes viejos que nunca entraron a la app, o son clientes que pagan y no tienen acceso. Hay que revisar uno por uno.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        ${top.map(x=>`<tr style="border-top:1px solid var(--line)">
+          <td style="padding:5px 0">${esc(x.correo||'(sin correo)')}</td>
+          <td class="muted">${esc(x.producto)}</td>
+          <td class="muted">${esc(x.en_la_app)}</td>
+          <td style="text-align:right;font-weight:700">${finUSD(x.mensual)}</td></tr>`).join('')}
+      </table>
+      ${des.length>top.length?`<div class="muted" style="font-size:12px;margin-top:6px">… y ${des.length-top.length} más.</div>`:''}
+    </div>`;
+  }
+
+  // --- 6. Gastos -----------------------------------------------------------
+  const CATS=['infraestructura','software','marketing','servicios','impuestos','personal','otro'];
+  const pc=gas.por_categoria||{};
+  h+=`<div class="card"><h3 style="margin-top:0">En qué se va la plata <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· ${finCOP(gas.total_usd,trm)} / mes</span></h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      ${CATS.filter(c=>pc[c]).map(c=>`<span class="chip">${c} · ${finCOP(pc[c],trm)}</span>`).join('')||'<span class="muted" style="font-size:12.5px">Todavía no hay ningún gasto cargado.</span>'}
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Concepto</th><th>Categoría</th><th style="text-align:right">Monto</th><th>Cada</th><th>Paga</th><th style="text-align:right">Al mes (COP)</th><th></th></tr>
+      ${(gas.lista||[]).map(g=>{
+        const men=g.recurrencia==='anual'?Number(g.monto)/12:(g.recurrencia==='unico'?0:Number(g.monto));
+        const usd=g.moneda==='COP'?men/trm:men;
+        return `<tr style="border-top:1px solid var(--line);${g.activo===false?'opacity:.45':''}">
+          <td style="padding:6px 0">${esc(g.concepto)}${g.nota?`<div class="muted" style="font-size:11px">${esc(g.nota)}</div>`:''}</td>
+          <td class="muted">${esc(g.categoria||'otro')}</td>
+          <td style="text-align:right">${g.moneda==='COP'?'$'+Number(g.monto).toLocaleString('es-CO'):finUSD(g.monto)}</td>
+          <td class="muted">${esc(g.recurrencia)}</td>
+          <td class="muted">${g.cuenta==='llc'?'LLC':'JC personal'}</td>
+          <td style="text-align:right;font-weight:700">${finCOP(usd,trm)}</td>
+          <td style="text-align:right"><button class="sm ghost" onclick="finEditarGasto('${g.id}')">Editar</button> <button class="sm ghost" onclick="finBorrar('gasto','${g.id}')">Quitar</button></td></tr>`;
+      }).join('')}
+    </table>
+    <div id="finFormGasto" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <h3 style="margin-top:0" id="finFormGastoTit">Agregar un gasto</h3>
+      <input type="hidden" id="fgId" />
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="flex:2;min-width:180px"><label class="lbl">Concepto</label><input id="fgConcepto" placeholder="Ej: Supabase, pauta en Meta, contador" /></div>
+        <div style="flex:1;min-width:130px"><label class="lbl">Categoría</label><select id="fgCategoria">${CATS.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
+        <div style="flex:1;min-width:110px"><label class="lbl">Monto</label><input id="fgMonto" type="number" step="0.01" /></div>
+        <div style="flex:1;min-width:90px"><label class="lbl">Moneda</label><select id="fgMoneda"><option value="COP">COP</option><option value="USD">USD</option></select></div>
+        <div style="flex:1;min-width:110px"><label class="lbl">Cada</label><select id="fgRecurrencia"><option value="mensual">mes</option><option value="anual">año</option><option value="unico">una vez</option></select></div>
+        <div style="flex:1;min-width:120px"><label class="lbl">Lo paga</label><select id="fgCuenta"><option value="llc">La LLC</option><option value="personal">JC personal</option></select></div>
+        <div style="flex:2;min-width:160px"><label class="lbl">Nota</label><input id="fgNota" placeholder="opcional" /></div>
+      </div>
+      <button style="margin-top:8px" onclick="finGuardarGasto()">Guardar gasto</button>
+      <button class="ghost" style="margin-top:8px" onclick="finLimpiarGasto()">Limpiar</button>
+    </div>
+  </div>`;
+
+  // --- 7. Ingresos que no pasan por Stripe ni por la tienda ----------------
+  h+=`<div class="card"><h3 style="margin-top:0">Ingresos que no sé leer solo</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Transferencias, Nequi, patrocinios, cualquier plata que no pase por Stripe ni por la tienda.</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      ${(d.ingresos_manuales||[]).map(i=>`<tr style="border-top:1px solid var(--line)">
+        <td style="padding:6px 0">${esc(i.concepto)}</td>
+        <td class="muted">${esc(i.recurrencia)}</td>
+        <td class="muted">${i.fin_fecha?'hasta '+esc(i.fin_fecha):'sin fecha de fin'}</td>
+        <td style="text-align:right;font-weight:700">${i.moneda==='COP'?'$'+Number(i.monto).toLocaleString('es-CO'):finUSD(i.monto)}</td>
+        <td style="text-align:right"><button class="sm ghost" onclick="finBorrar('ingreso','${i.id}')">Quitar</button></td></tr>`).join('')||'<tr><td class="muted" style="font-size:12.5px;padding:6px 0">Nada cargado.</td></tr>'}
+    </table>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <div style="flex:2;min-width:180px"><label class="lbl">Concepto</label><input id="fiConcepto" placeholder="Ej: mentoría de Hansy (por transferencia)" /></div>
+      <div style="flex:1;min-width:110px"><label class="lbl">Monto</label><input id="fiMonto" type="number" step="0.01" /></div>
+      <div style="flex:1;min-width:90px"><label class="lbl">Moneda</label><select id="fiMoneda"><option value="USD">USD</option><option value="COP">COP</option></select></div>
+      <div style="flex:1;min-width:110px"><label class="lbl">Cada</label><select id="fiRecurrencia"><option value="mensual">mes</option><option value="anual">año</option><option value="unico">una vez</option></select></div>
+      <div style="flex:1;min-width:140px"><label class="lbl">Se acaba el</label><input id="fiFin" type="date" /></div>
+    </div>
+    <button style="margin-top:8px" onclick="finGuardarIngreso()">Agregar ingreso</button>
+  </div>`;
+
+  // --- 8. Sueldos ----------------------------------------------------------
+  h+=`<div class="card"><h3 style="margin-top:0">Sueldos de los socios</h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+      ${kpi('Juan Camilo · total del mes',res.total_jc,'var(--ok)','fijo '+finCOP(res.fijo_jc,trm)+' + bono '+finCOP(res.bono_jc,trm))}
+      ${kpi('María · total del mes',res.total_maria,'var(--ok)','fijo '+finCOP(res.fijo_maria,trm)+' + bono '+finCOP(res.bono_maria,trm))}
+      ${kpi('Reserva de la empresa',res.reserva,'#5f93e0')}
+      ${kpi('Provisión de impuestos',res.impuesto,'var(--warn)')}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:150px"><label class="lbl">Sueldo fijo JC (COP/mes)</label><input id="fcSueldoJC" type="number" value="${Number(cfg.sueldo_fijo_jc||0)}" /></div>
+      <div style="flex:1;min-width:150px"><label class="lbl">Sueldo fijo María (COP/mes)</label><input id="fcSueldoMaria" type="number" value="${Number(cfg.sueldo_fijo_maria||0)}" /></div>
+      <div style="flex:1;min-width:110px"><label class="lbl">% utilidad JC</label><input id="fcPctJC" type="number" value="${Number(cfg.pct_utilidad_jc||0)}" /></div>
+      <div style="flex:1;min-width:110px"><label class="lbl">% utilidad María</label><input id="fcPctMaria" type="number" value="${Number(cfg.pct_utilidad_maria||0)}" /></div>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:6px">El fijo sale primero, siempre. El bono es un porcentaje de lo que sobre después de gastos, impuestos y reserva. Si un mes no sobra nada, el bono es cero y el fijo se paga igual.</div>
+  </div>`;
+
+  // --- 9. Supuestos --------------------------------------------------------
+  h+=`<div class="card"><h3 style="margin-top:0">Supuestos del cálculo</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:120px"><label class="lbl">TRM (COP por USD)</label><input id="fcTrm" type="number" value="${Number(cfg.trm||3900)}" /></div>
+      <div style="flex:1;min-width:130px"><label class="lbl">Comisión tienda (0,15 = 15%)</label><input id="fcComTienda" type="number" step="0.01" value="${Number(cfg.comision_tienda||0)}" /></div>
+      <div style="flex:1;min-width:130px"><label class="lbl">Comisión Stripe %</label><input id="fcComStrPct" type="number" step="0.001" value="${Number(cfg.comision_stripe_pct||0)}" /></div>
+      <div style="flex:1;min-width:120px"><label class="lbl">Stripe fijo por cobro (USD)</label><input id="fcComStrFijo" type="number" step="0.01" value="${Number(cfg.comision_stripe_fijo||0)}" /></div>
+      <div style="flex:1;min-width:130px"><label class="lbl">Impuestos (0,20 = 20%)</label><input id="fcImp" type="number" step="0.01" value="${Number(cfg.impuesto_pct||0)}" /></div>
+      <div style="flex:1;min-width:130px"><label class="lbl">Reserva (0,15 = 15%)</label><input id="fcReserva" type="number" step="0.01" value="${Number(cfg.reserva_pct||0)}" /></div>
+      <div style="flex:1;min-width:110px"><label class="lbl">Precio app mensual</label><input id="fcPrecioPub" type="number" step="0.01" value="${Number(cfg.precio_publico||0)}" /></div>
+      <div style="flex:1;min-width:110px"><label class="lbl">Precio app anual</label><input id="fcPrecioAnual" type="number" step="0.01" value="${Number(cfg.precio_anual||0)}" /></div>
+      <div style="flex:1;min-width:110px"><label class="lbl">Precio programa</label><input id="fcPrecioProg" type="number" step="0.01" value="${Number(cfg.precio_programa||0)}" /></div>
+    </div>
+    <button style="margin-top:8px" onclick="finGuardarConfig()">Guardar supuestos y sueldos</button>
+    <div class="muted" style="font-size:11.5px;margin-top:8px">La provisión de impuestos es una reserva propia, no un cálculo tributario. Con la LLC en Estados Unidos y lo demás a nombre personal, el porcentaje real lo define el contador.</div>
+    <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+      <button class="ghost sm" onclick="finCambiarClave()">Cambiar la clave de finanzas</button>
+      <button class="ghost sm" onclick="sessionStorage.removeItem('fin_clave');verFinanzas()">Bloquear ahora</button>
+    </div>
+  </div>`;
+
+  $("v-finanzas").innerHTML=h;
+}
+
+async function finRefrescar(){
+  const c=$("v-finanzas");if(c)c.innerHTML='<div class="card"><div class="muted">Releyendo Stripe (son varios cientos de cobros, tarda)…</div></div>';
+  const r=await finCall('estado',{refrescar:true});
+  if(r.error){c.innerHTML='<div class="card"><div class="alert">'+esc(r.error.message)+'</div></div>';return;}
+  FIN=r.data;finRender();
+}
+
+// Clasifica un producto de Stripe. tipo o recurrente pueden venir en null: en ese
+// caso se conserva lo que ya estaba.
+async function finClasificar(nombreEnc,tipo,recurrente){
+  const nombre=decodeURIComponent(nombreEnc);
+  const actual=((FIN&&FIN.ingresos&&FIN.ingresos.lineas)||[]).find(l=>l.linea===nombre)||{};
+  const fila={nombre:nombre,
+    tipo:tipo===null?(actual.tipo||'sin_clasificar'):tipo,
+    recurrente:recurrente===null?!!actual.recurrente:recurrente};
+  // Si lo marcan como app, casi siempre es recurrente; si es mentoría, casi nunca.
+  if(tipo==='app'&&recurrente===null)fila.recurrente=true;
+  if(tipo==='mentoria'&&recurrente===null)fila.recurrente=false;
+  const r=await finCall('guardar_producto',{fila:fila});
+  if(r.error){alert('No se guardó: '+r.error.message);return;}
+  await verFinanzas();
+}
+
+async function finCambiarClave(){
+  const actual=prompt('Clave actual:');if(actual===null)return;
+  const nueva=prompt('Clave nueva (mínimo 6 caracteres):');if(nueva===null)return;
+  if(nueva.length<6){alert('Muy corta.');return;}
+  const r=await invokeFn('finanzas',{body:{action:'set_clave',clave:actual,clave_nueva:nueva}});
+  if(r.error){alert('No se cambió: '+r.error.message);return;}
+  sessionStorage.setItem('fin_clave',nueva);
+  alert('Clave cambiada.');
+  await verFinanzas();
+}
+
+function finLimpiarGasto(){
+  ['fgId','fgConcepto','fgMonto','fgNota'].forEach(i=>{const e=$(i);if(e)e.value='';});
+  const t=$("finFormGastoTit");if(t)t.textContent='Agregar un gasto';
+}
+
+function finEditarGasto(id){
+  const g=((FIN&&FIN.gastos&&FIN.gastos.lista)||[]).find(x=>String(x.id)===String(id));if(!g)return;
+  const set=(i,v)=>{const e=$(i);if(e)e.value=v==null?'':v;};
+  set('fgId',g.id);set('fgConcepto',g.concepto);set('fgCategoria',g.categoria||'otro');set('fgMonto',g.monto);
+  set('fgMoneda',g.moneda);set('fgRecurrencia',g.recurrencia);set('fgCuenta',g.cuenta);set('fgNota',g.nota);
+  const t=$("finFormGastoTit");if(t)t.textContent='Editando: '+g.concepto;
+  const f=$("finFormGasto");if(f)f.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+async function finGuardarGasto(){
+  const val=(i)=>{const e=$(i);return e?e.value:'';};
+  if(!val('fgConcepto').trim()){alert('Ponle un concepto al gasto.');return;}
+  const fila={concepto:val('fgConcepto'),categoria:val('fgCategoria'),monto:Number(val('fgMonto'))||0,
+    moneda:val('fgMoneda'),recurrencia:val('fgRecurrencia'),cuenta:val('fgCuenta'),nota:val('fgNota')};
+  if(val('fgId'))fila.id=val('fgId');
+  const r=await finCall('guardar_gasto',{fila:fila});
+  if(r.error){alert('No se guardó: '+r.error.message);return;}
+  finLimpiarGasto();await verFinanzas();
+}
+
+async function finGuardarIngreso(){
+  const val=(i)=>{const e=$(i);return e?e.value:'';};
+  if(!val('fiConcepto').trim()){alert('Ponle un concepto al ingreso.');return;}
+  const r=await finCall('guardar_ingreso',{fila:{concepto:val('fiConcepto'),monto:Number(val('fiMonto'))||0,
+    moneda:val('fiMoneda'),recurrencia:val('fiRecurrencia'),fin_fecha:val('fiFin')||null}});
+  if(r.error){alert('No se guardó: '+r.error.message);return;}
+  await verFinanzas();
+}
+
+async function finBorrar(tipo,id){
+  if(!confirm('¿Quitar este '+(tipo==='gasto'?'gasto':'ingreso')+'?'))return;
+  const r=await finCall(tipo==='gasto'?'borrar_gasto':'borrar_ingreso',{id:id});
+  if(r.error){alert('No se pudo quitar: '+r.error.message);return;}
+  await verFinanzas();
+}
+
+async function finGuardarConfig(){
+  const cfg={trm:finNum('fcTrm'),comision_tienda:finNum('fcComTienda'),comision_stripe_pct:finNum('fcComStrPct'),
+    comision_stripe_fijo:finNum('fcComStrFijo'),impuesto_pct:finNum('fcImp'),reserva_pct:finNum('fcReserva'),
+    precio_publico:finNum('fcPrecioPub'),precio_anual:finNum('fcPrecioAnual'),precio_programa:finNum('fcPrecioProg'),
+    sueldo_fijo_jc:finNum('fcSueldoJC'),sueldo_fijo_maria:finNum('fcSueldoMaria'),
+    pct_utilidad_jc:finNum('fcPctJC'),pct_utilidad_maria:finNum('fcPctMaria')};
+  const r=await finCall('guardar_config',{cfg:cfg});
+  if(r.error){alert('No se guardó: '+r.error.message);return;}
+  await verFinanzas();
+}
+
 </script>
 </body>
 </html>
