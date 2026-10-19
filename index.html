@@ -2151,11 +2151,118 @@ function copiarCorreos(){
   });
 }
 function volverLista(){SEL=null;$("detalle").innerHTML='';const _hs=$("hoyStrip");if(_hs)_hs.style.display='';const _afo=$("atletasFO");if(_afo)_afo.style.display='';renderClientes();window.scrollTo(0,0);}
+
+// ===== REVISIÓN tipo JUEGO: recorre cliente por cliente, marca revisados del día,
+// barra de avance y "siguiente". Los revisados viven en localStorage por fecha. (JC 2026-10-19)
+function revKey(){ return 'mam_rev_'+new Date().toISOString().slice(0,10); }
+function revSet(){ try{ return new Set(JSON.parse(localStorage.getItem(revKey())||'[]')); }catch(e){ return new Set(); } }
+function revSave(s){ try{ localStorage.setItem(revKey(), JSON.stringify([...s])); }catch(e){} }
+function marcarRevisado(id,ir){ const s=revSet(); s.add(id); revSave(s); if(ir){ siguienteCliente(id); } else { const b=document.getElementById('revBar'); if(b) b.outerHTML=revBarHTML(id); } }
+function siguienteCliente(id){
+  const L=(CLIENTES||[]); if(!L.length)return; const i=L.findIndex(c=>c.user_id===id); const s=revSet();
+  let nxt=null;
+  for(let k=1;k<=L.length;k++){ const c=L[(i+k)%L.length]; if(c&&!s.has(c.user_id)){ nxt=c; break; } }
+  if(!nxt){ alert('¡Listo! Revisaste a todos tus clientes de hoy ('+s.size+'/'+L.length+').'); return; }
+  verCliente(nxt.user_id); window.scrollTo(0,0);
+}
+function revBarHTML(id){
+  const s=revSet(), total=(CLIENTES||[]).length, n=s.size, yo=s.has(id), pct=total?Math.round(n/total*100):0;
+  return `<div id="revBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px">
+    <span style="font-weight:800;font-size:12px">Revisión de hoy</span>
+    <div class="bar" style="flex:1;min-width:110px;max-width:240px"><i style="width:${pct}%"></i></div>
+    <span class="muted" style="font-size:12px">${n}/${total}</span>
+    ${yo?`<span style="font-size:11px;color:var(--ok);font-weight:800">✓ revisado</span>`:`<button class="sm" onclick="marcarRevisado('${id}',false)" style="margin:0">Marcar revisado</button>`}
+    <button class="sm" onclick="marcarRevisado('${id}',true)" style="margin:0;background:var(--rojo);color:#fff;border-color:var(--rojo)">Revisar y siguiente →</button>
+  </div>`;
+}
+// Scorecard "resultado" del cliente: 4 señales (entreno, fotos, medidas, peso) + estrellas.
+function resultadoHTML(ses,fts,meds,pes,plan){
+  const hoy=Date.now(); const ddi=f=>f?Math.round((hoy-new Date(String(f).slice(0,10)+'T00:00:00').getTime())/864e5):999;
+  const dias=Math.max(1,Number(plan&&plan.dias)||4);
+  const ses28=(ses||[]).filter(s=>(s.finalizada||s.iniciada)&&ddi(s.fecha)<=28).length;
+  const espera=dias*4, adh=Math.min(100,Math.round(ses28/Math.max(1,espera)*100));
+  const ultFoto=(fts||[]).reduce((m,f)=>Math.min(m,ddi(f.fecha)),999);
+  const ultMed=(meds||[]).reduce((m,f)=>Math.min(m,ddi(f.fecha)),999);
+  const pesoSem=(pes||[]).filter(p=>ddi(p.fecha)<=7).length>0;
+  const chips=[['Entreno',adh>=70,adh+'%'],['Fotos',ultFoto<=28,ultFoto<900?('hace '+ultFoto+'d'):'nunca'],['Medidas',ultMed<=28,ultMed<900?('hace '+ultMed+'d'):'nunca'],['Peso',pesoSem,pesoSem?'esta sem':'sin peso']];
+  const ok=chips.filter(c=>c[1]).length;
+  const estrellas='★'.repeat(ok)+'☆'.repeat(4-ok);
+  const chipsH=chips.map(c=>{const col=c[1]?'var(--ok)':'var(--warn)',bg=c[1]?'rgba(55,224,166,.12)':'rgba(224,184,74,.12)';return `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:${bg};color:${col}">${c[0]}: ${c[2]}</span>`;}).join('');
+  return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 13px;margin-bottom:8px">
+    <div style="font-size:16px;color:#e0b84a;letter-spacing:2px">${estrellas}</div>
+    <span style="font-weight:800;font-size:13px">${ok}/4 al día</span>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${chipsH}</div>
+  </div>`;
+}
 // "Resuelto hoy": oculta la alerta del cliente en el panel de atención SOLO hoy
 // (mismo almacén per-día que "Atendido"); mañana reaparece si sigue con alerta.
 function resolverHoy(uid){const s=atSet();s.add(uid);localStorage.setItem(_atKey(),JSON.stringify([...s]));renderClientes();}
 function reabrirResueltos(){localStorage.setItem(_atKey(),JSON.stringify([]));renderClientes();}
 // ---- COMPARACIONES (fotos / medidas / pliegues) por fecha ----
+// ===== POSES DE ATLETA (espejo de la app) + auto-identificación con IA =====
+// El cliente sube fotos en masa como "(sin clasificar)"; aquí la consola identifica la
+// pose de cada una con IA barata (Haiku, edge consola-rutina) y el entrenador corrige a
+// mano con el selector. POSES_ATLETA debe coincidir con app/(app)/progreso.tsx. (JC 2026-10-19)
+const POSES_ATLETA = {
+  'Culturismo masculino': ['Armado de frente','Perfil izquierdo','Armado de espaldas','Perfil derecho','Expansión dorsal de frente','Doble de bíceps de frente','Tríceps de lado','Expansión dorsal de espalda','Doble de bíceps de espalda','Pecho de lado','Abdominales y piernas','Más musculado','Pose libre'],
+  'Culturismo femenino': ['Armado de frente','Perfil izquierdo','Armado de espaldas','Perfil derecho','Expansión dorsal de frente','Doble de bíceps de frente','Tríceps de lado','Expansión dorsal de espalda','Doble de bíceps de espalda','Pecho de lado','Abdominales y piernas','Más musculado','Pose libre'],
+  'Classic Physique': ['Armado de frente','Perfil izquierdo','Armado de espaldas','Perfil derecho','Doble de bíceps de frente','Tríceps de lado','Doble de bíceps de espalda','Pecho de lado','Abdominales y piernas','Más musculado','Pose clásica favorita'],
+  'Physique femenino': ['Doble bíceps frontal','Pecho lateral','Tríceps lateral','Doble bíceps posterior','Abdominales y muslos'],
+  "Men's Physique": ['Frente (board shorts)','Lateral derecho (¼ giro)','Espalda (board shorts)','Lateral izquierdo (¼ giro)'],
+  'Figura (Figure)': ['Frente','Lateral derecho (¼ giro)','Espalda','Lateral izquierdo (¼ giro)'],
+  'Fit Body': ['Frente','Lateral derecho (¼ giro)','Espalda','Lateral izquierdo (¼ giro)'],
+  'Bikini': ['Frente','Lateral derecho (¼ giro)','Espalda','Lateral izquierdo (¼ giro)'],
+  'Fit Model': ['Frente','Espalda'],
+};
+const POSES_AUTO = new Set(); // clientes ya auto-clasificados esta sesión (no re-gastar IA)
+function posesSinClasificar(F){ return (F||[]).filter(f=>f&&f.id&&f.url&&(!f.tipo||/sin clasificar/i.test(String(f.tipo)))); }
+function fotosBloqueHTML(F,id,cat){
+  const poses=POSES_ATLETA[cat]||[];
+  const pend=posesSinClasificar(F);
+  let h='';
+  if(poses.length&&pend.length){
+    h+=`<div style="margin:6px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button id="btnClasPose" class="sm" onclick="clasificarPoses('${id}',false)">Identificar ${pend.length} pose${pend.length>1?'s':''} con IA</button><span class="muted" style="font-size:11px">o elige la pose de cada foto abajo</span></div>`;
+  }
+  h+=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">`;
+  h+=(F||[]).map((f,i)=>{
+    const sinClas=!f.tipo||/sin clasificar/i.test(String(f.tipo));
+    let pie;
+    if(poses.length){
+      const opts=`<option value="">— pose —</option>`+poses.map(p=>`<option${String(f.tipo)===p?' selected':''}>${esc(p)}</option>`).join('');
+      pie=`<select onchange="editarFotoTipo('${id}','${f.id}',this.value)" style="font-size:10px;max-width:92px;margin-top:2px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:6px">${opts}</select>`;
+    } else { pie=`<div class="muted" style="font-size:10px">${esc(f.tipo||'')}</div>`; }
+    return `<div style="width:92px;text-align:center"><img class="thumb" onclick="lbOpen(window.__cmpF,${i})" src="${esc(f.url)}"><div style="font-size:10px;color:var(--muted)">${esc(f.fecha||'')}</div>${sinClas?`<div style="font-size:9px;color:var(--warn)">sin clasificar</div>`:''}${pie}</div>`;
+  }).join('');
+  h+=`</div>`;
+  return h;
+}
+function repintarFotos(){
+  const c=document.getElementById('fotosBloque');
+  if(c)c.innerHTML=fotosBloqueHTML(window.__cmpF||[], SEL, window.__cmpCat||'');
+  try{cmpFotosLlenar();}catch(e){}
+}
+async function clasificarPoses(id,auto){
+  const F=window.__cmpF||[], cat=window.__cmpCat||'';
+  const poses=POSES_ATLETA[cat]||[], pend=posesSinClasificar(F);
+  if(!poses.length||!pend.length)return;
+  const btn=document.getElementById('btnClasPose');
+  if(btn){btn.disabled=true;btn.textContent=auto?'Identificando poses…':'Identificando…';}
+  try{
+    const {data,error}=await invokeFn('consola-rutina',{body:{action:'clasificar_poses',cliente:id,poses,fotos:pend.map(f=>({id:f.id,url:f.url}))}});
+    if(error)throw error;
+    const map={};(data&&data.clasificadas||[]).forEach(x=>map[x.id]=x.tipo);
+    (window.__cmpF||[]).forEach(f=>{if(map[f.id])f.tipo=map[f.id];});
+    repintarFotos();
+  }catch(e){ if(btn){btn.disabled=false;btn.textContent='Reintentar identificar poses';} }
+}
+async function editarFotoTipo(id,fotoId,nuevo){
+  if(!nuevo)return;
+  try{
+    await invokeFn('consola-rutina',{body:{action:'foto_tipo',cliente:id,id:fotoId,tipo:nuevo}});
+    (window.__cmpF||[]).forEach(f=>{if(f.id===fotoId)f.tipo=nuevo;});
+    repintarFotos();
+  }catch(e){}
+}
 function cmpFotosLlenar(){
   const F=window.__cmpF||[];const a=document.getElementById('cmpFa'),b=document.getElementById('cmpFb');if(!a||!b)return;
   const tipo=(document.getElementById('cmpFtipo')||{}).value||'';
@@ -3078,7 +3185,9 @@ async function verCliente(id){
       if(tipos.length>1)h+=`<div style="margin-bottom:6px"><label class="lbl">Filtrar por pose/tipo (para comparar la misma pose)</label><select id="cmpFtipo" onchange="cmpFotosLlenar()" style="max-width:260px"><option value="">Todas las poses</option>${tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>`;
       h+=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px"><div style="flex:1;min-width:150px"><label class="lbl">Foto A (antes)</label><select id="cmpFa" onchange="cmpFotos()">${optF}</select></div><div style="flex:1;min-width:150px"><label class="lbl">Foto B (después)</label><select id="cmpFb" onchange="cmpFotos()">${optF}</select></div></div>`;
       h+=`<div id="cmpFotoView"></div>`;
-      h+=`<div class="muted" style="font-size:11px;margin-top:10px">Todas las fotos (${F.length}) — clic para ampliar</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">${F.map((f,i)=>`<div style="text-align:center"><img class="thumb" onclick="lbOpen(window.__cmpF,${i})" src="${esc(f.url)}"><div class="muted" style="font-size:10px;max-width:82px">${esc(f.fecha||'')}${f.tipo?'<br>'+esc(f.tipo):''}</div></div>`).join('')}</div>`;
+      window.__cmpCat=(atl.data&&atl.data.categoria)||'';
+      h+=`<div class="muted" style="font-size:11px;margin-top:10px">Todas las fotos (${F.length}) — clic para ampliar. La pose se identifica sola con IA; corrígela con el selector.</div>`;
+      h+=`<div id="fotosBloque">${fotosBloqueHTML(F,id,window.__cmpCat)}</div>`;
     } else h+=`<div class="muted" style="font-size:12px">Sin fotos.</div>`;
     // ---- MEDIDAS (comparar dos fechas a elección) ----
     h+=`<h3>Medidas — compara dos fechas</h3>`;
@@ -3428,9 +3537,20 @@ async function verCliente(id){
       _hbHtml=`<span title="${esc(_hbC.plataforma||'')} · v${esc(_hbC.app_version||'?')} · build ${esc(String(_hbC.update_id||'base').slice(0,8))} · visto ${fch}" style="font-size:11px;color:${col};border:1px solid ${col};border-radius:6px;padding:2px 7px">app ${alDia?'al día':'build viejo'} · ${fch}</span>`;
     }
   }catch(e){}
-  $("detalle").innerHTML=`<div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;margin-bottom:6px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)"><button class="sm" onclick="volverLista()" style="margin:0">← Volver a la lista</button><b style="font-size:15px">${esc(nomCli)}</b>${_hbHtml}</div>`+h;
+  let _revH='',_resH='';
+  try{ _revH=revBarHTML(id); }catch(e){}
+  try{ _resH=resultadoHTML(ses.data,fts.data,medsAll.data,pes.data,pln.data); }catch(e){}
+  $("detalle").innerHTML=`<div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;margin-bottom:6px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)"><button class="sm" onclick="volverLista()" style="margin:0">← Volver a la lista</button><b style="font-size:15px">${esc(nomCli)}</b>${_hbHtml}</div>`+_revH+_resH+h;
   recetaRender();rcInit();hacerColapsables();
   verProgreso(id); // gráfica de peso + objetivo mensual + calendario del atleta (carga aparte)
+  // AUTO-IDENTIFICAR POSES: si el atleta subió fotos "sin clasificar" y tiene categoría, la
+  // consola las identifica sola con IA (una sola vez por sesión por cliente, para no re-gastar).
+  try{
+    if(!POSES_AUTO.has(id) && (POSES_ATLETA[window.__cmpCat||'']||[]).length && posesSinClasificar(window.__cmpF||[]).length){
+      POSES_AUTO.add(id);
+      clasificarPoses(id,true);
+    }
+  }catch(e){}
   // Restaura el scroll en recargas del mismo cliente (tras editar/guardar) para no
   // saltar al inicio. rAF: tras el primer paint, cuando ya hay altura de contenido.
   if(_mismo&&_scrollY>0){requestAnimationFrame(()=>{try{window.scrollTo(0,_scrollY);}catch(_){}});}
@@ -3453,6 +3573,7 @@ async function verProgreso(id){
   const {data,error}=await invokeFn("consola-rutina",{body:{action:'progreso',cliente:id,mes}});
   const c2=document.getElementById('progresoCard_'+id); if(!c2||SEL!==id)return; // la ficha cambió
   if(error||(data&&data.error)){c2.innerHTML=`<div class="muted" style="font-size:12px">No se pudo cargar el progreso: ${esc((data&&data.error)||(error&&error.message)||'')}</div>`;return;}
+  PROG_DATA[id]=data; // cache para los toggles de rango (2sem/1mes/3meses) sin re-consultar
   c2.innerHTML=renderProgreso(id,data);
 }
 function progMesNav(id,delta){
@@ -3480,43 +3601,77 @@ const PROG_CSS=`<style>
 .pcb.pa.on{background:rgba(58,123,213,.30);border-color:#3a7bd5}
 .pcb.pl.on{background:rgba(224,184,74,.28);border-color:#e0b84a}
 </style>`;
+const PROG_RANGO={};
+function progRango(id,r){ PROG_RANGO[id]=r; const c=document.getElementById('progresoCard_'+id); if(c&&PROG_DATA[id])c.innerHTML=renderProgreso(id,PROG_DATA[id]); }
+// Media móvil por fecha: promedio de los pesajes dentro de los últimos `dias` desde cada punto.
+function mediaMovil(pts,dias){ const ms=dias*864e5; return pts.map((p,i)=>{ let s=0,n=0; for(let j=i;j>=0;j--){ if(p.t-pts[j].t>ms)break; s+=pts[j].w; n++; } return {t:p.t,w:s/n}; }); }
 function renderProgreso(id,D){
   const R=v=>Math.round(v*10)/10;
-  const pts=(D.pesos||[]).filter(p=>p&&p.fecha&&isFinite(+p.peso)&&+p.peso>20&&+p.peso<400).map(p=>({t:new Date(String(p.fecha).slice(0,10)+'T00:00:00').getTime(),w:+p.peso})).sort((a,b)=>a.t-b.t);
+  const todos=(D.pesos||[]).filter(p=>p&&p.fecha&&isFinite(+p.peso)&&+p.peso>20&&+p.peso<400).map(p=>({t:new Date(String(p.fecha).slice(0,10)+'T00:00:00').getTime(),w:+p.peso})).sort((a,b)=>a.t-b.t);
+  const rango=PROG_RANGO[id]||'1m';
+  const diasR={'2s':14,'1m':31,'3m':92}[rango]||31;
+  const corte=Date.now()-diasR*864e5;
+  let pts=todos.filter(p=>p.t>=corte);
+  if(pts.length<2) pts=todos.slice(-Math.max(2,Math.min(todos.length,8))); // rango corto: muestra lo último
+  const pills=[['2s','2 sem'],['1m','1 mes'],['3m','3 meses']].map(([k,l])=>`<button class="chip${rango===k?' on':''}" onclick="progRango('${id}','${k}')" style="font-size:11px">${l}</button>`).join('');
   let pesoCard;
   if(pts.length<2){ pesoCard=`<div class="muted" style="font-size:12px">Aún no hay suficientes pesajes para la gráfica (se necesitan 2+).</div>`; D._fin=pts.length?pts[0].w:null; D._ritmo=null; }
   else{
+    const ma=mediaMovil(pts,7);
     const ini=pts[0], fin=pts[pts.length-1];
-    const dias=(fin.t-ini.t)/864e5, sem=Math.max(dias/7,0.14);
+    const dd=(fin.t-ini.t)/864e5, sem=Math.max(dd/7,0.14);
     const delta=fin.w-ini.w, ritmo=delta/sem;
+    // Tasa semanal por MEDIA MÓVIL: MA de hoy vs MA de hace 7 días (más estable que punto a punto).
+    const maFin=ma[ma.length-1].w; const hace7=fin.t-7*864e5; let maPrev=ma[0].w;
+    for(let i=ma.length-1;i>=0;i--){ if(ma[i].t<=hace7){ maPrev=ma[i].w; break; } }
+    const tasaKg=maFin-maPrev; const tasaPct=maPrev?tasaKg/maPrev*100:0;
     const ws=pts.map(p=>p.w), mn=Math.min(...ws), mx=Math.max(...ws);
-    const pad=Math.max((mx-mn)*0.15,0.5), lo=mn-pad, hi=mx+pad, rng=(hi-lo)||1;
-    const W=680,H=200,ml=42,mr=16,mt=16,mb=26, pw=W-ml-mr, ph=H-mt-mb;
+    const idxMax=ws.indexOf(mx), idxMin=ws.indexOf(mn);
+    const diasDesde=t=>Math.round((Date.now()-t)/864e5);
+    const etDia=t=>{const n=diasDesde(t); return n<=0?'Hoy':n===1?'Ayer':`Hace ${n} días`;};
+    const serie=ma.concat(pts); const lo0=Math.min(...serie.map(p=>p.w)), hi0=Math.max(...serie.map(p=>p.w));
+    const pad=Math.max((hi0-lo0)*0.15,0.5), lo=lo0-pad, hi=hi0+pad, rng=(hi-lo)||1;
+    const W=680,H=210,ml=40,mr=14,mt=14,mb=24, pw=W-ml-mr, ph=H-mt-mb;
     const X=i=>ml+(pts.length===1?pw/2:i*pw/(pts.length-1));
     const Y=w=>mt+ph-((w-lo)/rng)*ph;
-    const poly=pts.map((p,i)=>`${R(X(i))},${R(Y(p.w))}`).join(' ');
-    const area=`${poly} ${R(X(pts.length-1))},${mt+ph} ${R(X(0))},${mt+ph}`;
+    const rawPts=pts.map((p,i)=>`${R(X(i))},${R(Y(p.w))}`).join(' ');
+    const maPoly=ma.map((p,i)=>`${R(X(i))},${R(Y(p.w))}`).join(' ');
+    const area=`${maPoly} ${R(X(pts.length-1))},${mt+ph} ${R(X(0))},${mt+ph}`;
     const meta=(D.metas||[]).find(m=>m.mes===D.mes); const metaKg=meta&&meta.meta_kg!=null?+meta.meta_kg:null;
     const metaY=metaKg!=null&&metaKg>=lo&&metaKg<=hi?R(Y(metaKg)):null;
     D._fin=fin.w; D._ritmo=ritmo;
+    const tile=(lbl,val,sub,col,bg)=>`<div style="background:${bg};border-radius:12px;padding:9px 12px;min-width:94px"><div style="font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:${col};font-weight:800">${lbl}</div><div style="font-weight:800;font-size:19px;color:${col}">${R(val)} <span style="font-size:11px;font-weight:700">kg</span></div><div class="muted" style="font-size:9.5px">${sub}</div></div>`;
+    const dot=pts.map((p,i)=>`<circle cx="${R(X(i))}" cy="${R(Y(p.w))}" r="2.2" fill="#9c98a6"><title>${esc(fFechaCorta(new Date(p.t).toISOString().slice(0,10)))} · ${R(p.w)} kg</title></circle>`).join('');
+    const flecha=tasaKg<=0?'▼':'▲'; const tcol=tasaKg<=0?'var(--ok)':'var(--warn)';
     pesoCard=`
-      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:6px">
-        <div><div style="font-weight:800;font-size:22px">${R(ini.w)}</div><div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.07em">Inicio (kg)</div></div>
-        <div><div style="font-weight:800;font-size:22px;color:#2dd4bf">${R(fin.w)}</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#2dd4bf">Actual (kg)</div></div>
-        <div><div style="font-weight:800;font-size:22px;color:${delta<=0?'var(--ok)':'var(--warn)'}">${delta>0?'+':''}${R(delta)}</div><div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.07em">Cambio (kg)</div></div>
-        <div><div style="font-weight:800;font-size:22px">${Math.round(sem)}</div><div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.07em">Semanas</div></div>
-        <div><div style="font-weight:800;font-size:22px">${ritmo>0?'+':''}${R(ritmo)}</div><div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.07em">kg / semana</div></div>
-      </div>
-      <svg viewBox="0 0 ${W} ${H}" style="width:100%">
-        <defs><linearGradient id="pg${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e23b3b"/><stop offset="1" stop-color="#e23b3b" stop-opacity="0"/></linearGradient></defs>
-        <polygon points="${area}" fill="url(#pg${id})" opacity=".28"/>
-        ${metaY!=null?`<line x1="${ml}" y1="${metaY}" x2="${W-mr}" y2="${metaY}" stroke="#e0b84a" stroke-width="1.5" stroke-dasharray="5 5" opacity=".9"/><text x="${ml+4}" y="${metaY-5}" fill="#e0b84a" font-size="10" font-weight="800">meta ${R(metaKg)} kg</text>`:''}
-        <polyline points="${poly}" fill="none" stroke="#e23b3b" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="${R(X(pts.length-1))}" cy="${R(Y(fin.w))}" r="8" fill="#2dd4bf" opacity=".22"/>
-        <circle cx="${R(X(pts.length-1))}" cy="${R(Y(fin.w))}" r="5" fill="#2dd4bf" stroke="#0a0a0e" stroke-width="2"/>
-        <text x="8" y="${mt+6}" fill="#6b6b74" font-size="10">${R(hi)}</text>
-        <text x="8" y="${mt+ph}" fill="#6b6b74" font-size="10">${R(lo)}</text>
-      </svg>`;
+      <div style="display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap">${pills}</div>
+      <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:280px">
+          <svg viewBox="0 0 ${W} ${H}" style="width:100%">
+            <defs><linearGradient id="pg${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a855f7" stop-opacity=".35"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></linearGradient></defs>
+            <polygon points="${area}" fill="url(#pg${id})"/>
+            ${metaY!=null?`<line x1="${ml}" y1="${metaY}" x2="${W-mr}" y2="${metaY}" stroke="#e0b84a" stroke-width="1.5" stroke-dasharray="5 5" opacity=".9"/><text x="${ml+4}" y="${metaY-5}" fill="#e0b84a" font-size="10" font-weight="800">meta ${R(metaKg)} kg</text>`:''}
+            <polyline points="${rawPts}" fill="none" stroke="#5a5560" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>
+            ${dot}
+            <polyline points="${maPoly}" fill="none" stroke="#a855f7" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            <circle cx="${R(X(pts.length-1))}" cy="${R(Y(ma[ma.length-1].w))}" r="5" fill="#a855f7" stroke="#0a0a0e" stroke-width="2"/>
+            <text x="6" y="${mt+6}" fill="#6b6b74" font-size="10">${R(hi)}</text>
+            <text x="6" y="${mt+ph}" fill="#6b6b74" font-size="10">${R(lo)}</text>
+          </svg>
+          <div style="display:flex;align-items:center;gap:10px;font-size:12px;margin-top:4px;flex-wrap:wrap">
+            <span class="muted">tasa semanal</span>
+            <span style="font-weight:800;color:${tcol}">${flecha} ${R(Math.abs(tasaKg))} kg</span>
+            <span style="font-weight:800;color:${tcol}">${flecha} ${Math.abs(R(tasaPct))}%</span>
+            <span class="muted">media móvil hoy vs. hace 7 días</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${tile('Alto',mx,etDia(pts[idxMax].t),'#e8a87c','rgba(232,168,124,.12)')}
+          ${tile('Última',fin.w,etDia(fin.t),'var(--txt)','var(--card2)')}
+          ${tile('Tendencia',maFin,'Media 7 días','#c084fc','rgba(168,85,247,.14)')}
+          ${tile('Bajo',mn,etDia(pts[idxMin].t),'var(--ok)','rgba(55,224,166,.12)')}
+        </div>
+      </div>`;
   }
   return PROG_CSS+`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 style="margin:0 0 6px">Progreso de peso</h2></div>
     ${pesoCard}${renderObjetivoMes(id,D)}
