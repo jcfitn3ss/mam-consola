@@ -6560,6 +6560,54 @@ async function verFinanzas(){
   finRender();
 }
 
+// Bloques nuevos que se insertan dentro de finRender, después del card del mes.
+function finCardCaja(d,trm,kpi){
+  const c=d.caja||{};const ms=c.meses||[];
+  if(!ms.length)return '';
+  const cerrados=ms.filter((x,i)=>i>0).slice(0,3);
+  const prom=cerrados.length?cerrados.reduce((a,x)=>a+x.neto,0)/cerrados.length:0;
+  const dv=c.devoluciones||[];
+  return `<div class="card">
+    <h3 style="margin-top:0">Lo que de verdad cayó <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· movimientos reales de Stripe, no proyección</span></h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+      ${kpi('Promedio neto de los 3 meses cerrados',prom,'var(--ok)')}
+      ${kpi('Mes en curso (va corriendo)',ms[0]?ms[0].neto:0,'#5f93e0')}
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Mes</th><th>Cobros</th><th style="text-align:right">Bruto</th><th style="text-align:right">Comisión</th><th style="text-align:right">Devuelto</th><th style="text-align:right">Neto</th><th style="text-align:right">Neto COP</th></tr>
+      ${ms.map((x,i)=>`<tr style="border-top:1px solid var(--line)${i===0?';opacity:.75':''}">
+        <td style="padding:6px 0">${esc(x.mes)}${i===0?' <span class="muted" style="font-size:10px">(incompleto)</span>':''}</td>
+        <td>${x.cobros}</td>
+        <td style="text-align:right">${finUSD(x.bruto)}</td>
+        <td style="text-align:right;color:var(--bad)">−${finUSD(x.comision)}</td>
+        <td style="text-align:right;color:${x.reembolsos>0?'var(--rojo2)':'var(--muted)'}">−${finUSD(x.reembolsos)}</td>
+        <td style="text-align:right;font-weight:700">${finUSD(x.neto)}</td>
+        <td style="text-align:right" class="muted">${finCOP(x.neto,trm)}</td></tr>`).join('')}
+    </table>
+    ${dv.length?`<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <h3 style="margin-top:0">Devoluciones de los últimos 90 días · ${finUSD(dv.reduce((a,x)=>a+x.monto,0))}</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        ${dv.slice().sort((a,b)=>b.monto-a.monto).slice(0,12).map(x=>`<tr style="border-top:1px solid var(--line)">
+          <td style="padding:5px 0">${esc(x.fecha)}</td>
+          <td>${esc(x.correo||'(sin correo)')}</td>
+          <td class="muted">${esc(x.motivo)}</td>
+          <td style="text-align:right;font-weight:700;color:var(--rojo2)">−${finUSD(x.monto)}</td></tr>`).join('')}
+      </table>
+      ${dv.length>12?`<div class="muted" style="font-size:11.5px;margin-top:6px">… y ${dv.length-12} más.</div>`:''}
+    </div>`:''}
+    ${(c.payouts||[]).length?`<div class="muted" style="font-size:12px;margin-top:10px">Último giro al banco: ${esc(c.payouts[0].llega)} por ${finUSD(c.payouts[0].monto)} (${esc(c.payouts[0].estado)}).</div>`:''}
+  </div>`;
+}
+
+function finCardPausadas(st,trm){
+  if(!st.pausadas)return '';
+  return `<div class="card" style="border-color:var(--warn)">
+    <h3 style="margin-top:0">${st.pausadas} suscripciones figuran activas pero tienen el cobro PAUSADO</h3>
+    <div class="muted" style="font-size:12.5px">Suman ${finCOP(st.pausado_usd,trm)} al mes que NO está entrando. En Stripe aparecen como "active", por eso el panel de Stripe engaña. De ${st.activas_stripe} activas, solo ${st.cobrando} están cobrando de verdad.</div>
+    <div class="muted" style="font-size:12px;margin-top:6px">Decisión pendiente: o se reanudan, o se cancelan. Dejarlas pausadas ensucia todas las cuentas.</div>
+  </div>`;
+}
+
 function finRender(){
   const d=FIN,trm=d.trm,ing=d.ingresos,gas=d.gastos,res=d.resultado,cfg=d.cfg||{},st=d.stripe||{};
   const kpi=(tit,usd,color,sub)=>`<div style="flex:1;min-width:150px">
@@ -6572,15 +6620,22 @@ function finRender(){
     <h2 style="margin-top:0">Finanzas de la empresa
       <button class="sm ghost" style="float:right" onclick="finRefrescar()">Releer Stripe</button>
       <button class="sm ghost" style="float:right;margin-right:6px" onclick="verFinanzas()">Actualizar</button></h2>
-    <div class="muted" style="font-size:12px;margin-bottom:10px">Stripe leído ${esc((st.fecha||'').replace('T',' ').slice(0,16))||'—'} · ${st.cobrando||0} cobros activos${st.fallando?' · <span style="color:var(--warn)">'+st.fallando+' fallando</span>':''}${st.error?' · <span style="color:var(--rojo2)">'+esc(st.error)+'</span>':''}</div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Stripe leído ${esc((st.fecha||'').replace('T',' ').slice(0,16))||'—'} · ${st.cobrando||0} cobrando${st.pausadas?' · <span style="color:var(--warn)">'+st.pausadas+' pausadas</span>':''}${st.fallando?' · <span style="color:var(--warn)">'+st.fallando+' fallando</span>':''}${st.error?' · <span style="color:var(--rojo2)">'+esc(st.error)+'</span>':''}</div>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
       ${kpi('Entra neto al mes',ing.neto_usd,'var(--ok)','bruto '+finUSD(ing.bruto_usd))}
       ${kpi('Sale al mes (gastos)',gas.total_usd,'var(--bad)')}
       ${kpi('Utilidad antes de impuestos',res.utilidad_antes_imp,res.utilidad_antes_imp>=0?'var(--ok)':'var(--rojo2)')}
       ${kpi('Queda para repartir',res.para_repartir,res.para_repartir>=0?'#5f93e0':'var(--rojo2)','tras impuestos, reserva y fijos')}
     </div>
-    ${gas.total_usd===0?'<div class="muted" style="font-size:12px;margin-top:10px;color:var(--warn)">Todavía no hay ni un gasto cargado. Hasta que los cargues, la utilidad de arriba está inflada: es ingreso, no ganancia.</div>':''}
+    ${(()=>{const sinMonto=(gas.lista||[]).filter(g=>g.activo!==false&&!Number(g.monto)).length;
+      if(!gas.lista||!gas.lista.length)return '<div class="muted" style="font-size:12px;margin-top:10px;color:var(--warn)">Todavía no hay ni un gasto cargado. Hasta que los cargues, la utilidad de arriba está inflada: es ingreso, no ganancia.</div>';
+      if(sinMonto)return '<div class="muted" style="font-size:12px;margin-top:10px;color:var(--warn)">Hay '+sinMonto+' gasto(s) sin monto. Mientras no los llenes, la utilidad de arriba está inflada.</div>';
+      return '';})()}
   </div>`;
+
+  // --- 1b. La caja real y lo que está pausado -----------------------------
+  h+=finCardCaja(d,trm,kpi);
+  h+=finCardPausadas(st,trm);
 
   // --- 2. Lo que se está cayendo ------------------------------------------
   const rg=d.riesgo||{lista:[],total_usd:0};
@@ -6662,10 +6717,11 @@ function finRender(){
       ${(gas.lista||[]).map(g=>{
         const men=g.recurrencia==='anual'?Number(g.monto)/12:(g.recurrencia==='unico'?0:Number(g.monto));
         const usd=g.moneda==='COP'?men/trm:men;
+        const falta=!Number(g.monto);
         return `<tr style="border-top:1px solid var(--line);${g.activo===false?'opacity:.45':''}">
           <td style="padding:6px 0">${esc(g.concepto)}${g.nota?`<div class="muted" style="font-size:11px">${esc(g.nota)}</div>`:''}</td>
           <td class="muted">${esc(g.categoria||'otro')}</td>
-          <td style="text-align:right">${g.moneda==='COP'?'$'+Number(g.monto).toLocaleString('es-CO'):finUSD(g.monto)}</td>
+          <td style="text-align:right">${falta?'<span style="color:var(--warn);font-weight:700">falta el monto</span>':(g.moneda==='COP'?'$'+Number(g.monto).toLocaleString('es-CO'):finUSD(g.monto))}</td>
           <td class="muted">${esc(g.recurrencia)}</td>
           <td class="muted">${g.cuenta==='llc'?'LLC':'JC personal'}</td>
           <td style="text-align:right;font-weight:700">${finCOP(usd,trm)}</td>
@@ -6749,6 +6805,14 @@ function finRender(){
   </div>`;
 
   $("v-finanzas").innerHTML=h;
+
+  // Actualización sola: si la lectura de Stripe pasó de 30 minutos, se vuelve a
+  // leer en segundo plano y se repinta. El usuario no tiene que apretar nada.
+  const fecha=st.fecha?new Date(st.fecha).getTime():0;
+  if(!FIN._refrescando&&(!fecha||(Date.now()-fecha)>30*60000)){
+    FIN._refrescando=true;
+    finCall('estado',{refrescar:true}).then(r=>{if(r.data){FIN=r.data;finRender();}});
+  }
 }
 
 async function finRefrescar(){
