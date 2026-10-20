@@ -6804,7 +6804,7 @@ function finMisiones(){
      accion:'finIrA(\'finBloqueSueldos\')',boton:'Fijar'},
     {id:'comisiones',titulo:'Define las comisiones del closer y el setter',faltan:variables.length?0:1,
      texto:variables.length?variables.length+' comisión(es) cargada(s).':'No hay ninguna comisión cargada. Mientras falten, los gastos salen cortos.',
-     accion:'finIrA(\'finFormGasto\')',boton:'Cargar'},
+     accion:'finJuego(\'comisiones\')',boton:'Fijar'},
     {id:'fondo',titulo:'Llena el fondo de emergencia',faltan:(fondo.meta_usd>0&&fondo.saldo_usd>=fondo.meta_usd)?0:1,
      texto:fondo.meta_usd<=0?'La meta sale de los gastos.':(fondo.saldo_usd>=fondo.meta_usd?'El fondo ya cubre la meta.':'Van '+Math.round((fondo.saldo_usd/fondo.meta_usd)*100)+'% de la meta.'),
      accion:'finIrA(\'finBloquePresupuesto\')',boton:'Ver'},
@@ -6842,7 +6842,15 @@ function finCardMisiones(){
   </div>`;
 }
 
-function finIrA(id){const e=$(id);if(e)e.scrollIntoView({behavior:'smooth',block:'center'});}
+// Desplazarse a un bloque. Si está dentro de uno o varios <details> cerrados hay
+// que abrirlos primero: si no, el elemento no tiene posición y el botón "no hace
+// nada" (pasaba con el formulario de gastos).
+function finIrA(id){
+  const e=$(id);if(!e)return;
+  let p=e.parentElement;
+  while(p){ if(p.tagName==='DETAILS')p.open=true; p=p.parentElement; }
+  setTimeout(()=>e.scrollIntoView({behavior:'smooth',block:'center'}),40);
+}
 
 // ------------------------------------------------- el juego: una cosa a la vez
 function finJuego(tipo){
@@ -6850,6 +6858,16 @@ function finJuego(tipo){
   let items=[];
   if(tipo==='gastos')items=((d.gastos||{}).lista||[]).filter(g=>g.activo!==false&&!Number(g.monto));
   if(tipo==='productos')items=((d.ingresos||{}).lineas||[]).filter(l=>l.via==='stripe'&&l.tipo==='sin_clasificar').sort((a,b)=>b.bruto-a.bruto);
+  if(tipo==='comisiones'){
+    // Siempre los dos roles. Si ya hay una comisión cargada para alguno, se
+    // precarga para poder corregirla en vez de duplicarla.
+    const yaHay=((d.gastos||{}).lista||[]).filter(g=>g.tipo==='variable');
+    const buscar=(clave)=>yaHay.find(g=>String(g.concepto||'').toLowerCase().indexOf(clave)>=0)||null;
+    items=[
+      {clave:'closer',rol:'El closer',ayuda:'Cobra por cada venta que cierra.',existe:buscar('closer')},
+      {clave:'setter',rol:'El setter',ayuda:'Cobra por agendar, antes de que la venta se cierre.',existe:buscar('setter')},
+    ];
+  }
   if(!items.length){finRender();return;}
   FINJ={tipo:tipo,items:items,i:0,hechos:0,total:items.length};
   finJuegoPaso();
@@ -6880,7 +6898,7 @@ function finJuegoPaso(){
 
   const it=J.items[J.i];
   const cabeza=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-      <div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.8px;font-weight:700">${J.tipo==='gastos'?'Montos de los gastos':'Qué es cada producto'}</div>
+      <div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.8px;font-weight:700">${J.tipo==='gastos'?'Montos de los gastos':(J.tipo==='comisiones'?'Comisiones del equipo de ventas':'Qué es cada producto')}</div>
       <button class="sm ghost" style="min-height:44px" onclick="finJuegoSalir()">Salir</button></div>${barra}`;
 
   if(J.tipo==='gastos'){
@@ -6904,6 +6922,35 @@ function finJuegoPaso(){
       <div class="muted" style="font-size:11.5px;margin-top:8px">Si no lo sabes, sáltalo. Queda pendiente y no daña las cuentas.</div>
     </div>`;
     setTimeout(()=>{const i=$("jgMonto");if(i)i.focus();},60);
+    return;
+  }
+
+  if(J.tipo==='comisiones'){
+    const ex=it.existe||{};
+    const ve=FIN.ventas||{};
+    cont.innerHTML=`<div class="card" style="max-width:560px;margin:32px auto">
+      ${cabeza}
+      <h2 style="margin:16px 0 2px">${esc(it.rol)}</h2>
+      <div class="muted" style="font-size:12.5px">${esc(it.ayuda)}${ex.id?' · ya tenías '+Number(ex.pct)+'% cargado':''}</div>
+      <div class="finGrid" style="margin-top:14px">
+        ${finCampo('jcPct','Cuánto se lleva',ex.pct||'','%','el porcentaje de comisión').replace('<input id="jcPct"','<input id="jcPct" oninput="finCalcComisionJuego()"')}
+        <div class="finF"><label for="jcBase">Sobre qué cobra</label>
+          <select id="jcBase" style="min-height:44px" onchange="finCalcComisionJuego()">
+            <option value="ventas_nuevas"${(ex.base||'ventas_nuevas')==='ventas_nuevas'?' selected':''}>Las ventas nuevas del mes</option>
+            <option value="caja_neta"${ex.base==='caja_neta'?' selected':''}>Toda la caja del mes</option></select></div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--rsm);padding:11px 13px;margin-top:12px">
+        <div class="muted" style="font-size:11px">Con eso se le pagaría al mes</div>
+        <div id="jcEquivale" style="font-weight:800;font-size:22px;margin-top:2px">—</div>
+        <div class="muted" style="font-size:11px;margin-top:3px">Ventas nuevas de un mes normal: ${finCOP(ve.nuevas_prom_usd||0,FIN.trm)} · caja: ${finCOP(ve.caja_neta_prom_usd||0,FIN.trm)}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button style="flex:2;min-height:48px" onclick="finJuegoComision()">Guardar y seguir</button>
+        <button class="ghost" style="flex:1;min-height:48px" onclick="finJuegoSaltar()">No le pago comisión</button>
+        ${J.i>0?'<button class="ghost" style="flex:0 0 auto;min-height:48px" onclick="finJuegoAtras()">Atrás</button>':''}
+      </div>
+    </div>`;
+    setTimeout(()=>{const i=$("jcPct");if(i)i.focus();finCalcComisionJuego();},60);
     return;
   }
 
@@ -6935,6 +6982,33 @@ async function finJuegoGuardar(){
   if(!monto){finJuegoSaltar();return;}
   const fila={id:it.id,concepto:it.concepto,categoria:it.categoria,monto:monto,
     moneda:finVal('jgMoneda'),recurrencia:finVal('jgRec'),cuenta:it.cuenta,nota:it.nota};
+  const r=await finCall('guardar_gasto',{fila:fila});
+  if(r.error){alert('No se guardó: '+r.error.message);return;}
+  J.hechos++;J.i++;
+  finJuegoPaso();
+  finCall('estado').then(x=>{if(x.data)FIN=x.data;});
+}
+
+// Cuánto se le pagaría con el porcentaje que está escribiendo, en vivo.
+function finCalcComisionJuego(){
+  const e=$("jcEquivale");if(!e||!FIN)return;
+  const ve=FIN.ventas||{};
+  const base=finVal('jcBase')==='caja_neta'?(ve.caja_neta_prom_usd||0):(ve.nuevas_prom_usd||0);
+  const pct=Number(finVal('jcPct'))||0;
+  const usd=base*(pct/100);
+  e.textContent=pct?finCOP(usd,FIN.trm)+'   ('+finUSD(usd)+')':'—';
+  e.style.color=pct?'#5f93e0':'var(--muted)';
+}
+
+async function finJuegoComision(){
+  const J=FINJ;if(!J)return;
+  const it=J.items[J.i];
+  const pct=Number(finVal('jcPct'));
+  if(!pct){finJuegoSaltar();return;}
+  const fila={concepto:'Comisión del '+it.clave,categoria:'personal',cuenta:'llc',
+    tipo:'variable',pct:pct,base:finVal('jcBase'),monto:0,moneda:'USD',recurrencia:'mensual',
+    nota:it.ayuda};
+  if(it.existe&&it.existe.id)fila.id=it.existe.id;
   const r=await finCall('guardar_gasto',{fila:fila});
   if(r.error){alert('No se guardó: '+r.error.message);return;}
   J.hechos++;J.i++;
