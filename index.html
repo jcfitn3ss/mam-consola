@@ -6647,6 +6647,213 @@ function finMeter(valor,limite,trm){
   </div>`;
 }
 
+// ============ VENTAS NUEVAS Y COMISIONES ============
+// La comisión se paga por cliente que entra, no por lo que factura la empresa.
+// Y cuando el cobro es recurrente, solo mientras dure la mentoría: pasados los
+// meses pactados el cliente sigue pagando pero ya no genera comisión.
+// El closer registra aquí cuánto cobró, por dónde, y los datos del cliente que
+// hacen falta para mandarle el acuerdo (sin cédula no sale el acuerdo).
+const FIN_MEDIOS=[['stripe','Stripe'],['transferencia','Transferencia'],['nequi','Nequi'],['daviplata','Daviplata'],['efectivo','Efectivo'],['otro','Otro']];
+const FIN_ACUERDOS=[['pendiente','Sin mandar'],['enviado','Mandado, sin firmar'],['firmado','Firmado']];
+
+function finCardVentas(d,trm,kpi){
+  const R=d.registro;if(!R)return '';
+  const L=R.lista||[];
+  const varis=((d.gastos||{}).lista||[]).filter(g=>g.tipo==='variable');
+  const comDe=(rol)=>{const g=varis.find(x=>(x._rol||x.rol)===rol);return g?{pct:Number(g.pct)||0,mes:Number(g._calculado)||0,prom:Number(g._prom_usd)||0}:{pct:0,mes:0,prom:0};};
+  const cl=comDe('closer'),se=comDe('setter');
+
+  let h=`<div class="card" id="finBloqueVentas">
+    <h3 style="margin-top:0">Ventas nuevas y comisiones <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· mes ${esc(R.mes)}</span></h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">La comisión se calcula sobre cada venta registrada aquí, no sobre la facturación. Si el cobro es recurrente, se corta al cumplirse los meses pactados.</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+      ${kpi('Cerradas este mes',null,'var(--txt)','').replace(/<div style="font-weight:800[^>]*>[^<]*<\/div>/,`<div style="font-weight:800;font-size:19px">${R.del_mes}</div>`)}
+      ${kpi('Comisión del closer ('+cl.pct+'%)',cl.mes,'#d95926','este mes')}
+      ${kpi('Comisión del setter ('+se.pct+'%)',se.mes,'#9085e9','este mes')}
+      ${kpi('Las dos juntas',cl.mes+se.mes,'var(--bad)')}
+    </div>`;
+
+  const avisos=[];
+  if(R.sin_verificar)avisos.push(`${R.sin_verificar} venta(s) sin verificar: no aparecen cobrándose en Stripe y están marcadas como pago por Stripe. O el correo está mal, o el cobro no se hizo.`);
+  if(R.incompletas)avisos.push(`${R.incompletas} venta(s) con datos incompletos. Sin cédula no se le puede mandar el acuerdo.`);
+  if(R.sin_acuerdo)avisos.push(`${R.sin_acuerdo} venta(s) sin acuerdo firmado.`);
+  if(avisos.length){
+    h+=`<div style="background:rgba(224,184,74,.1);border:1px solid var(--warn);border-radius:var(--rsm);padding:10px 12px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:12.5px;color:var(--warn);margin-bottom:4px">Por cerrar</div>
+      <ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.6">${avisos.map(a=>'<li>'+a+'</li>').join('')}</ul></div>`;
+  }
+
+  // --- La lista ---
+  if(!L.length){
+    h+=`<div class="muted" style="font-size:12.5px;padding:10px 0">Todavía no hay ninguna venta registrada. Mientras no las registres, las comisiones salen en cero.</div>`;
+  }else{
+    h+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:720px">
+      <tr class="muted" style="font-size:11px;text-align:left">
+        <th style="padding:4px 0">Cliente</th><th>Cerró</th><th>Plan</th><th style="text-align:right">Valor</th>
+        <th>Pagó por</th><th>Quién</th><th style="text-align:right">Comisión del mes</th><th>Estado</th><th></th></tr>
+      ${L.map(v=>{
+        const comCl=v.comision_base_mes*(cl.pct/100)*(v.closer?1:0);
+        const comSe=v.comision_base_mes*(se.pct/100)*(v.setter?1:0);
+        const vivo=v.comision_base_mes>0;
+        const chips=(v.verificada?regChip(v.en_stripe?'en Stripe':'por fuera','#199e70'):regChip('sin verificar','#e0b84a'))
+          +(v.faltan&&v.faltan.length?regChip('falta '+v.faltan.join(', '),'#e0b84a'):'')
+          +(vivo?regChip(v.meses_restantes+' mes(es) más','#5f93e0'):regChip('ya no comisiona','#9c98a6'));
+        return `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 0"><div style="font-weight:600">${esc(v.cliente_nombre)}</div>
+            <div class="muted" style="font-size:11px">${esc(v.cliente_correo||'sin correo')}</div></td>
+          <td class="muted">${esc(String(v.fecha_cierre||'').slice(0,10))}</td>
+          <td class="muted">${esc(v.plan||'—')}<div class="muted" style="font-size:11px">${v.recurrente?v.meses+' meses':'pago único'}</div></td>
+          <td style="text-align:right;font-weight:700">${v.moneda==='COP'?'$'+Number(v.valor_total).toLocaleString('es-CO'):finUSD(v.valor_total)}
+            ${v.recurrente?`<div class="muted" style="font-size:11px;font-weight:400">${v.moneda==='COP'?'$'+Number(v.valor_mensual).toLocaleString('es-CO'):finUSD(v.valor_mensual)}/mes</div>`:''}</td>
+          <td class="muted">${esc((FIN_MEDIOS.find(m=>m[0]===v.medio_pago)||['','—'])[1])}</td>
+          <td class="muted">${v.closer?esc(v.closer):'<span style="color:var(--warn)">sin closer</span>'}${v.setter?'<div class="muted" style="font-size:11px">setter: '+esc(v.setter)+'</div>':''}</td>
+          <td style="text-align:right;font-weight:700">${vivo?finCOP(comCl+comSe,trm):'—'}
+            ${vivo&&comSe>0?`<div class="muted" style="font-size:11px;font-weight:400">closer ${finUSD(comCl)} · setter ${finUSD(comSe)}</div>`:''}</td>
+          <td>${chips}<div class="muted" style="font-size:11px;margin-top:3px">acuerdo: ${esc((FIN_ACUERDOS.find(a=>a[0]===v.acuerdo)||['','—'])[1])}</div></td>
+          <td style="text-align:right;white-space:nowrap"><button class="sm ghost" onclick="finEditarVenta('${v.id}')">Editar</button>
+            <button class="sm ghost" onclick="finBorrarVenta('${v.id}')">Quitar</button></td></tr>`;
+      }).join('')}
+    </table></div>`;
+  }
+
+  // --- El formulario: la lista de chequeo del closer ---
+  const hoy=new Date().toISOString().slice(0,10);
+  h+=`<div id="finFormVenta" style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px">
+    <h3 style="margin-top:0" id="finFormVentaTit">Registrar una venta</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Lo que el closer tiene que dejar escrito apenas cierra: cuánto cobró, por dónde, y los datos del cliente para mandarle el acuerdo.</div>
+    <input type="hidden" id="fvId" />
+
+    <div class="finGrupo"><h4>El cliente</h4>
+      <div class="finGrid">
+        <div class="finF"><label for="fvNombre">Nombre completo</label>
+          <span class="finWrap"><input id="fvNombre" style="padding-right:12px" /></span></div>
+        <div class="finF"><label for="fvCorreo">Correo</label>
+          <span class="finWrap"><input id="fvCorreo" type="email" style="padding-right:12px" /></span>
+          <span class="finHint">con este se verifica el cobro en Stripe</span></div>
+        <div class="finF"><label for="fvCelular">Celular</label>
+          <span class="finWrap"><input id="fvCelular" type="tel" style="padding-right:12px" /></span></div>
+        <div class="finF"><label for="fvCedula">Cédula</label>
+          <span class="finWrap"><input id="fvCedula" style="padding-right:12px" /></span>
+          <span class="finHint">sin cédula no se le puede mandar el acuerdo</span></div>
+      </div>
+    </div>
+
+    <div class="finGrupo"><h4>Lo que cobró</h4>
+      <div class="finGrid">
+        <div class="finF"><label for="fvPlan">Qué le vendió</label>
+          <span class="finWrap"><input id="fvPlan" placeholder="Ej: Mentoría 6 meses" style="padding-right:12px" /></span></div>
+        ${finCampo('fvTotal','Valor total del acuerdo',"",'','lo pactado completo').replace('<input id="fvTotal"','<input id="fvTotal" oninput="finCalcVenta()"')}
+        <div class="finF"><label for="fvMoneda">Moneda</label>
+          <select id="fvMoneda" style="min-height:44px" onchange="finCalcVenta()"><option value="USD">USD</option><option value="COP">COP</option></select></div>
+        <div class="finF"><label for="fvRecurrente">Cómo paga</label>
+          <select id="fvRecurrente" style="min-height:44px" onchange="finCalcVenta()">
+            <option value="si">Mes a mes</option><option value="no">Todo de una</option></select></div>
+        ${finCampo('fvMeses','Cuántos meses dura',"",'meses','la comisión se corta al cumplirse').replace('<input id="fvMeses"','<input id="fvMeses" oninput="finCalcVenta()"')}
+        <div class="finF"><label for="fvMedio">Por dónde pagó</label>
+          <select id="fvMedio" style="min-height:44px">${FIN_MEDIOS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('')}</select></div>
+        <div class="finF"><label for="fvFecha">Fecha del cierre</label>
+          <span class="finWrap"><input id="fvFecha" type="date" value="${hoy}" style="padding-right:12px" /></span></div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--rsm);padding:11px 13px;margin-top:12px">
+        <div class="muted" style="font-size:11px">Lo que se le paga de comisión por esta venta</div>
+        <div id="fvComision" style="font-weight:800;font-size:18px;margin-top:2px">—</div>
+      </div>
+    </div>
+
+    <div class="finGrupo"><h4>Quién la trabajó y el acuerdo</h4>
+      <div class="finGrid">
+        <div class="finF"><label for="fvCloser">Quién la cerró</label>
+          <span class="finWrap"><input id="fvCloser" placeholder="nombre del closer" style="padding-right:12px" /></span>
+          <span class="finHint">cobra ${cl.pct}%</span></div>
+        <div class="finF"><label for="fvSetter">Quién la agendó</label>
+          <span class="finWrap"><input id="fvSetter" placeholder="nombre del setter, si hubo" style="padding-right:12px" /></span>
+          <span class="finHint">cobra ${se.pct}%, solo porque se cerró</span></div>
+        <div class="finF"><label for="fvAcuerdo">El acuerdo</label>
+          <select id="fvAcuerdo" style="min-height:44px">${FIN_ACUERDOS.map(a=>`<option value="${a[0]}">${a[1]}</option>`).join('')}</select></div>
+        <div class="finF"><label for="fvSub">Suscripción de Stripe</label>
+          <span class="finWrap"><input id="fvSub" placeholder="sub_... (opcional)" style="padding-right:12px" /></span>
+          <span class="finHint">si lo pones, la verificación es exacta</span></div>
+      </div>
+      <div class="finGrid" style="margin-top:12px">
+        <div class="finF"><label for="fvNota">Nota</label>
+          <span class="finWrap"><input id="fvNota" placeholder="opcional" style="padding-right:12px" /></span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap">
+      <button style="min-height:44px" onclick="finGuardarVenta()">Guardar la venta</button>
+      <button class="ghost" style="min-height:44px" onclick="finLimpiarVenta()">Limpiar</button>
+      <span id="fvMsg" class="muted" style="font-size:12.5px"></span>
+    </div>
+  </div></div>`;
+  return h;
+}
+
+// Lo que se pagaría de comisión por la venta que se está escribiendo.
+function finCalcVenta(){
+  const e=$("fvComision");if(!e||!FIN)return;
+  const varis=((FIN.gastos||{}).lista||[]).filter(g=>g.tipo==='variable');
+  const pctDe=(rol)=>{const g=varis.find(x=>(x._rol||x.rol)===rol);return g?Number(g.pct)||0:0;};
+  const total=Number(finVal('fvTotal'))||0;
+  const moneda=finVal('fvMoneda');
+  const usd=moneda==='COP'?total/FIN.trm:total;
+  const pct=pctDe('closer')+pctDe('setter');
+  if(!usd){e.textContent='—';e.style.color='var(--muted)';return;}
+  const rec=finVal('fvRecurrente')==='si';
+  const meses=Math.max(1,Number(finVal('fvMeses'))||1);
+  const tot=usd*(pct/100);
+  e.style.color='var(--bad)';
+  e.textContent=finCOP(tot,FIN.trm)+'  en total'+(rec?'  ('+finCOP(tot/meses,FIN.trm)+' al mes durante '+meses+')':'');
+}
+
+function finLimpiarVenta(){
+  ['fvId','fvNombre','fvCorreo','fvCelular','fvCedula','fvPlan','fvTotal','fvMeses','fvCloser','fvSetter','fvSub','fvNota'].forEach(i=>{const e=$(i);if(e)e.value='';});
+  const t=$("finFormVentaTit");if(t)t.textContent='Registrar una venta';
+  const m=$("fvMsg");if(m)m.textContent='';
+  finCalcVenta();
+}
+
+function finEditarVenta(id){
+  const v=((FIN&&FIN.registro&&FIN.registro.lista)||[]).find(x=>String(x.id)===String(id));if(!v)return;
+  const set=(i,val)=>{const e=$(i);if(e)e.value=val==null?'':val;};
+  set('fvId',v.id);set('fvNombre',v.cliente_nombre);set('fvCorreo',v.cliente_correo);set('fvCelular',v.cliente_celular);
+  set('fvCedula',v.cliente_cedula);set('fvPlan',v.plan);set('fvTotal',v.valor_total);set('fvMoneda',v.moneda);
+  set('fvRecurrente',v.recurrente?'si':'no');set('fvMeses',v.meses);set('fvMedio',v.medio_pago);
+  set('fvFecha',String(v.fecha_cierre||'').slice(0,10));set('fvCloser',v.closer);set('fvSetter',v.setter);
+  set('fvAcuerdo',v.acuerdo);set('fvSub',v.stripe_sub_id);set('fvNota',v.nota);
+  const t=$("finFormVentaTit");if(t)t.textContent='Editando la venta de '+v.cliente_nombre;
+  finCalcVenta();
+  finIrA('finFormVenta');
+}
+
+async function finGuardarVenta(){
+  const msg=$("fvMsg");
+  const falta=[];
+  if(!finVal('fvNombre').trim())falta.push('el nombre');
+  if(!Number(finVal('fvTotal')))falta.push('el valor');
+  if(!finVal('fvCloser').trim())falta.push('quién la cerró');
+  if(falta.length){if(msg){msg.textContent='Falta '+falta.join(', ')+'.';msg.style.color='var(--warn)';}return;}
+  const rec=finVal('fvRecurrente')==='si';
+  const meses=rec?Math.max(1,Number(finVal('fvMeses'))||1):1;
+  const fila={cliente_nombre:finVal('fvNombre'),cliente_correo:finVal('fvCorreo'),cliente_celular:finVal('fvCelular'),
+    cliente_cedula:finVal('fvCedula'),plan:finVal('fvPlan'),valor_total:Number(finVal('fvTotal'))||0,
+    moneda:finVal('fvMoneda'),recurrente:rec,meses:meses,medio_pago:finVal('fvMedio'),
+    fecha_cierre:finVal('fvFecha'),closer:finVal('fvCloser'),setter:finVal('fvSetter'),
+    acuerdo:finVal('fvAcuerdo'),stripe_sub_id:finVal('fvSub'),nota:finVal('fvNota')};
+  if(finVal('fvId'))fila.id=finVal('fvId');
+  if(msg){msg.textContent='Guardando…';msg.style.color='';}
+  const r=await finCall('guardar_venta',{fila:fila});
+  if(r.error){if(msg){msg.textContent='No se guardó: '+r.error.message;msg.style.color='var(--rojo2)';}return;}
+  finLimpiarVenta();await verFinanzas();
+}
+
+async function finBorrarVenta(id){
+  if(!confirm('¿Quitar esta venta? Las comisiones que genera dejan de contarse.'))return;
+  const r=await finCall('borrar_venta',{id:id});
+  if(r.error){alert('No se pudo quitar: '+r.error.message);return;}
+  await verFinanzas();
+}
+
 // Reparto del presupuesto en sobres, por orden de prioridad.
 // La base es la CAJA del mes (lo que entró de verdad), no lo que sobra: las
 // referencias de afuera se miden así. Primero se descuenta lo que no es
@@ -6792,6 +6999,7 @@ function finMisiones(){
   const variables=((d.gastos||{}).lista||[]).filter(g=>g.tipo==='variable'&&g.activo!==false);
   const fondo=d.fondo||{saldo_usd:0,meta_usd:0};
   const pres=d.presupuesto||{};
+  const reg=d.registro||{lista:[]};
   return [
     {id:'gastos',titulo:'Ponle monto a los gastos',faltan:sinMonto.length,
      texto:sinMonto.length?sinMonto.length+' gasto(s) sin monto. Sin eso la utilidad sale inflada.':'Todos los gastos tienen monto.',
@@ -6803,8 +7011,11 @@ function finMisiones(){
      texto:sueldos>0?'Sueldos fijados.':'Todavía están en cero.',
      accion:'finIrA(\'finBloqueSueldos\')',boton:'Fijar'},
     {id:'comisiones',titulo:'Define las comisiones del closer y el setter',faltan:variables.length?0:1,
-     texto:variables.length?variables.length+' comisión(es) cargada(s).':'No hay ninguna comisión cargada. Mientras falten, los gastos salen cortos.',
+     texto:variables.length?variables.map(g=>esc(g.concepto)+' '+Number(g.pct)+'%').join(' · '):'No hay ninguna comisión cargada. Mientras falten, los gastos salen cortos.',
      accion:'finJuego(\'comisiones\')',boton:'Fijar'},
+    {id:'ventas',titulo:'Completa los datos de las ventas',faltan:(reg.incompletas||0)+(reg.sin_verificar||0),
+     texto:(reg.lista&&reg.lista.length)?((reg.incompletas||0)+(reg.sin_verificar||0)?(reg.incompletas||0)+' con datos incompletos y '+(reg.sin_verificar||0)+' sin verificar.':'Todas las ventas están completas y verificadas.'):'Todavía no hay ventas registradas. Sin ellas las comisiones salen en cero.',
+     accion:'finIrA(\'finBloqueVentas\')',boton:'Ver'},
     {id:'fondo',titulo:'Llena el fondo de emergencia',faltan:(fondo.meta_usd>0&&fondo.saldo_usd>=fondo.meta_usd)?0:1,
      texto:fondo.meta_usd<=0?'La meta sale de los gastos.':(fondo.saldo_usd>=fondo.meta_usd?'El fondo ya cubre la meta.':'Van '+Math.round((fondo.saldo_usd/fondo.meta_usd)*100)+'% de la meta.'),
      accion:'finIrA(\'finBloquePresupuesto\')',boton:'Ver'},
@@ -6936,13 +7147,15 @@ function finJuegoPaso(){
         ${finCampo('jcPct','Cuánto se lleva',ex.pct||'','%','el porcentaje de comisión').replace('<input id="jcPct"','<input id="jcPct" oninput="finCalcComisionJuego()"')}
         <div class="finF"><label for="jcBase">Sobre qué cobra</label>
           <select id="jcBase" style="min-height:44px" onchange="finCalcComisionJuego()">
-            <option value="ventas_nuevas"${(ex.base||'ventas_nuevas')==='ventas_nuevas'?' selected':''}>Las ventas nuevas del mes</option>
-            <option value="caja_neta"${ex.base==='caja_neta'?' selected':''}>Toda la caja del mes</option></select></div>
+            <option value="ventas_registradas"${(ex.base||'ventas_registradas')==='ventas_registradas'?' selected':''}>Cada venta nueva registrada</option>
+            <option value="ventas_nuevas"${ex.base==='ventas_nuevas'?' selected':''}>Estimado de Stripe</option>
+            <option value="caja_neta"${ex.base==='caja_neta'?' selected':''}>Toda la caja del mes</option></select>
+          <span class="finHint">lo correcto es por venta: así se corta cuando acaba la mentoría</span></div>
       </div>
       <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--rsm);padding:11px 13px;margin-top:12px">
         <div class="muted" style="font-size:11px">Con eso se le pagaría al mes</div>
         <div id="jcEquivale" style="font-weight:800;font-size:22px;margin-top:2px">—</div>
-        <div class="muted" style="font-size:11px;margin-top:3px">Ventas nuevas de un mes normal: ${finCOP(ve.nuevas_prom_usd||0,FIN.trm)} · caja: ${finCOP(ve.caja_neta_prom_usd||0,FIN.trm)}</div>
+        <div class="muted" style="font-size:11px;margin-top:3px">Sale de las ventas que estén registradas en "Ventas nuevas y comisiones". Hoy hay ${((FIN.registro||{}).lista||[]).length}.</div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
         <button style="flex:2;min-height:48px" onclick="finJuegoComision()">Guardar y seguir</button>
@@ -6992,8 +7205,11 @@ async function finJuegoGuardar(){
 // Cuánto se le pagaría con el porcentaje que está escribiendo, en vivo.
 function finCalcComisionJuego(){
   const e=$("jcEquivale");if(!e||!FIN)return;
-  const ve=FIN.ventas||{};
-  const base=finVal('jcBase')==='caja_neta'?(ve.caja_neta_prom_usd||0):(ve.nuevas_prom_usd||0);
+  const ve=FIN.ventas||{},b=finVal('jcBase');
+  let base=0;
+  if(b==='caja_neta')base=ve.caja_neta_prom_usd||0;
+  else if(b==='ventas_nuevas')base=ve.nuevas_prom_usd||0;
+  else base=((FIN.registro||{}).lista||[]).reduce((a,v)=>a+(Number(v.comision_base_mes)||0),0);
   const pct=Number(finVal('jcPct'))||0;
   const usd=base*(pct/100);
   e.textContent=pct?finCOP(usd,FIN.trm)+'   ('+finUSD(usd)+')':'—';
@@ -7006,7 +7222,7 @@ async function finJuegoComision(){
   const pct=Number(finVal('jcPct'));
   if(!pct){finJuegoSaltar();return;}
   const fila={concepto:'Comisión del '+it.clave,categoria:'personal',cuenta:'llc',
-    tipo:'variable',pct:pct,base:finVal('jcBase'),monto:0,moneda:'USD',recurrencia:'mensual',
+    tipo:'variable',pct:pct,base:finVal('jcBase'),rol:it.clave,monto:0,moneda:'USD',recurrencia:'mensual',
     nota:it.ayuda};
   if(it.existe&&it.existe.id)fila.id=it.existe.id;
   const r=await finCall('guardar_gasto',{fila:fila});
@@ -7125,6 +7341,9 @@ function finRender(){
     ${finMeter(ing.piso_usd,fijos,trm)}
     <div class="muted" style="font-size:12px;margin-top:8px">El piso es lo que sigue entrando si no se renueva ningún contrato de mentoría. ${ing.sin_clasificar?'Ojo: hay '+ing.sin_clasificar+' producto(s) sin clasificar, así que este piso sale corto.':''}</div>
   </div>`;
+
+  // --- Ventas nuevas y comisiones ---
+  h+=finCardVentas(d,trm,kpi);
 
   // --- Reparto del presupuesto (incluye el fondo de emergencia como sobre 1) ---
   h+=finCardPresupuesto(d,trm,kpi);
