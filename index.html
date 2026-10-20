@@ -39,6 +39,18 @@
   .alert{color:var(--bad);font-size:12px;margin-top:6px}
   .hide{display:none}
   label.lbl{display:block;color:var(--muted);font-size:12px;margin-top:6px;font-weight:600}
+  /* Campos en rejilla: una etiqueta de dos líneas ya no empuja su campo hacia abajo
+     ni desalinea la fila entera (pasaba en "Supuestos del cálculo"). */
+  .finGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:14px;align-items:start}
+  .finF{display:flex;flex-direction:column;min-width:0}
+  .finF>label{color:var(--muted);font-size:12px;font-weight:600;margin:0 0 5px;line-height:1.3;min-height:2.6em;display:flex;align-items:flex-end}
+  .finWrap{position:relative;display:block}
+  .finWrap>input{margin:0;padding-right:52px;min-height:44px}
+  .finSuf{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;font-weight:700;pointer-events:none}
+  .finHint{color:var(--muted);font-size:11px;margin-top:5px;line-height:1.4}
+  .finGrupo{margin-top:16px}
+  .finGrupo>h4{font-size:11px;margin:0 0 9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:700}
+  .finGrupo+.finGrupo{border-top:1px solid var(--line);padding-top:14px}
   .appbar{display:flex;justify-content:space-between;align-items:center;padding:4px 0 12px}
   .brand{display:flex;align-items:center;gap:11px}
   .brandMark{width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#e23b3b,#9c1616);color:#fff;font-weight:900;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px -4px rgba(226,59,59,.6);flex-shrink:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center}
@@ -6641,6 +6653,8 @@ function finMisiones(){
   const sinMonto=((d.gastos||{}).lista||[]).filter(g=>g.activo!==false&&!Number(g.monto));
   const sinClas=((d.ingresos||{}).lineas||[]).filter(l=>l.via==='stripe'&&l.tipo==='sin_clasificar');
   const sueldos=Number(cfg.sueldo_fijo_jc||0)+Number(cfg.sueldo_fijo_maria||0);
+  const variables=((d.gastos||{}).lista||[]).filter(g=>g.tipo==='variable'&&g.activo!==false);
+  const fondo=d.fondo||{saldo_usd:0,meta_usd:0};
   return [
     {id:'gastos',titulo:'Ponle monto a los gastos',faltan:sinMonto.length,
      texto:sinMonto.length?sinMonto.length+' gasto(s) sin monto. Sin eso la utilidad sale inflada.':'Todos los gastos tienen monto.',
@@ -6651,6 +6665,12 @@ function finMisiones(){
     {id:'sueldos',titulo:'Fija los sueldos de los socios',faltan:sueldos>0?0:1,
      texto:sueldos>0?'Sueldos fijados.':'Todavía están en cero.',
      accion:'finIrA(\'finBloqueSueldos\')',boton:'Fijar'},
+    {id:'comisiones',titulo:'Define las comisiones del closer y el setter',faltan:variables.length?0:1,
+     texto:variables.length?variables.length+' comisión(es) cargada(s).':'No hay ninguna comisión cargada. Mientras falten, los gastos salen cortos.',
+     accion:'finIrA(\'finFormGasto\')',boton:'Cargar'},
+    {id:'fondo',titulo:'Llena el fondo de emergencia',faltan:(fondo.meta_usd>0&&fondo.saldo_usd>=fondo.meta_usd)?0:1,
+     texto:fondo.meta_usd<=0?'La meta sale de los gastos.':(fondo.saldo_usd>=fondo.meta_usd?'El fondo ya cubre la meta.':'Van '+Math.round((fondo.saldo_usd/fondo.meta_usd)*100)+'% de la meta.'),
+     accion:'finIrA(\'finBloqueSueldos\')',boton:'Ver'},
     {id:'pausadas',titulo:'Decide las suscripciones pausadas',faltan:st.pausadas||0,
      texto:st.pausadas?st.pausadas+' pausadas por '+finUSD(st.pausado_usd)+'/mes. Se reanudan o se cancelan, desde Stripe.':'No hay suscripciones pausadas.',
      accion:'window.open(\'https://dashboard.stripe.com/subscriptions?status=active\',\'_blank\')',boton:'Abrir Stripe'},
@@ -6792,6 +6812,27 @@ async function finJuegoClasificar(tipo){
   finCall('estado').then(x=>{if(x.data)FIN=x.data;});
 }
 
+// Un campo de formulario: etiqueta corta arriba, unidad dentro del campo y la
+// explicación debajo. Antes la unidad iba dentro de la etiqueta ("Comisión tienda
+// (0,15 = 15%)"), la etiqueta se partía en dos líneas y empujaba el campo: la fila
+// quedaba en escalera y había que escribir 0,15 para decir 15%.
+function finCampo(id,etiqueta,valor,unidad,ayuda){
+  const paso=unidad==='%'?'0.1':(unidad==='COP'?'1000':'0.01');
+  return `<div class="finF">
+    <label for="${id}">${etiqueta}</label>
+    <span class="finWrap"><input id="${id}" type="number" inputmode="decimal" step="${paso}" value="${valor}" />
+      <span class="finSuf">${unidad}</span></span>
+    ${ayuda?`<span class="finHint">${ayuda}</span>`:''}
+  </div>`;
+}
+
+// Botón de guardar con su acuse: sin esto uno no sabía si quedó guardado.
+function finBotonGuardar(texto){
+  return `<div style="display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap">
+    <button style="min-height:44px" onclick="finGuardarConfig(this)">${texto}</button>
+    <span id="fcMsg" class="muted" style="font-size:12.5px"></span></div>`;
+}
+
 // ======================================================= TABLERO
 function finRender(){
   const d=FIN,trm=d.trm,ing=d.ingresos,gas=d.gastos,res=d.resultado,cfg=d.cfg||{},st=d.stripe||{},caja=d.caja||{};
@@ -6871,6 +6912,49 @@ function finRender(){
     <div class="muted" style="font-size:12px;margin-top:8px">El piso es lo que sigue entrando si no se renueva ningún contrato de mentoría. ${ing.sin_clasificar?'Ojo: hay '+ing.sin_clasificar+' producto(s) sin clasificar, así que este piso sale corto.':''}</div>
   </div>`;
 
+  // --- Fondo de emergencia ---
+  const fo=d.fondo||{saldo_usd:0,meta_usd:0,meses:6,movimientos:[],falta_usd:0};
+  const fpct=fo.meta_usd>0?Math.min(100,(fo.saldo_usd/fo.meta_usd)*100):0;
+  const mesesCubiertos=gas.total_usd>0?(fo.saldo_usd/gas.total_usd):0;
+  h+=`<div class="card"><h3 style="margin-top:0">Fondo de emergencia</h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+      ${kpi('Lo que hay apartado',fo.saldo_usd,fpct>=100?FIN_C.neto:(fpct>=50?'#5f93e0':'var(--warn)'),mesesCubiertos>0?mesesCubiertos.toFixed(1)+' meses de empresa':'')}
+      ${kpi('La meta',fo.meta_usd,'var(--txt)',fo.meses+' meses de gastos')}
+      ${kpi('Falta',fo.falta_usd,fo.falta_usd>0?'var(--warn)':FIN_C.neto)}
+      ${kpi('Se aparta este mes',res.reserva,'#5f93e0','la reserva del '+Math.round(Number(cfg.reserva_pct||0)*100)+'%')}
+    </div>
+    <div style="height:14px;background:${FIN_C.grid};border-radius:7px;overflow:hidden">
+      <div style="width:${fpct.toFixed(1)}%;height:100%;background:${fpct>=100?FIN_C.neto:'#5f93e0'};border-radius:7px;transition:width .35s ease"></div></div>
+    <div class="muted" style="font-size:12px;margin-top:6px">${fo.meta_usd<=0?'La meta sale de los gastos: carga los gastos y aparece sola.':(fpct>=100?'El fondo ya cubre la meta. Lo que entre de más puede ir al reparto.':'A '+finCOP(res.reserva,trm)+' al mes, llenarlo toma unos '+(res.reserva>0?Math.ceil(fo.falta_usd/res.reserva):'—')+' meses.')}</div>
+    <details style="margin-top:12px"><summary class="muted" style="cursor:pointer;font-size:12.5px">Movimientos y ajustes</summary>
+      <div class="finGrid" style="margin-top:10px">
+        ${finCampo('ffMeses','Meses de colchón que quieres',Number(cfg.fondo_meses||6),'meses','la meta son esos meses de gastos')}
+      </div>
+      ${finBotonGuardar('Guardar la meta')}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
+        ${(fo.movimientos||[]).map(m=>`<tr style="border-top:1px solid var(--line)">
+          <td style="padding:6px 0" class="muted">${esc(m.fecha)}</td>
+          <td>${esc(m.concepto)}</td>
+          <td class="muted">${m.tipo==='retiro'?'retiro':'aporte'}</td>
+          <td style="text-align:right;font-weight:700;color:${m.tipo==='retiro'?'var(--rojo2)':FIN_C.neto}">${m.tipo==='retiro'?'−':'+'}${m.moneda==='COP'?'$'+Number(m.monto).toLocaleString('es-CO'):finUSD(m.monto)}</td>
+          <td style="text-align:right"><button class="sm ghost" onclick="finBorrarFondo('${m.id}')">Quitar</button></td></tr>`).join('')||'<tr><td class="muted" style="font-size:12.5px;padding:6px 0">Todavía no has apartado nada.</td></tr>'}
+      </table>
+      <div class="finGrid" style="margin-top:12px">
+        <div class="finF"><label for="ffTipo">Qué vas a registrar</label>
+          <select id="ffTipo" style="min-height:44px"><option value="aporte">Aporte al fondo</option><option value="retiro">Retiro del fondo</option></select></div>
+        <div class="finF"><label for="ffConcepto">Concepto</label>
+          <span class="finWrap"><input id="ffConcepto" placeholder="Ej: reserva de septiembre" style="padding-right:12px" /></span></div>
+        ${finCampo('ffMonto','Cuánto',0,'','')}
+        <div class="finF"><label for="ffMoneda">Moneda</label>
+          <select id="ffMoneda" style="min-height:44px"><option value="USD">USD</option><option value="COP">COP</option></select></div>
+        <div class="finF"><label for="ffFecha">Fecha</label>
+          <span class="finWrap"><input id="ffFecha" type="date" value="${new Date().toISOString().slice(0,10)}" style="padding-right:12px" /></span></div>
+      </div>
+      <button style="margin-top:12px;min-height:44px" onclick="finGuardarFondo()">Registrar movimiento</button>
+      <span id="ffMsg" class="muted" style="font-size:12.5px;margin-left:10px"></span>
+    </details>
+  </div>`;
+
   // --- Alertas ---
   if(st.pausadas){
     h+=`<div class="card" style="border-color:var(--warn)">
@@ -6925,14 +7009,17 @@ function finRender(){
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px">
       <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Concepto</th><th>Categoría</th><th style="text-align:right">Monto</th><th>Cada</th><th>Paga</th><th style="text-align:right">Al mes (COP)</th><th></th></tr>
       ${(gas.lista||[]).map(g=>{
+        const esVar=g.tipo==='variable';
         const men=g.recurrencia==='anual'?Number(g.monto)/12:(g.recurrencia==='unico'?0:Number(g.monto));
-        const usd=g.moneda==='COP'?men/trm:men;
-        const falta=!Number(g.monto);
+        const usd=esVar?Number(g._calculado||0):(g.moneda==='COP'?men/trm:men);
+        const falta=!esVar&&!Number(g.monto);
+        const cuanto=esVar?`${Number(g.pct)}% <span class="muted" style="font-size:11px">de ${g.base==='caja_neta'?'la caja':'las ventas nuevas'}</span>`
+          :(falta?'<span style="color:var(--warn);font-weight:700">falta</span>':(g.moneda==='COP'?'$'+Number(g.monto).toLocaleString('es-CO'):finUSD(g.monto)));
         return `<tr style="border-top:1px solid var(--line);${g.activo===false?'opacity:.45':''}">
-          <td style="padding:6px 0">${esc(g.concepto)}${g.nota?`<div class="muted" style="font-size:11px">${esc(g.nota)}</div>`:''}</td>
+          <td style="padding:6px 0">${esc(g.concepto)}${esVar?' <span style="font-size:10px;font-weight:700;color:#5f93e0">VARIABLE</span>':''}${g.nota?`<div class="muted" style="font-size:11px">${esc(g.nota)}</div>`:''}</td>
           <td class="muted">${esc(g.categoria||'otro')}</td>
-          <td style="text-align:right">${falta?'<span style="color:var(--warn);font-weight:700">falta</span>':(g.moneda==='COP'?'$'+Number(g.monto).toLocaleString('es-CO'):finUSD(g.monto))}</td>
-          <td class="muted">${esc(g.recurrencia)}</td>
+          <td style="text-align:right">${cuanto}</td>
+          <td class="muted">${esVar?'por venta':esc(g.recurrencia)}</td>
           <td class="muted">${g.cuenta==='llc'?'LLC':'JC personal'}</td>
           <td style="text-align:right;font-weight:700">${finCOP(usd,trm)}</td>
           <td style="text-align:right"><button class="sm ghost" onclick="finEditarGasto('${g.id}')">Editar</button> <button class="sm ghost" onclick="finBorrar('gasto','${g.id}')">Quitar</button></td></tr>`;}).join('')}
@@ -6940,14 +7027,36 @@ function finRender(){
     <div id="finFormGasto" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
       <h3 style="margin-top:0" id="finFormGastoTit">Agregar un gasto</h3>
       <input type="hidden" id="fgId" />
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <div style="flex:2;min-width:180px"><label class="lbl" for="fgConcepto">Concepto</label><input id="fgConcepto" placeholder="Ej: contador, pauta en Meta" /></div>
-        <div style="flex:1;min-width:130px"><label class="lbl" for="fgCategoria">Categoría</label><select id="fgCategoria">${CATS.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
-        <div style="flex:1;min-width:110px"><label class="lbl" for="fgMonto">Monto</label><input id="fgMonto" type="number" step="0.01" /></div>
-        <div style="flex:1;min-width:90px"><label class="lbl" for="fgMoneda">Moneda</label><select id="fgMoneda"><option value="COP">COP</option><option value="USD">USD</option></select></div>
-        <div style="flex:1;min-width:110px"><label class="lbl" for="fgRecurrencia">Cada</label><select id="fgRecurrencia"><option value="mensual">mes</option><option value="anual">año</option><option value="unico">una vez</option></select></div>
-        <div style="flex:1;min-width:120px"><label class="lbl" for="fgCuenta">Lo paga</label><select id="fgCuenta"><option value="llc">La LLC</option><option value="personal">JC personal</option></select></div>
-        <div style="flex:2;min-width:160px"><label class="lbl" for="fgNota">Nota</label><input id="fgNota" placeholder="opcional" /></div>
+      <div class="finGrid">
+        <div class="finF"><label for="fgConcepto">Concepto</label>
+          <span class="finWrap"><input id="fgConcepto" placeholder="Ej: comisión del closer" style="padding-right:12px" /></span></div>
+        <div class="finF"><label for="fgTipo">Cómo se paga</label>
+          <select id="fgTipo" style="min-height:44px" onchange="finTipoGasto()"><option value="fijo">Un monto fijo</option><option value="variable">Comisión por venta</option></select>
+          <span class="finHint">El closer y el setter cobran comisión, no fijo.</span></div>
+        <div class="finF"><label for="fgCategoria">Categoría</label>
+          <select id="fgCategoria" style="min-height:44px">${CATS.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
+        <div class="finF"><label for="fgCuenta">Lo paga</label>
+          <select id="fgCuenta" style="min-height:44px"><option value="llc">La LLC</option><option value="personal">JC personal</option></select></div>
+      </div>
+      <div class="finGrid" id="fgFijo" style="margin-top:12px">
+        ${finCampo('fgMonto','Cuánto',"",'','')}
+        <div class="finF"><label for="fgMoneda">Moneda</label>
+          <select id="fgMoneda" style="min-height:44px"><option value="COP">COP</option><option value="USD">USD</option></select></div>
+        <div class="finF"><label for="fgRecurrencia">Cada</label>
+          <select id="fgRecurrencia" style="min-height:44px"><option value="mensual">mes</option><option value="anual">año</option><option value="unico">una vez</option></select></div>
+      </div>
+      <div class="finGrid" id="fgVariable" style="margin-top:12px;display:none">
+        ${finCampo('fgPct','Cuánto se lleva',"",'%','el porcentaje que cobra de comisión').replace('<input id="fgPct"','<input id="fgPct" oninput="finCalcComision()"')}
+        <div class="finF"><label for="fgBase">Sobre qué cobra</label>
+          <select id="fgBase" style="min-height:44px" onchange="finCalcComision()"><option value="ventas_nuevas">Las ventas nuevas del mes</option><option value="caja_neta">Toda la caja del mes</option></select>
+          <span class="finHint">Ventas nuevas = suscripciones que arrancaron ese mes.</span></div>
+        <div class="finF"><label>Hoy equivaldría a</label>
+          <div style="font-weight:800;font-size:17px;padding-top:6px" id="fgEquivale">—</div>
+          <span class="finHint">promedio de los 3 meses cerrados</span></div>
+      </div>
+      <div class="finGrid" style="margin-top:12px">
+        <div class="finF"><label for="fgNota">Nota</label>
+          <span class="finWrap"><input id="fgNota" placeholder="opcional" style="padding-right:12px" /></span></div>
       </div>
       <button style="margin-top:8px;min-height:44px" onclick="finGuardarGasto()">Guardar gasto</button>
       <button class="ghost" style="margin-top:8px;min-height:44px" onclick="finLimpiarGasto()">Limpiar</button>
@@ -6979,35 +7088,60 @@ function finRender(){
       ${kpi('Reserva de la empresa',res.reserva,'#5f93e0')}
       ${kpi('Provisión de impuestos',res.impuesto,'var(--warn)')}
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <div style="flex:1;min-width:150px"><label class="lbl" for="fcSueldoJC">Sueldo fijo JC (COP/mes)</label><input id="fcSueldoJC" type="number" value="${Number(cfg.sueldo_fijo_jc||0)}" /></div>
-      <div style="flex:1;min-width:150px"><label class="lbl" for="fcSueldoMaria">Sueldo fijo María (COP/mes)</label><input id="fcSueldoMaria" type="number" value="${Number(cfg.sueldo_fijo_maria||0)}" /></div>
-      <div style="flex:1;min-width:110px"><label class="lbl" for="fcPctJC">% utilidad JC</label><input id="fcPctJC" type="number" value="${Number(cfg.pct_utilidad_jc||0)}" /></div>
-      <div style="flex:1;min-width:110px"><label class="lbl" for="fcPctMaria">% utilidad María</label><input id="fcPctMaria" type="number" value="${Number(cfg.pct_utilidad_maria||0)}" /></div>
+    <div class="finGrid">
+      ${finCampo('fcSueldoJC','Sueldo fijo de JC',Number(cfg.sueldo_fijo_jc||0),'COP','al mes, sale antes que cualquier bono')}
+      ${finCampo('fcSueldoMaria','Sueldo fijo de María',Number(cfg.sueldo_fijo_maria||0),'COP','al mes, sale antes que cualquier bono')}
+      ${finCampo('fcPctJC','Bono de JC',Number(cfg.pct_utilidad_jc||0),'%','de lo que sobre cada mes')}
+      ${finCampo('fcPctMaria','Bono de María',Number(cfg.pct_utilidad_maria||0),'%','de lo que sobre cada mes')}
     </div>
-    <div class="muted" style="font-size:12px;margin-top:6px">El fijo sale primero, siempre. El bono es un porcentaje de lo que sobre después de gastos, impuestos y reserva. Si un mes no sobra nada, el bono es cero y el fijo se paga igual.</div>
-    <button style="margin-top:10px;min-height:44px" onclick="finGuardarConfig()">Guardar sueldos y supuestos</button>
+    <div class="muted" style="font-size:12px;margin-top:12px">El fijo sale primero, siempre. El bono es un porcentaje de lo que sobre después de gastos, impuestos y reserva. Si un mes no sobra nada, el bono es cero y el fijo se paga igual.</div>
+    ${finBotonGuardar('Guardar sueldos')}
   </div>`;
 
   // --- Supuestos ---
   h+=`<div class="card"><details><summary style="cursor:pointer;font-weight:700">Supuestos del cálculo</summary>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      <div style="flex:1;min-width:120px"><label class="lbl" for="fcTrm">TRM (COP por USD)</label><input id="fcTrm" type="number" value="${Number(cfg.trm||3900)}" /></div>
-      <div style="flex:1;min-width:130px"><label class="lbl" for="fcComTienda">Comisión tienda (0,15 = 15%)</label><input id="fcComTienda" type="number" step="0.01" value="${Number(cfg.comision_tienda||0)}" /></div>
-      <div style="flex:1;min-width:130px"><label class="lbl" for="fcComStrPct">Comisión Stripe %</label><input id="fcComStrPct" type="number" step="0.001" value="${Number(cfg.comision_stripe_pct||0)}" /></div>
-      <div style="flex:1;min-width:120px"><label class="lbl" for="fcComStrFijo">Stripe fijo por cobro (USD)</label><input id="fcComStrFijo" type="number" step="0.01" value="${Number(cfg.comision_stripe_fijo||0)}" /></div>
-      <div style="flex:1;min-width:130px"><label class="lbl" for="fcImp">Impuestos (0,20 = 20%)</label><input id="fcImp" type="number" step="0.01" value="${Number(cfg.impuesto_pct||0)}" /></div>
-      <div style="flex:1;min-width:130px"><label class="lbl" for="fcReserva">Reserva (0,15 = 15%)</label><input id="fcReserva" type="number" step="0.01" value="${Number(cfg.reserva_pct||0)}" /></div>
-      <div style="flex:1;min-width:110px"><label class="lbl" for="fcPrecioPub">Precio app mensual</label><input id="fcPrecioPub" type="number" step="0.01" value="${Number(cfg.precio_publico||0)}" /></div>
-      <div style="flex:1;min-width:110px"><label class="lbl" for="fcPrecioAnual">Precio app anual</label><input id="fcPrecioAnual" type="number" step="0.01" value="${Number(cfg.precio_anual||0)}" /></div>
-      <div style="flex:1;min-width:110px"><label class="lbl" for="fcPrecioProg">Precio programa</label><input id="fcPrecioProg" type="number" step="0.01" value="${Number(cfg.precio_programa||0)}" /></div>
+    <div class="muted" style="font-size:12px;margin-top:8px">Los números con los que el tablero traduce dólares a pesos y descuenta lo que se queda cada plataforma. Cámbialos solo si sabes el dato real.</div>
+
+    <div class="finGrupo"><h4>Conversión</h4>
+      <div class="finGrid">
+        ${finCampo('fcTrm','Cuántos pesos vale un dólar',Number(cfg.trm||3900),'COP','la TRM que quieras usar para leer el tablero')}
+      </div>
     </div>
-    <button style="margin-top:8px;min-height:44px" onclick="finGuardarConfig()">Guardar supuestos y sueldos</button>
-    <div class="muted" style="font-size:11.5px;margin-top:8px">La provisión de impuestos es una reserva propia, no un cálculo tributario. Con la LLC en Estados Unidos y lo demás a nombre personal, el porcentaje real lo define el contador.</div>
-    <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
-      <button class="ghost sm" style="min-height:44px" onclick="finCambiarClave()">Cambiar la clave de finanzas</button>
-      <button class="ghost sm" style="min-height:44px" onclick="sessionStorage.removeItem('fin_clave');FIN=null;verFinanzas()">Bloquear ahora</button>
-    </div></details></div>`;
+
+    <div class="finGrupo"><h4>Lo que se queda cada plataforma</h4>
+      <div class="finGrid">
+        ${finCampo('fcComTienda','Comisión de Apple y Google',Math.round(Number(cfg.comision_tienda||0)*1000)/10,'%','15% en el programa de pequeñas empresas, 30% fuera de él')}
+        ${finCampo('fcComStrPct','Comisión de Stripe',Math.round(Number(cfg.comision_stripe_pct||0)*1000)/10,'%','2,9% más 1,5% por tarjeta internacional')}
+        ${finCampo('fcComStrFijo','Stripe cobra fijo por cobro',Number(cfg.comision_stripe_fijo||0),'USD','se suma a la comisión en cada transacción')}
+      </div>
+    </div>
+
+    <div class="finGrupo"><h4>Lo que se aparta antes de repartir</h4>
+      <div class="finGrid">
+        ${finCampo('fcImp','Provisión de impuestos',Math.round(Number(cfg.impuesto_pct||0)*1000)/10,'%','reserva propia, no un cálculo tributario')}
+        ${finCampo('fcReserva','Reserva de la empresa',Math.round(Number(cfg.reserva_pct||0)*1000)/10,'%','colchón para los meses flojos')}
+      </div>
+    </div>
+
+    <div class="finGrupo"><h4>Precios de la app</h4>
+      <div class="finGrid">
+        ${finCampo('fcPrecioPub','Plan mensual',Number(cfg.precio_publico||0),'USD','lo que paga un usuario al mes')}
+        ${finCampo('fcPrecioAnual','Plan anual',Number(cfg.precio_anual||0),'USD','el tablero lo divide entre 12')}
+        ${finCampo('fcPrecioProg','Programa',Number(cfg.precio_programa||0),'USD','el precio del cupón de Apple')}
+      </div>
+    </div>
+
+    ${finBotonGuardar('Guardar supuestos')}
+    <div class="muted" style="font-size:11.5px;margin-top:10px">Con la LLC en Estados Unidos y lo demás a nombre personal, el porcentaje real de impuestos lo define el contador.</div>
+  </details></div>
+
+  <div class="card"><h3 style="margin-top:0">Seguridad</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">La clave no se guarda en ningún lado en texto plano, y se borra sola al cerrar el navegador.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="ghost" style="min-height:44px" onclick="finCambiarClave()">Cambiar la clave</button>
+      <button class="ghost" style="min-height:44px" onclick="sessionStorage.removeItem('fin_clave');FIN=null;verFinanzas()">Bloquear ahora</button>
+    </div>
+  </div>`;
 
   $("v-finanzas").innerHTML=h;
 
@@ -7068,7 +7202,8 @@ async function finCambiarClave(){
 }
 
 function finLimpiarGasto(){
-  ['fgId','fgConcepto','fgMonto','fgNota'].forEach(i=>{const e=$(i);if(e)e.value='';});
+  ['fgId','fgConcepto','fgMonto','fgNota','fgPct'].forEach(i=>{const e=$(i);if(e)e.value='';});
+  const sel=$("fgTipo");if(sel)sel.value='fijo';finTipoGasto();
   const t=$("finFormGastoTit");if(t)t.textContent='Agregar un gasto';
 }
 
@@ -7077,18 +7212,62 @@ function finEditarGasto(id){
   const set=(i,v)=>{const e=$(i);if(e)e.value=v==null?'':v;};
   set('fgId',g.id);set('fgConcepto',g.concepto);set('fgCategoria',g.categoria||'otro');set('fgMonto',g.monto);
   set('fgMoneda',g.moneda);set('fgRecurrencia',g.recurrencia);set('fgCuenta',g.cuenta);set('fgNota',g.nota);
+  set('fgTipo',g.tipo||'fijo');set('fgPct',g.pct||'');set('fgBase',g.base||'ventas_nuevas');finTipoGasto();
   const t=$("finFormGastoTit");if(t)t.textContent='Editando: '+g.concepto;
   const f=$("finFormGasto");if(f)f.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
+// Muestra los campos del tipo elegido y calcula a cuánto equivale la comisión.
+function finTipoGasto(){
+  const v=finVal('fgTipo');
+  const f=$("fgFijo"),g=$("fgVariable");
+  if(f)f.style.display=v==='variable'?'none':'grid';
+  if(g)g.style.display=v==='variable'?'grid':'none';
+  finCalcComision();
+}
+
+function finCalcComision(){
+  const e=$("fgEquivale");if(!e||!FIN)return;
+  const ve=FIN.ventas||{};
+  const base=finVal('fgBase')==='caja_neta'?(ve.caja_neta_prom_usd||0):(ve.nuevas_prom_usd||0);
+  const pct=Number(finVal('fgPct'))||0;
+  const usd=base*(pct/100);
+  e.textContent=pct?finCOP(usd,FIN.trm)+'  ('+finUSD(usd)+')':'—';
+}
+
 async function finGuardarGasto(){
   if(!finVal('fgConcepto').trim()){alert('Ponle un concepto al gasto.');return;}
-  const fila={concepto:finVal('fgConcepto'),categoria:finVal('fgCategoria'),monto:Number(finVal('fgMonto'))||0,
-    moneda:finVal('fgMoneda'),recurrencia:finVal('fgRecurrencia'),cuenta:finVal('fgCuenta'),nota:finVal('fgNota')};
+  const esVar=finVal('fgTipo')==='variable';
+  if(esVar&&!Number(finVal('fgPct'))){alert('Ponle el porcentaje de la comisión.');return;}
+  const fila={concepto:finVal('fgConcepto'),categoria:finVal('fgCategoria'),cuenta:finVal('fgCuenta'),
+    nota:finVal('fgNota'),tipo:esVar?'variable':'fijo',
+    monto:esVar?0:(Number(finVal('fgMonto'))||0),
+    moneda:esVar?'USD':finVal('fgMoneda'),
+    recurrencia:esVar?'mensual':finVal('fgRecurrencia'),
+    pct:esVar?Number(finVal('fgPct'))||0:0,
+    base:esVar?finVal('fgBase'):'ventas_nuevas'};
   if(finVal('fgId'))fila.id=finVal('fgId');
   const r=await finCall('guardar_gasto',{fila:fila});
   if(r.error){alert('No se guardó: '+r.error.message);return;}
   finLimpiarGasto();await verFinanzas();
+}
+
+async function finGuardarFondo(){
+  const msg=$("ffMsg");
+  const monto=Number(finVal('ffMonto'));
+  if(!monto){if(msg){msg.textContent='Ponle un monto.';msg.style.color='var(--warn)';}return;}
+  if(msg){msg.textContent='Guardando…';msg.style.color='';}
+  const r=await finCall('guardar_fondo',{fila:{tipo:finVal('ffTipo'),concepto:finVal('ffConcepto'),
+    monto:monto,moneda:finVal('ffMoneda'),fecha:finVal('ffFecha')}});
+  if(r.error){if(msg){msg.textContent='No se guardó: '+r.error.message;msg.style.color='var(--rojo2)';}return;}
+  await verFinanzas();
+}
+
+async function finBorrarFondo(id){
+  if(!confirm('¿Quitar este movimiento del fondo?'))return;
+  const r=await finCall('borrar_fondo',{id:id});
+  if(r.error){alert('No se pudo quitar: '+r.error.message);return;}
+  await verFinanzas();
 }
 
 async function finGuardarIngreso(){
@@ -7106,14 +7285,23 @@ async function finBorrar(tipo,id){
   await verFinanzas();
 }
 
-async function finGuardarConfig(){
-  const cfg={trm:finNum('fcTrm'),comision_tienda:finNum('fcComTienda'),comision_stripe_pct:finNum('fcComStrPct'),
-    comision_stripe_fijo:finNum('fcComStrFijo'),impuesto_pct:finNum('fcImp'),reserva_pct:finNum('fcReserva'),
+async function finGuardarConfig(btn){
+  // En pantalla las comisiones y las reservas se escriben en por ciento (15), pero
+  // en la base viven como fracción (0,15). La conversión pasa aquí.
+  const pct=(id)=>{const v=finNum(id);return v===null?null:v/100;};
+  const cfg={trm:finNum('fcTrm'),comision_tienda:pct('fcComTienda'),comision_stripe_pct:pct('fcComStrPct'),
+    comision_stripe_fijo:finNum('fcComStrFijo'),impuesto_pct:pct('fcImp'),reserva_pct:pct('fcReserva'),
     precio_publico:finNum('fcPrecioPub'),precio_anual:finNum('fcPrecioAnual'),precio_programa:finNum('fcPrecioProg'),
     sueldo_fijo_jc:finNum('fcSueldoJC'),sueldo_fijo_maria:finNum('fcSueldoMaria'),
-    pct_utilidad_jc:finNum('fcPctJC'),pct_utilidad_maria:finNum('fcPctMaria')};
+    pct_utilidad_jc:finNum('fcPctJC'),pct_utilidad_maria:finNum('fcPctMaria'),
+    fondo_meses:finNum('ffMeses')};
+  const msg=btn&&btn.parentElement?btn.parentElement.querySelector('span'):null;
+  if(btn){btn.disabled=true;btn.style.opacity='.6';}
+  if(msg){msg.textContent='Guardando…';msg.style.color='';}
   const r=await finCall('guardar_config',{cfg:cfg});
-  if(r.error){alert('No se guardó: '+r.error.message);return;}
+  if(btn){btn.disabled=false;btn.style.opacity='';}
+  if(r.error){if(msg){msg.textContent='No se guardó: '+r.error.message;msg.style.color='var(--rojo2)';}else alert('No se guardó: '+r.error.message);return;}
+  if(msg){msg.textContent='Guardado. Recalculando…';msg.style.color='var(--ok)';}
   await verFinanzas();
 }
 
