@@ -6524,7 +6524,7 @@ async function finPrepararTablas(){
 async function verFinanzas(){
   const cont=$("v-finanzas");if(!cont)return;
   if(!finClave()){finPintarCandado('pedir');return;}
-  if(!FIN)cont.innerHTML='<div class="card"><div class="muted">Leyendo Stripe y armando las cuentas…</div></div>';
+  if(!FIN)cont.innerHTML='<div class="card"><div class="muted">Armando las cuentas… la primera carga del día tarda unos segundos porque relee Stripe entero.</div></div>';
   const r=await finCall('estado');
   if(r.error){
     const m=r.error.message||'';
@@ -6804,7 +6804,7 @@ function finRender(){
     <div class="muted" style="font-size:11px">${finUSD(usd)}${sub?' · '+sub:''}</div></div>`;
 
   let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-    <div class="muted" style="font-size:12px">Stripe leído ${esc((st.fecha||'').replace('T',' ').slice(0,16))||'—'} · ${st.cobrando||0} cobrando${st.pausadas?' · <span style="color:var(--warn)">'+st.pausadas+' pausadas</span>':''}${st.fallando?' · <span style="color:var(--warn)">'+st.fallando+' fallando</span>':''}${st.error?' · <span style="color:var(--rojo2)">'+esc(st.error)+'</span>':''}</div>
+    <div class="muted" style="font-size:12px">Stripe leído ${finHace(st.fecha)} · ${st.cobrando||0} cobrando${st.pausadas?' · <span style="color:var(--warn)">'+st.pausadas+' pausadas</span>':''}${st.fallando?' · <span style="color:var(--warn)">'+st.fallando+' fallando</span>':''}${finEdadMin(st.fecha)>=60?' · <span style="color:#5f93e0">actualizando por detrás…</span>':''}${st.error?' · <span style="color:var(--rojo2)">'+esc(st.error)+'</span>':''}</div>
     <div style="display:flex;gap:6px"><button class="sm ghost" style="min-height:44px" onclick="finRefrescar()">Releer Stripe</button></div></div>`;
 
   h+=finCardMisiones();
@@ -7011,17 +7011,31 @@ function finRender(){
 
   $("v-finanzas").innerHTML=h;
 
-  // Actualización sola: si la lectura de Stripe pasó de 30 minutos, se vuelve a
-  // leer en segundo plano y se repinta. El usuario no tiene que apretar nada.
-  const fecha=st.fecha?new Date(st.fecha).getTime():0;
-  if(!FIN._refrescando&&(!fecha||(Date.now()-fecha)>30*60000)){
-    FIN._refrescando=true;
-    finCall('estado',{refrescar:true}).then(r=>{if(r.data&&!FINJ){FIN=r.data;finRender();}});
+  // La relectura de Stripe la dispara el servidor solo cuando el dato pasa de una
+  // hora, y responde con lo guardado sin hacer esperar. Aquí solo volvemos a pedir
+  // el estado un minuto después para recoger ese refresco. Nada bloquea la vista.
+  if(!FIN._reintento&&finEdadMin(st.fecha)>=60){
+    FIN._reintento=true;
+    setTimeout(()=>{if(!FINJ)finCall('estado').then(r=>{if(r.data&&!FINJ){FIN=r.data;finRender();}});},60000);
   }
 }
 
+// Minutos desde una fecha ISO (Infinity si no hay).
+function finEdadMin(f){return f?((Date.now()-new Date(f).getTime())/60000):Infinity;}
+
+// "hace 3 min" / "hace 2 h", para que se vea qué tan fresco está el dato.
+function finHace(f){
+  const m=finEdadMin(f);
+  if(!isFinite(m))return 'nunca';
+  if(m<1)return 'recién';
+  if(m<60)return 'hace '+Math.round(m)+' min';
+  const hrs=m/60;
+  if(hrs<24)return 'hace '+Math.round(hrs)+' h';
+  return 'hace '+Math.round(hrs/24)+' días';
+}
+
 async function finRefrescar(){
-  const c=$("v-finanzas");if(c)c.innerHTML='<div class="card"><div class="muted">Releyendo Stripe (son varios cientos de cobros, tarda)…</div></div>';
+  const c=$("v-finanzas");if(c)c.innerHTML='<div class="card"><div class="muted">Releyendo Stripe entero (175 suscripciones y 6 meses de movimientos). Son unos 7 segundos.</div></div>';
   const r=await finCall('estado',{refrescar:true});
   if(r.error){c.innerHTML='<div class="card"><div class="alert">'+esc(r.error.message)+'</div></div>';return;}
   FIN=r.data;finRender();
