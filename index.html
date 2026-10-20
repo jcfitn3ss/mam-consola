@@ -186,6 +186,7 @@
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
       <button id="t-finanzas" class="hide" onclick="tab('finanzas')">Finanzas</button>
+      <button id="t-embudo" class="hide" onclick="tab('embudo')">Embudo</button>
       <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
       <div class="menu" id="masMenu">
@@ -232,6 +233,7 @@
     <div id="v-llamadas" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
     <div id="v-finanzas" class="hide"></div>
+    <div id="v-embudo" class="hide"></div>
     <div id="v-salud" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
@@ -375,7 +377,7 @@ async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr"
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","finanzas","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","finanzas","embudo","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
@@ -600,9 +602,10 @@ async function trasLogin(){
   // SOCIO que no es entrenador (ej. María): entra SOLO a Finanzas, nada más.
   if(_esSoc&&!_esEnt&&!_esSet){
     show("login",false);show("app",true);show("logout",true);
-    document.querySelectorAll('.nav button').forEach(b=>{ if(b.id!=='t-finanzas') b.classList.add('hide'); });
+    document.querySelectorAll('.nav button').forEach(b=>{ if(b.id!=='t-finanzas'&&b.id!=='t-embudo') b.classList.add('hide'); });
     const _mb=$("masBtn");if(_mb)_mb.classList.add('hide');
     const _tf=$("t-finanzas");if(_tf)_tf.classList.remove('hide');
+    const _te=$("t-embudo");if(_te)_te.classList.remove('hide');
     tab('finanzas');
     return;
   }
@@ -623,7 +626,7 @@ async function trasLogin(){
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
   show("login",false);show("app",true);show("logout",true);
-  if(_esSoc){const _tf=$("t-finanzas");if(_tf)_tf.classList.remove("hide");}
+  if(_esSoc){const _tf=$("t-finanzas");if(_tf)_tf.classList.remove("hide");const _te=$("t-embudo");if(_te)_te.classList.remove("hide");}
   const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
   // Lista vía edge (service_role): NO depende del RLS → SIEMPRE salen todos.
@@ -7854,6 +7857,185 @@ async function regBorrar(id){
   const r=await invokeFn('consola-rutina',{body:{action:'comida_borrar',cliente:REG_CLI,id:id}});
   if(r.error){alert('No se pudo borrar: '+r.error.message);return;}
   verCliente(REG_CLI);
+}
+
+// ===================== EMBUDO DE VENTAS (privado: solo socios) =====================
+// Las métricas del equipo comercial, mes a mes. De los veinte indicadores solo
+// CUATRO se escriben a mano (agendamientos, calificados, llamadas del mes y show
+// ups): no viven en ningún sistema porque el calendario nunca se sincronizó y la
+// tabla `reuniones` tiene cuatro filas. El resto sale del registro de ventas.
+let EMB=null;
+const EMB_C={bueno:'#199e70',medio:'#3987e5',malo:'#d95926',neutro:'#9085e9'};
+
+async function verEmbudo(){
+  const cont=$("v-embudo");if(!cont)return;
+  if(!finClave()){cont.innerHTML='<div class="card" style="max-width:440px;margin:48px auto"><h2 style="margin-top:0">Embudo de ventas</h2><div class="muted" style="font-size:12.5px;margin-bottom:10px">Esta pestaña usa la misma clave de Finanzas. Ábrela allá primero.</div><button onclick="tab(\'finanzas\')">Ir a Finanzas</button></div>';return;}
+  if(!EMB)cont.innerHTML='<div class="card"><div class="muted">Armando el embudo…</div></div>';
+  const r=await finCall('embudo',{meses:7});
+  if(r.error){
+    const m=r.error.message||'';
+    if(m.indexOf('incorrecta')>=0||m.indexOf('sin_clave')>=0){sessionStorage.removeItem('fin_clave');cont.innerHTML='<div class="card"><div class="alert">La clave venció. Vuelve a entrar desde Finanzas.</div></div>';return;}
+    cont.innerHTML='<div class="card"><div class="alert">'+esc(m)+'</div></div>';return;
+  }
+  EMB=r.data;embRender();
+}
+
+// Celda de porcentaje con color según qué tan bien va ese indicador.
+function embPct(v,bueno,regular){
+  if(v==null)return '<span class="muted">—</span>';
+  const p=v*100;
+  const col=p>=bueno?EMB_C.bueno:(p>=regular?'var(--warn)':EMB_C.malo);
+  return `<b style="color:${col}">${p.toFixed(p<10?1:0)}%</b>`;
+}
+
+function embRender(){
+  const d=EMB,trm=d.trm,M=d.meses||[];
+  const NOM=['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const mesNom=(m)=>NOM[Number(m.split('-')[1])]+' '+m.split('-')[0].slice(2);
+  const hoy=new Date().toISOString().slice(0,7);
+  const usd=(v)=>v==null?'<span class="muted">—</span>':'US$'+Math.round(v).toLocaleString('en-US');
+  const cop=(v)=>v==null?'<span class="muted">—</span>':'$'+Math.round(v*trm).toLocaleString('es-CO');
+  const num=(v)=>v==null?'<span class="muted">—</span>':Math.round(v).toLocaleString('es-CO');
+
+  // Campo editable para los cuatro datos que van a mano.
+  const inp=(mes,campo,val)=>`<input id="em_${campo}_${mes}" type="number" value="${val||0}" style="width:76px;margin:0;padding:5px 7px;min-height:34px;text-align:right;font-size:12.5px"
+    onchange="embGuardar('${mes}')" onkeydown="if(event.key==='Enter')embGuardar('${mes}')" />`;
+
+  const fila=(etiqueta,ayuda,celdas,estilo)=>`<tr style="${estilo||''}">
+    <td style="position:sticky;left:0;background:var(--card);padding:7px 10px 7px 0;white-space:nowrap;border-right:1px solid var(--line)">
+      <span style="font-size:12.5px">${etiqueta}</span>
+      ${ayuda?`<div class="muted" style="font-size:10.5px">${ayuda}</div>`:''}</td>
+    ${celdas.map(c=>`<td style="text-align:right;padding:7px 10px;white-space:nowrap;font-size:12.5px">${c}</td>`).join('')}</tr>`;
+
+  const grupo=(t)=>`<tr><td colspan="${M.length+1}" style="position:sticky;left:0;padding:14px 0 5px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;background:var(--card)">${t}</td></tr>`;
+
+  let h=`<div class="card">
+    <h2 style="margin-top:0">Embudo de ventas
+      <button class="sm ghost" style="float:right;min-height:40px" onclick="EMB=null;verEmbudo()">Actualizar</button></h2>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">Los cuatro primeros los escribes tú, porque el calendario no está sincronizado. Todo lo demás se calcula del registro de ventas y de los movimientos de Stripe. <span id="embMsg"></span></div>
+    <div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%">
+      <tr><td style="position:sticky;left:0;background:var(--card);border-right:1px solid var(--line)"></td>
+        ${M.map(m=>`<td style="text-align:right;padding:7px 10px;white-space:nowrap;font-weight:800;font-size:12.5px;${m.mes===hoy?'color:#5f93e0':''}">${esc(mesNom(m.mes))}${m.mes===hoy?'<div class="muted" style="font-size:10px;font-weight:400">en curso</div>':''}</td>`).join('')}</tr>`;
+
+  h+=grupo('Agendamiento · lo escribes tú');
+  h+=fila('Agendamientos nuevos','llamadas que se agendaron',M.map(m=>inp(m.mes,'new_bookings',m.new_bookings)));
+  h+=fila('Calificados','los que sí daban el perfil',M.map(m=>inp(m.mes,'qbookings',m.qbookings)));
+  h+=fila('% calificados','',M.map(m=>embPct(m.pct_qualified,70,50)));
+  h+=fila('Llamadas del mes','las que tocaba hacer',M.map(m=>inp(m.mes,'today_bookings',m.today_bookings)));
+  h+=fila('Se presentaron','show ups',M.map(m=>inp(m.mes,'show_ups',m.show_ups)));
+  h+=fila('% que se presenta','el punto de mayor apalancamiento',M.map(m=>embPct(m.pct_show_up,70,55)));
+
+  h+=grupo('Cierre · sale del registro de ventas');
+  h+=fila('Ventas cerradas','',M.map(m=>`<b>${num(m.sales)}</b>`));
+  h+=fila('% de cierre','ventas sobre los que se presentaron',M.map(m=>embPct(m.pct_closing,25,15)));
+  h+=fila('% agendamiento a venta','cuántos de los agendados compran',M.map(m=>embPct(m.pct_bts,12,7)));
+
+  h+=grupo('Plata');
+  h+=fila('Venta nueva (contratos)','lo pactado completo',M.map(m=>usd(m.new_sales_revenue)));
+  h+=fila('Efectivo de venta nueva','lo que entra este mes',M.map(m=>usd(m.new_sales_cash)));
+  h+=fila('% de cobro','efectivo sobre lo pactado',M.map(m=>embPct(m.pct_collection,60,40)));
+  h+=fila('Recurrente','cuotas de clientes de antes',M.map(m=>usd(m.recurring_cash)));
+  h+=fila('Caja total del modelo','venta nueva más recurrente',M.map(m=>`<b>${usd(m.total_cash)}</b><div class="muted" style="font-size:10.5px;font-weight:400">${cop(m.total_cash)}</div>`),'background:rgba(95,147,224,.06)');
+  h+=fila('Meta de caja','',M.map(m=>`<input id="em_meta_cash_${m.mes}" type="number" value="${Math.round(m.meta_cash||0)}" style="width:92px;margin:0;padding:5px 7px;min-height:34px;text-align:right;font-size:12.5px" onchange="embGuardar('${m.mes}')" onkeydown="if(event.key==='Enter')embGuardar('${m.mes}')" />`));
+  h+=fila('% de la meta','',M.map(m=>embPct(m.pct_meta,100,75)));
+
+  h+=grupo('Contraste con la realidad');
+  h+=fila('Caja real de Stripe','lo que de verdad cobró Stripe ese mes',M.map(m=>m.caja_real_bruto==null?'<span class="muted">—</span>':usd(m.caja_real_bruto)));
+  h+=fila('Diferencia','modelo contra Stripe',M.map(m=>{
+    if(m.caja_real_bruto==null)return '<span class="muted">—</span>';
+    const dif=m.total_cash-m.caja_real_bruto;
+    const col=Math.abs(dif)<Math.max(50,m.caja_real_bruto*0.15)?'var(--muted)':'var(--warn)';
+    return `<span style="color:${col}">${dif>=0?'+':''}${usd(Math.abs(dif)).replace('US$','US$'+(dif<0?'−':''))}</span>`;}));
+
+  h+=grupo('Eficiencia');
+  h+=fila('Por agendamiento (contrato)','cuánto vale cada llamada agendada',M.map(m=>usd(m.epb_revenue)));
+  h+=fila('Por agendamiento (efectivo)','',M.map(m=>usd(m.epb_cash)));
+  h+=fila('Ticket promedio','efectivo por venta',M.map(m=>usd(m.cart_value)));
+
+  h+=grupo('Lo que viene');
+  h+=fila('Cobranza del próximo mes','cuotas ya comprometidas',M.map(m=>usd(m.cobranza_prox)));
+  h+=fila('Cobranza del mes siguiente','',M.map(m=>usd(m.cobranza_subsig)));
+
+  h+=`</table></div></div>`;
+
+  // --- Tendencias ---
+  h+=`<div style="display:flex;gap:12px;flex-wrap:wrap">
+    <div class="card" style="flex:1;min-width:300px"><h3 style="margin-top:0">Qué tanto se presentan y qué tanto se cierra</h3>
+      ${embLineas(M,[['% que se presenta','pct_show_up',EMB_C.medio],['% de cierre','pct_closing',EMB_C.bueno]],mesNom)}</div>
+    <div class="card" style="flex:1;min-width:300px"><h3 style="margin-top:0">Caja contra la meta</h3>
+      ${embMetaBarras(M,trm,mesNom)}</div>
+  </div>`;
+
+  // --- Dónde se está cayendo ---
+  const ult=M[M.length-1],prev=M[M.length-2];
+  const cuellos=[];
+  if(ult){
+    if(ult.pct_show_up!=null&&ult.pct_show_up<0.6)cuellos.push(`Solo se presenta el ${Math.round(ult.pct_show_up*100)}% de los agendados. Ahí se pierde más plata que en cualquier otra parte del embudo.`);
+    if(ult.pct_qualified!=null&&ult.pct_qualified<0.6)cuellos.push(`Solo el ${Math.round(ult.pct_qualified*100)}% de los agendamientos daba el perfil. Se está llenando la agenda con gente que no compra.`);
+    if(ult.pct_closing!=null&&ult.pct_closing<0.15)cuellos.push(`El cierre va en ${Math.round(ult.pct_closing*100)}%. De cada siete que se presentan, cierra uno.`);
+    if(ult.pct_collection!=null&&ult.pct_collection<0.4)cuellos.push(`Solo se cobró el ${Math.round(ult.pct_collection*100)}% de lo que se vendió. El resto está en cuotas por venir.`);
+    if(ult.sales===0&&ult.new_bookings>0)cuellos.push('Este mes no hay ninguna venta registrada, pero sí hubo agendamientos. O no se cerró nada, o falta registrarlas.');
+    if(prev&&ult.total_cash<prev.total_cash*0.7)cuellos.push('La caja del modelo cayó más del 30% contra el mes pasado.');
+  }
+  if(cuellos.length){
+    h+=`<div class="card" style="border-color:var(--warn)"><h3 style="margin-top:0">Dónde se está cayendo</h3>
+      <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7">${cuellos.map(c=>'<li>'+c+'</li>').join('')}</ul></div>`;
+  }
+
+  h+=`<div class="card"><div class="muted" style="font-size:12px">La caja del modelo se arma de las ventas registradas: la del mes más las cuotas de las ventas anteriores que siguen vivas. Si no cuadra con Stripe, o falta registrar ventas, o hay cobros que no vienen de una venta nueva (renovaciones viejas, la app). Las ventas se registran en Finanzas, en "Ventas nuevas y comisiones". Hoy hay ${d.ventas_totales} registrada(s).</div></div>`;
+
+  $("v-embudo").innerHTML=h;
+}
+
+// Dos series de porcentaje a lo largo de los meses.
+function embLineas(M,series,mesNom){
+  const W=560,H=200,PL=42,PR=16,PT=14,PB=34;
+  if(M.length<2)return '<div class="muted" style="font-size:12.5px">Hacen falta al menos dos meses con datos.</div>';
+  const paso=(W-PL-PR)/Math.max(1,M.length-1);
+  const y=(v)=>PT+(H-PT-PB)*(1-Math.max(0,Math.min(1,v)));
+  let g='';
+  for(let i=0;i<=4;i++){const v=i/4,yy=y(v);
+    g+=`<line x1="${PL}" y1="${yy.toFixed(1)}" x2="${W-PR}" y2="${yy.toFixed(1)}" stroke="${FIN_C.grid}" stroke-width="1"/>
+        <text x="${PL-7}" y="${(yy+4).toFixed(1)}" text-anchor="end" fill="var(--muted)" font-size="10">${Math.round(v*100)}%</text>`;}
+  let trazos='';
+  for(const [nom,campo,col] of series){
+    const pts=M.map((m,i)=>m[campo]==null?null:[PL+paso*i,y(m[campo])]).filter(Boolean);
+    if(pts.length<2)continue;
+    trazos+=`<polyline fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/>`;
+    trazos+=M.map((m,i)=>m[campo]==null?'':`<circle cx="${(PL+paso*i).toFixed(1)}" cy="${y(m[campo]).toFixed(1)}" r="4" fill="${col}" stroke="var(--card)" stroke-width="2" ${finTipAttrs(mesNom(m.mes)+' · '+nom+': '+Math.round(m[campo]*100)+'%')}/>`).join('');
+  }
+  const ejeX=M.map((m,i)=>`<text x="${(PL+paso*i).toFixed(1)}" y="${H-PB+16}" text-anchor="middle" fill="var(--muted)" font-size="10">${esc(m.mes.slice(5))}</text>`).join('');
+  const leyenda=series.map(([n,,c])=>`<span style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:12px"><span style="width:10px;height:3px;border-radius:2px;background:${c};display:inline-block"></span>${n}</span>`).join('');
+  return `<div style="margin-bottom:6px">${leyenda}</div>
+    <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:360px;height:auto" role="img" aria-label="Tendencia de presentación y cierre">${g}${trazos}${ejeX}</svg></div>`;
+}
+
+// Caja del modelo contra la meta, mes a mes.
+function embMetaBarras(M,trm,mesNom){
+  const max=Math.max(...M.map(m=>Math.max(m.total_cash||0,m.meta_cash||0)),1);
+  return `<div style="display:flex;flex-direction:column;gap:9px">${M.map(m=>{
+    const pct=(m.total_cash/max)*100, metaPct=(m.meta_cash/max)*100;
+    const ok=m.meta_cash>0&&m.total_cash>=m.meta_cash;
+    return `<div ${finTipAttrs(mesNom(m.mes)+': US$'+Math.round(m.total_cash)+(m.meta_cash?' de meta US$'+Math.round(m.meta_cash):''))}>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+        <span class="muted">${esc(mesNom(m.mes))}</span>
+        <span style="font-weight:700;color:${ok?EMB_C.bueno:'var(--txt)'}">US$${Math.round(m.total_cash).toLocaleString('en-US')}</span></div>
+      <div style="position:relative;height:11px;background:${FIN_C.grid};border-radius:6px;overflow:hidden">
+        <div style="width:${Math.max(0,pct).toFixed(1)}%;height:100%;background:${ok?EMB_C.bueno:EMB_C.medio};border-radius:6px;transition:width .35s ease"></div>
+        ${m.meta_cash>0?`<div style="position:absolute;left:${Math.min(99,metaPct).toFixed(1)}%;top:-2px;width:2px;height:15px;background:var(--txt);opacity:.75"></div>`:''}
+      </div></div>`;}).join('')}
+    <div class="muted" style="font-size:11px">La rayita vertical es la meta del mes.</div></div>`;
+}
+
+async function embGuardar(mes){
+  const g=(c)=>{const e=$("em_"+c+"_"+mes);return e?e.value:undefined;};
+  const msg=$("embMsg");
+  if(msg){msg.textContent='Guardando…';msg.style.color='';}
+  const r=await finCall('guardar_embudo',{fila:{mes:mes,new_bookings:g('new_bookings'),qbookings:g('qbookings'),
+    today_bookings:g('today_bookings'),show_ups:g('show_ups'),meta_cash:g('meta_cash')},meses:7});
+  if(r.error){if(msg){msg.textContent='No se guardó: '+r.error.message;msg.style.color='var(--rojo2)';}return;}
+  EMB=r.data;embRender();
+  const m2=$("embMsg");if(m2){m2.textContent='Guardado.';m2.style.color='var(--ok)';}
 }
 
 </script>
