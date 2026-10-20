@@ -3279,42 +3279,10 @@ async function verCliente(id){
   // (Las fotos comparativas se movieron a la card "Progreso físico" de arriba.)
   h+=`</div>`;
 
-  // ---- Registro diario de comidas: lo que el cliente registra en la app, por día
-  // (antes no había dónde verlo). Agrupado por fecha, con total del día vs objetivo.
+  // ---- Revisión del registro de comida (panel completo en regPanel)
   {
     const RL=(regLog.data||[]);const objK=+o.kcal||0;const nom1=(nom||'el cliente').split(' ')[0];
-    let rh=`<div class="card"><h2 style="margin-top:0">Registro diario de comidas <span class="muted" style="font-size:12px;font-weight:400">· TODAS las comidas de ${esc(nom1)} con foto (últimos 21 días · toca la foto para verla grande)</span></h2>`;
-    if(!RL.length){rh+=`<div class="muted">Sin comidas registradas en los últimos 21 días.</div>`;}
-    else{
-      const porDia={};RL.forEach(c=>{(porDia[c.fecha]=porDia[c.fecha]||[]).push(c);});
-      const fechas=Object.keys(porDia).sort((a,b)=>b.localeCompare(a));
-      // Orden canónico del día (desayuno→post-cena→snack) para que no salgan revueltas.
-      const ORDMOM=m=>{const s=(m||'').toLowerCase();const o=['desayuno','media','almuerzo','merienda','cena','post','snack'];const i=o.findIndex(k=>s.includes(k));return i<0?8:i;};
-      rh+=fechas.map(f=>{
-        const items=porDia[f].slice().sort((a,b)=>ORDMOM(a.momento)-ORDMOM(b.momento)||String(a.created_at||'').localeCompare(String(b.created_at||'')));
-        const t=items.reduce((a,c)=>({k:a.k+(+c.kcal||0),p:a.p+(+c.prot||0),c:a.c+(+c.carb||0),f:a.f+(+c.fat||0)}),{k:0,p:0,c:0,f:0});
-        const diff=objK?Math.round(t.k)-objK:0;const col=objK&&Math.abs(diff)>objK*0.12?'var(--rojo)':'var(--ok)';
-        const filas=items.map((c,i)=>{
-          const etiqMom=c.momento||('Comida '+(i+1)); // si no vino momento, numeramos
-          const foto=c.foto_url?`<a href="${esc(c.foto_url)}" target="_blank" title="Ver foto grande"><img src="${esc(c.foto_url)}" loading="lazy" style="width:58px;height:58px;object-fit:cover;border-radius:8px;border:1px solid var(--line);margin:0 8px 2px 0;float:left"></a>`:'';
-          const ex=[];
-          if(c.saciedad!=null)ex.push('saciedad '+c.saciedad+'/5');
-          if(c.disfrute!=null)ex.push('disfrute '+c.disfrute+'/5');
-          if(c.ruido!=null&&c.ruido>0)ex.push('ruido '+c.ruido+'/5');
-          if(c.fibra)ex.push('fibra '+Math.round(c.fibra)+'g');
-          const exl=ex.length?`<div class="muted" style="font-size:10.5px;margin-top:2px">${ex.join(' · ')}</div>`:'';
-          return `<tr><td class="muted" style="white-space:nowrap;font-size:11px;vertical-align:top;padding-top:4px">${esc(etiqMom)}</td><td style="vertical-align:top;padding:4px 0"><div style="overflow:hidden">${foto}<div style="font-size:12.5px">${esc(c.descripcion||'')}</div>${exl}</div></td><td style="white-space:nowrap;text-align:right;font-size:12px;vertical-align:top;padding-top:4px">${Math.round(c.kcal||0)} kcal <span class="muted">P${Math.round(c.prot||0)}/C${Math.round(c.carb||0)}/G${Math.round(c.fat||0)}</span></td></tr>`;
-        }).join('');
-        return `<details style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:0 10px">
-          <summary style="cursor:pointer;padding:9px 0;font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
-            <span>${esc(f)} <span class="muted" style="font-weight:400;font-size:12px">· ${items.length} registro(s)</span></span>
-            <b style="color:${col};font-size:12.5px;white-space:nowrap">${Math.round(t.k)} kcal · P${Math.round(t.p)}/C${Math.round(t.c)}/G${Math.round(t.f)}${objK?` (obj ${objK}${diff>0?' +'+diff:diff<0?' '+diff:' ✓'})`:''}</b>
-          </summary>
-          <table style="margin-bottom:8px"><tbody>${filas}</tbody></table>
-        </details>`;
-      }).join('');
-    }
-    rh+=`</div>`;h+=rh;
+    h+=regPanel(RL,objK,nom1,id);
   }
 
   // ===== Comparativa y gráficas: DIFERIDAS (se insertan tras pintar el detalle,
@@ -7133,6 +7101,164 @@ async function finGuardarConfig(){
   const r=await finCall('guardar_config',{cfg:cfg});
   if(r.error){alert('No se guardó: '+r.error.message);return;}
   await verFinanzas();
+}
+
+// ============ REVISIÓN DEL REGISTRO DE COMIDA (por cliente) ============
+// Nace porque Senen dijo que no sabía si estaba registrando bien. El registro por
+// foto lo estima la IA: acierta el plato pero duda del corte, del gramaje y del
+// momento del día. Aquí el entrenador ve qué registró, qué salió de una foto, en
+// qué dudó la IA, y lo corrige sin tener que entrar a la app del cliente.
+let REG_CLI=null;
+const REG_MOMENTOS=['Desayuno','Media mañana','Almuerzo','Merienda','Cena','Post-cena','Snack'];
+
+// ¿La IA dudó? Cuando ofrece alternativas con barra ("falda / lomo") o se cubre
+// con "posiblemente", "aprox", "~". Eso es justo lo que hay que verificar.
+function regDudo(desc){
+  const t=String(desc||'');
+  return /\//.test(t)||/posiblement|aproximad|aprox\.|probablement|estimad|~/i.test(t);
+}
+
+function regChip(txt,color){
+  return `<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:${color}22;color:${color};border:1px solid ${color}55;margin-right:5px;white-space:nowrap">${txt}</span>`;
+}
+
+function regPanel(RL,objK,nom1,cliId){
+  REG_CLI=cliId;
+  let h=`<div class="card"><h2 style="margin-top:0">Revisión del registro de comida <span class="muted" style="font-size:12px;font-weight:400">· qué registró ${esc(nom1)} en los últimos 21 días y qué hay que verificar</span></h2>`;
+  if(!RL.length){return h+`<div class="muted">Sin comidas registradas en los últimos 21 días.</div></div>`;}
+
+  const porDia={};RL.forEach(c=>{(porDia[c.fecha]=porDia[c.fecha]||[]).push(c);});
+  const fechas=Object.keys(porDia).sort((a,b)=>b.localeCompare(a));
+  const hoy=new Date().toISOString().slice(0,10);
+  const diasDesde=(f)=>Math.round((new Date(hoy)-new Date(f))/864e5);
+
+  // --- Semáforo: ¿este registro sirve para tomar decisiones? ---
+  const conFoto=RL.filter(c=>c.foto_url).length;
+  const dudosos=RL.filter(c=>regDudo(c.descripcion)).length;
+  const sinMomento=RL.filter(c=>!c.momento).length;
+  const totDia=f=>porDia[f].reduce((a,c)=>a+(+c.kcal||0),0);
+  const flojos=objK?fechas.filter(f=>totDia(f)<objK*0.6).length:0;
+  const altos=objK?fechas.filter(f=>totDia(f)>objK*1.4).length:0;
+  const completos=objK?fechas.filter(f=>{const k=totDia(f);return k>=objK*0.6&&k<=objK*1.4;}):fechas;
+  const promCompletos=completos.length?completos.reduce((a,f)=>a+totDia(f),0)/completos.length:0;
+  const ultimo=fechas[0],hace=diasDesde(ultimo);
+  const cobertura=Math.round((fechas.length/21)*100);
+  const sem=(v,bueno)=>v?(bueno?'var(--ok)':'var(--warn)'):'var(--muted)';
+  const dato=(tit,val,col,sub)=>`<div style="flex:1;min-width:132px">
+    <div class="muted" style="font-size:11px">${tit}</div>
+    <div style="font-weight:800;font-size:18px;color:${col}">${val}</div>
+    ${sub?`<div class="muted" style="font-size:11px">${sub}</div>`:''}</div>`;
+
+  h+=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+    ${dato('Días con registro',fechas.length+' de 21',sem(1,cobertura>=60),cobertura+'% de cobertura')}
+    ${dato('Último registro',hace===0?'hoy':(hace===1?'ayer':'hace '+hace+' días'),sem(1,hace<=1))}
+    ${dato('Promedio de días completos',promCompletos?Math.round(promCompletos)+' kcal':'—',objK&&promCompletos?(Math.abs(promCompletos-objK)<=objK*0.12?'var(--ok)':'var(--warn)'):'var(--muted)',objK?'objetivo '+objK:'')}
+    ${dato('Registrado por foto',conFoto+' de '+RL.length,'#5f93e0',Math.round((conFoto/RL.length)*100)+'% lo estimó la IA')}
+    ${dato('Por verificar',dudosos,dudosos?'var(--warn)':'var(--ok)','la IA dudó del alimento')}
+  </div>`;
+
+  const avisos=[];
+  if(hace>2)avisos.push(`Lleva ${hace} días sin registrar. Antes de leer cualquier número, hay que saber si dejó de registrar o dejó de comer según el plan.`);
+  if(flojos)avisos.push(`${flojos} día(s) por debajo del 60% del objetivo. Casi siempre eso es registro incompleto, no un déficit real.`);
+  if(altos)avisos.push(`${altos} día(s) por encima del 140% del objetivo. Puede ser un día suelto o una estimación de la IA inflada.`);
+  if(sinMomento)avisos.push(`${sinMomento} registro(s) sin momento del día. Se ven como "Comida 1, 2, 3" y descuadran la lectura.`);
+  if(dudosos)avisos.push(`${dudosos} registro(s) donde la IA ofreció varias opciones ("falda / lomo"). Ahí el gramaje y la grasa pueden estar lejos.`);
+  if(avisos.length){
+    h+=`<div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--rsm);padding:10px 12px;margin-bottom:12px">
+      <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px">Qué revisar con él</div>
+      <ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.65">${avisos.map(a=>'<li>'+a+'</li>').join('')}</ul></div>`;
+  }
+
+  // --- Día por día ---
+  const ORDMOM=m=>{const s=(m||'').toLowerCase();const o=['desayuno','media','almuerzo','merienda','cena','post','snack'];const i=o.findIndex(k=>s.includes(k));return i<0?8:i;};
+  h+=fechas.map(f=>{
+    const items=porDia[f].slice().sort((a,b)=>ORDMOM(a.momento)-ORDMOM(b.momento)||String(a.created_at||'').localeCompare(String(b.created_at||'')));
+    const t=items.reduce((a,c)=>({k:a.k+(+c.kcal||0),p:a.p+(+c.prot||0),c:a.c+(+c.carb||0),f:a.f+(+c.fat||0)}),{k:0,p:0,c:0,f:0});
+    const diff=objK?Math.round(t.k)-objK:0;
+    const flojo=objK&&t.k<objK*0.6, alto=objK&&t.k>objK*1.4;
+    const col=flojo||alto?'var(--warn)':(objK&&Math.abs(diff)>objK*0.12?'var(--bad)':'var(--ok)');
+
+    // Un momento que se come casi todo el día (y no es almuerzo ni cena) suele ser
+    // momento mal puesto: la app lo dejó en "Merienda" y ahí cayó la comida fuerte.
+    const porMom={};items.forEach(c=>{const m=c.momento||'(sin momento)';porMom[m]=(porMom[m]||0)+(+c.kcal||0);});
+    const rarosMom=Object.keys(porMom).filter(m=>{
+      const s=m.toLowerCase();
+      if(s.includes('almuerzo')||s.includes('cena'))return false;
+      return t.k>0&&(porMom[m]/t.k)>0.4;
+    });
+
+    const filas=items.map((c,i)=>{
+      const etiq=c.momento||('Comida '+(i+1));
+      const foto=c.foto_url?`<a href="${esc(c.foto_url)}" target="_blank" title="Ver la foto grande"><img src="${esc(c.foto_url)}" loading="lazy" style="width:58px;height:58px;object-fit:cover;border-radius:8px;border:1px solid var(--line);margin:0 8px 2px 0;float:left"></a>`:'';
+      const chips=(c.foto_url?regChip('FOTO · IA','#5f93e0'):'')+(regDudo(c.descripcion)?regChip('verificar','#e0b84a'):'')+(!c.momento?regChip('sin momento','#e0b84a'):'');
+      const ex=[];
+      if(c.saciedad!=null)ex.push('saciedad '+c.saciedad+'/5');
+      if(c.disfrute!=null)ex.push('disfrute '+c.disfrute+'/5');
+      if(c.ruido!=null&&c.ruido>0)ex.push('ruido '+c.ruido+'/5');
+      if(c.fibra)ex.push('fibra '+Math.round(c.fibra)+'g');
+      const exl=ex.length?`<div class="muted" style="font-size:10.5px;margin-top:2px">${ex.join(' · ')}</div>`:'';
+      return `<tr>
+        <td class="muted" style="white-space:nowrap;font-size:11px;vertical-align:top;padding-top:6px">${esc(etiq)}</td>
+        <td style="vertical-align:top;padding:4px 0"><div style="overflow:hidden">${foto}
+          <div style="margin-bottom:3px">${chips}</div>
+          <div style="font-size:12.5px">${esc(c.descripcion||'')}</div>${exl}</div></td>
+        <td style="white-space:nowrap;text-align:right;font-size:12px;vertical-align:top;padding-top:6px">${Math.round(c.kcal||0)} kcal <span class="muted">P${Math.round(c.prot||0)}/C${Math.round(c.carb||0)}/G${Math.round(c.fat||0)}</span>
+          <div><button class="sm ghost" style="margin-top:4px;min-height:34px" onclick="regAbrir('${c.id}')">Corregir</button></div></td></tr>
+      <tr id="reg_ed_${c.id}" style="display:none"><td></td><td colspan="2" style="padding:0 0 10px">
+        <div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--rsm);padding:10px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div style="flex:1;min-width:130px"><label class="lbl" for="reg_mom_${c.id}">Momento</label>
+              <select id="reg_mom_${c.id}">${REG_MOMENTOS.map(m=>`<option value="${m}"${(c.momento||'')===m?' selected':''}>${m}</option>`).join('')}</select></div>
+            <div style="flex:1;min-width:92px"><label class="lbl" for="reg_k_${c.id}">kcal</label><input id="reg_k_${c.id}" type="number" value="${Math.round(c.kcal||0)}" /></div>
+            <div style="flex:1;min-width:78px"><label class="lbl" for="reg_p_${c.id}">Prot</label><input id="reg_p_${c.id}" type="number" value="${Math.round(c.prot||0)}" /></div>
+            <div style="flex:1;min-width:78px"><label class="lbl" for="reg_c_${c.id}">Carb</label><input id="reg_c_${c.id}" type="number" value="${Math.round(c.carb||0)}" /></div>
+            <div style="flex:1;min-width:78px"><label class="lbl" for="reg_g_${c.id}">Grasa</label><input id="reg_g_${c.id}" type="number" value="${Math.round(c.fat||0)}" /></div>
+          </div>
+          <div style="margin-top:6px"><label class="lbl" for="reg_d_${c.id}">Qué fue</label><input id="reg_d_${c.id}" value="${esc(c.descripcion||'')}" /></div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <button class="sm" style="min-height:40px" onclick="regGuardar('${c.id}')">Guardar</button>
+            <button class="sm ghost" style="min-height:40px" onclick="regAbrir('${c.id}')">Cancelar</button>
+            <button class="sm ghost" style="min-height:40px;margin-left:auto" onclick="regBorrar('${c.id}')">Borrar el registro</button>
+          </div>
+          <div class="muted" style="font-size:11px;margin-top:6px">Lo que cambies aquí le queda al cliente en la app.</div>
+          <div id="reg_msg_${c.id}" class="muted" style="font-size:11.5px;margin-top:4px"></div>
+        </div></td></tr>`;
+    }).join('');
+
+    const badges=(flojo?regChip('día incompleto','#e0b84a'):'')+(alto?regChip('día disparado','#e0b84a'):'')
+      +(rarosMom.length?regChip('revisar el momento: '+esc(rarosMom[0]),'#e0b84a'):'');
+    return `<details style="border:1px solid var(--line);border-radius:8px;margin-bottom:6px;padding:0 10px">
+      <summary style="cursor:pointer;padding:9px 0;font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
+        <span>${esc(f)} <span class="muted" style="font-weight:400;font-size:12px">· ${items.length} registro(s)</span> ${badges}</span>
+        <b style="color:${col};font-size:12.5px;white-space:nowrap">${Math.round(t.k)} kcal · P${Math.round(t.p)}/C${Math.round(t.c)}/G${Math.round(t.f)}${objK?` (obj ${objK}${diff>0?' +'+diff:diff<0?' '+diff:' ✓'})`:''}</b>
+      </summary>
+      <table style="margin-bottom:8px"><tbody>${filas}</tbody></table>
+    </details>`;
+  }).join('');
+
+  return h+'</div>';
+}
+
+function regAbrir(id){
+  const e=$("reg_ed_"+id);if(!e)return;
+  e.style.display=e.style.display==='none'?'table-row':'none';
+}
+
+async function regGuardar(id){
+  const g=(p)=>{const e=$("reg_"+p+"_"+id);return e?e.value:undefined;};
+  const msg=$("reg_msg_"+id);if(msg)msg.textContent='Guardando…';
+  const r=await invokeFn('consola-rutina',{body:{action:'comida_corregir',cliente:REG_CLI,id:id,
+    momento:g('mom'),descripcion:g('d'),kcal:g('k'),prot:g('p'),carb:g('c'),fat:g('g')}});
+  if(r.error){if(msg){msg.textContent='No se guardó: '+r.error.message;msg.style.color='var(--rojo2)';}return;}
+  if(msg){msg.textContent='Guardado. Recargando el cliente…';msg.style.color='var(--ok)';}
+  verCliente(REG_CLI);
+}
+
+async function regBorrar(id){
+  if(!confirm('¿Borrar este registro de comida? Se le quita también al cliente en la app.'))return;
+  const r=await invokeFn('consola-rutina',{body:{action:'comida_borrar',cliente:REG_CLI,id:id}});
+  if(r.error){alert('No se pudo borrar: '+r.error.message);return;}
+  verCliente(REG_CLI);
 }
 
 </script>
