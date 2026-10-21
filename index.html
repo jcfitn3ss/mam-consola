@@ -8170,8 +8170,17 @@ async function embIA(){
     return;
   }
   const d=r.data||{};
-  if(d.ok===false&&faltaDrive(d.error_drive||d.mensaje)){
-    if(m){m.innerHTML='Falta darle permiso de lectura de Drive a la cuenta de Google. Es un clic y una sola vez. <button class="sm" style="min-height:36px;margin-left:6px" onclick="conectarGoogle()">Reconectar Google</button>';m.style.color='var(--warn)';}
+  if(d.ok===false){
+    // Dos problemas distintos: la API apagada en Google Cloud, o el permiso sin dar.
+    if(d.falta==='api'&&d.enlace){
+      if(m){m.innerHTML=esc(d.mensaje)+' <a href="'+esc(d.enlace)+'" target="_blank" rel="noopener" style="color:#5f93e0;font-weight:700">Abrir Google Cloud</a>';m.style.color='var(--warn)';}
+      return;
+    }
+    if(faltaDrive(d.error_drive||d.mensaje)){
+      if(m){m.innerHTML='Falta darle permiso de lectura de Drive a la cuenta de Google. Es un clic y una sola vez. <button class="sm" style="min-height:36px;margin-left:6px" onclick="conectarGoogle()">Reconectar Google</button>';m.style.color='var(--warn)';}
+      return;
+    }
+    if(m){m.textContent=d.mensaje||'No se pudo.';m.style.color='var(--rojo2)';}
     return;
   }
   if(!d.calificadas){
