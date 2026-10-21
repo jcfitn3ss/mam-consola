@@ -8263,25 +8263,42 @@ function embRender(){
 
   // --- Llamadas por calificar ---
   const LL=d.llamadas||[];
-  const pend=LL.filter(l=>l.calificado===null||l.calificado===undefined);
+  // Quien no se presentó no cuenta como pendiente: no hay a quién calificar.
+  const pend=LL.filter(l=>(l.calificado===null||l.calificado===undefined)&&l.asistio!==false);
   h+=`<div class="card"><h3 style="margin-top:0">Llamadas de los últimos dos meses ${pend.length?`<span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· ${pend.length} sin calificar</span>`:''}</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:10px">Calificado quiere decir que la persona sí podía comprar. Lo que marques aquí manda sobre lo que diga la IA.</div>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:620px">
-      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Cuándo</th><th>Quién</th><th>Tipo</th><th>¿Entró?</th><th>¿Calificado?</th></tr>
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Cuándo</th><th>Quién</th><th>Tipo</th><th>Estado</th><th></th></tr>
       ${LL.slice(0,60).map(l=>{
-        const asis=l.asistio===true?regChip('entró','#199e70'):(l.asistio===false?regChip('no entró','#d95926'):regChip('sin dato','#9c98a6'));
-        const cal=l.calificado===true?regChip('sí'+(l.calificado_por==='ia'?' · IA':''),'#199e70')
-          :(l.calificado===false?regChip('no'+(l.calificado_por==='ia'?' · IA':''),'#d95926'):'');
+        // Un solo estado en vez de dos columnas. El "no show" manda: si no entró,
+        // no hay nada que calificar porque nadie habló con esa persona.
+        const noShow=l.asistio===false;
+        const est=noShow?{t:'No show',c:'#e0b84a'}
+          :(l.calificado===true?{t:'Calificado',c:'#199e70'}
+          :(l.calificado===false?{t:'No calificado',c:'#d95926'}
+          :{t:'Sin marcar',c:'#9c98a6'}));
+        const porIA=!noShow&&l.calificado!=null&&l.calificado_por==='ia';
         return `<tr style="border-top:1px solid var(--line)">
           <td style="padding:7px 0" class="muted">${esc(String(l.inicio||'').slice(0,10))}</td>
           <td>${esc(l.invitado_nombre||l.invitado_correo||'(sin nombre)')}
-            ${l.calificado_razon?`<div class="muted" style="font-size:10.5px">${esc(l.calificado_razon)}</div>`:''}</td>
+            ${l.calificado_razon&&!noShow?`<div class="muted" style="font-size:10.5px">${esc(l.calificado_razon)}</div>`:''}</td>
           <td class="muted">${l.tipo==='consultoria'?'Consultoría':'MAM'}</td>
-          <td>${asis}</td>
-          <td style="white-space:nowrap">${cal}
-            <button class="sm ghost" style="min-height:34px;padding:5px 9px" onclick="embCalificar('${l.id}',true)">Sí</button>
-            <button class="sm ghost" style="min-height:34px;padding:5px 9px" onclick="embCalificar('${l.id}',false)">No</button>
-            ${l.calificado!=null?`<button class="sm ghost" style="min-height:34px;padding:5px 9px" onclick="embCalificar('${l.id}',null)">Borrar</button>`:''}</td></tr>`;
+          <td style="white-space:nowrap">
+            <span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:${est.c}22;color:${est.c};border:1px solid ${est.c}55">${est.t}</span>
+            ${porIA?'<span class="muted" style="font-size:10px;margin-left:5px">lo dijo la IA</span>':''}
+            ${l.calificado_por==='closer'?'<span class="muted" style="font-size:10px;margin-left:5px">a mano</span>':''}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="sm ghost" title="Cambiar el estado" style="min-height:34px;padding:5px 10px" onclick="embEditar('${l.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button></td></tr>
+        <tr id="emb_ed_${l.id}" style="display:none"><td></td><td colspan="4" style="padding:0 0 10px">
+          <div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--rsm);padding:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="muted" style="font-size:12px;margin-right:4px">Marcar como</span>
+            <button class="sm ghost" style="min-height:38px;border-color:#199e7066;color:#199e70" onclick="embMarcar('${l.id}','si')">Calificado</button>
+            <button class="sm ghost" style="min-height:38px;border-color:#d9592666;color:#d95926" onclick="embMarcar('${l.id}','no')">No calificado</button>
+            <button class="sm ghost" style="min-height:38px;border-color:#e0b84a66;color:#e0b84a" onclick="embMarcar('${l.id}','noshow')">No show</button>
+            <button class="sm ghost" style="min-height:38px;margin-left:auto" onclick="embMarcar('${l.id}','limpiar')">Dejar sin marcar</button>
+          </div></td></tr>`;
       }).join('')||'<tr><td class="muted" style="padding:7px 0">No hay llamadas en los últimos dos meses.</td></tr>'}
     </table></div></div>`;
 
@@ -8330,13 +8347,28 @@ function embLineas(M,series,mesNom){
     <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:360px;height:auto" role="img" aria-label="Tendencia del embudo">${g}${trazos}${ejeX}</svg></div>`;
 }
 
-async function embCalificar(id,valor){
+// Abre o cierra el editor de estado de una llamada.
+function embEditar(id){
+  const e=$("emb_ed_"+id);if(!e)return;
+  e.style.display=e.style.display==='none'?'table-row':'none';
+}
+
+// Tres estados en uno: calificado, no calificado y no show. El "no show" se
+// guarda como asistencia en falso, que es lo que de verdad pasó; los otros dos
+// marcan la calificación y de paso dejan la asistencia en verdadero, porque si
+// hubo conversación es que la persona entró.
+async function embMarcar(id,estado){
   let razon=null;
-  if(valor===false){
+  if(estado==='no'){
     razon=prompt('¿Por qué no calificaba? (opcional)');
     if(razon===null)return;
   }
-  const r=await embCall('calificar',{id:id,calificado:valor,razon:razon});
+  const cuerpo={id:id};
+  if(estado==='si'){cuerpo.calificado=true;cuerpo.asistio=true;}
+  else if(estado==='no'){cuerpo.calificado=false;cuerpo.asistio=true;cuerpo.razon=razon;}
+  else if(estado==='noshow'){cuerpo.calificado=null;cuerpo.asistio=false;}
+  else {cuerpo.calificado=null;cuerpo.asistio=null;}
+  const r=await embCall('calificar',cuerpo);
   if(r.error){alert('No se guardó: '+r.error.message);return;}
   EMB=null;await verEmbudo();
 }
