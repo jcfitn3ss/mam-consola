@@ -6962,6 +6962,88 @@ async function finBorrarVenta(id){
   await verFinanzas();
 }
 
+// Con qué se cuenta HOY. El resto del tablero modela el flujo del mes, pero el
+// flujo no es el saldo: hay plata que ya salió. Este número lo pone el socio
+// porque ninguna API sabe cuánto hay en la cuenta.
+function finCardCajaHoy(d,trm,kpi){
+  const C=d.caja_hoy;if(!C)return '';
+  const P=d.presupuesto||{};
+  const anuncios=(P.sobres||[]).find(x=>x.id==='anuncios');
+  const diasDesde=(f)=>f?Math.round((Date.now()-new Date(f+'T12:00:00').getTime())/864e5):null;
+  const dias=diasDesde(C.fecha);
+  const viejo=dias!=null&&dias>7;
+  const entraAlMes=(d.caja&&d.caja.meses&&d.caja.meses.length>1)
+    ? d.caja.meses.slice(1,4).reduce((a,m)=>a+m.neto,0)/Math.min(3,d.caja.meses.length-1) : 0;
+
+  let h=`<div class="card" style="border-color:${C.alcanza_hoy?'var(--line)':'var(--warn)'}">
+    <h3 style="margin-top:0">Con qué contamos hoy</h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+      ${kpi('Hay en la cuenta',C.saldo_usd,'var(--txt)',C.fecha?('dicho el '+esc(C.fecha)):'sin fecha')}
+      ${kpi('Ya apartado en sobres',C.apartado_en_sobres,'#5f93e0')}
+      ${kpi('Comprometido este mes',C.comprometido_mes,'var(--bad)','gastos más sobres')}
+      ${kpi(C.alcanza_hoy?'Sobra hoy':'Falta hoy',C.alcanza_hoy?(C.saldo_usd-C.comprometido_mes):C.falta_usd,C.alcanza_hoy?FIN_C.neto:'var(--warn)')}
+    </div>`;
+
+  if(!C.alcanza_hoy){
+    h+=`<div style="background:rgba(224,184,74,.1);border:1px solid var(--warn);border-radius:var(--rsm);padding:11px 13px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:13px;color:var(--warn);margin-bottom:4px">Lo de hoy no cubre lo del mes</div>
+      <div class="muted" style="font-size:12.5px">Con ${finCOP(C.saldo_usd,trm)} en la cuenta y ${finCOP(C.comprometido_mes,trm)} comprometidos, faltan ${finCOP(C.falta_usd,trm)}.
+      ${entraAlMes>0?`Durante el mes entran unos ${finCOP(entraAlMes,trm)} más, así que el mes cierra. Lo que no aguanta es pagarlo todo hoy.`:''}</div></div>`;
+  }
+
+  // La pauta: lo que JC quiere asegurar antes del lunes.
+  if(anuncios&&anuncios.objetivo>0){
+    const apartadoPauta=anuncios.saldo;
+    const faltaPauta=Math.max(0,anuncios.objetivo-apartadoPauta);
+    const alcanzaLibre=C.libre_usd>=faltaPauta;
+    h+=`<div style="background:var(--bg2);border:1px solid ${faltaPauta<=0?FIN_C.neto:(alcanzaLibre?'var(--line2)':'var(--warn)')};border-radius:var(--rsm);padding:12px 13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <div style="font-weight:700;font-size:13.5px;margin-bottom:3px">La pauta del mes: ${finCOP(anuncios.objetivo,trm)}</div>
+          <div class="muted" style="font-size:12.5px">
+            ${faltaPauta<=0
+              ? 'Ya está apartada completa. Esa plata no se puede gastar en otra cosa.'
+              : (alcanzaLibre
+                ? 'Todavía no está apartada. Hay '+finCOP(C.libre_usd,trm)+' libres en la cuenta: apártala ahora y deja de estar disponible para otra cosa.'
+                : 'No está apartada y solo hay '+finCOP(C.libre_usd,trm)+' libres. Puedes apartar lo que haya e ir completando cuando entre plata.')}
+          </div>
+        </div>
+        ${faltaPauta>0?`<button style="min-height:44px;flex:0 0 auto" onclick="finApartarPauta(${Math.min(faltaPauta,Math.max(0,C.libre_usd)).toFixed(2)},${faltaPauta.toFixed(2)})">Apartar ${finCOP(Math.min(faltaPauta,Math.max(0,C.libre_usd)),trm)}</button>`:''}
+      </div></div>`;
+  }
+
+  h+=`<div class="finGrid" style="margin-top:14px;max-width:340px">
+      ${finCampo('fcSaldo','Cuánto hay en la cuenta hoy',Math.round(C.saldo_usd),'USD',viejo?('⚠ lo dijiste hace '+dias+' días'):'actualízalo cuando cambie')}
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <button class="sm" style="min-height:40px" onclick="finGuardarSaldo()">Guardar el saldo</button>
+      <span id="fcSaldoMsg" class="muted" style="font-size:12.5px"></span></div>
+  </div>`;
+  return h;
+}
+
+async function finGuardarSaldo(){
+  const m=$("fcSaldoMsg");
+  const v=finNum('fcSaldo');
+  if(v==null||v<0){if(m){m.textContent='Pon un número.';m.style.color='var(--warn)';}return;}
+  if(m){m.textContent='Guardando…';m.style.color='';}
+  const r=await finCall('guardar_config',{cfg:{saldo_usd:v}});
+  if(r.error){if(m){m.textContent='No se guardó: '+r.error.message;m.style.color='var(--rojo2)';}return;}
+  await verFinanzas();
+}
+
+// Mete plata al sobre de anuncios para que deje de estar disponible.
+async function finApartarPauta(ahora,total){
+  const a=Number(ahora)||0;
+  if(a<=0){alert('No hay plata libre para apartar. Entra plata y vuelves.');return;}
+  const parcial=a<Number(total);
+  if(!confirm('¿Apartar '+finCOP(a,FIN.trm)+' para la pauta?'+(parcial?' Es un abono: falta el resto.':'')))return;
+  const r=await finCall('guardar_fondo',{fila:{sobre:'anuncios',tipo:'aporte',
+    concepto:'Pauta del mes'+(parcial?' (abono)':''),monto:a,moneda:'USD'}});
+  if(r.error){alert('No se guardó: '+r.error.message);return;}
+  await verFinanzas();
+}
+
 // Reparto del presupuesto en sobres, por orden de prioridad.
 // La base es la CAJA del mes (lo que entró de verdad), no lo que sobra: las
 // referencias de afuera se miden así. Primero se descuenta lo que no es
@@ -7407,6 +7489,7 @@ function finRender(){
     <div style="display:flex;gap:6px"><button class="sm ghost" style="min-height:44px" onclick="finRefrescar()">Releer Stripe</button></div></div>`;
 
   h+=finCardMisiones();
+  h+=finCardCajaHoy(d,trm,kpi);
 
   // --- Hero: lo que de verdad queda cada mes ---
   const ultimo=ms[0], previo=ms[1];
