@@ -7915,16 +7915,31 @@ async function embSync(){
 }
 
 async function embIA(){
-  const m=$("embMsg");if(m){m.textContent='La IA está leyendo las transcripciones…';m.style.color='';}
+  const m=$("embMsg");if(m){m.textContent='La IA está leyendo las notas de Gemini de cada llamada…';m.style.color='';}
   const r=await embCall('calificar_ia');
-  if(r.error){if(m){m.textContent='No se pudo: '+r.error.message;m.style.color='var(--rojo2)';}return;}
-  const d=r.data;
-  if(!d.calificadas&&d.sin_transcripcion){
-    if(m){m.innerHTML='Ninguna de las '+d.revisadas+' llamadas tiene transcripción guardada en Meet. Hay que activar la transcripción automática en Google Meet para que esto funcione.';m.style.color='var(--warn)';}
+  const faltaDrive=(x)=>String(x||'').indexOf('Drive')>=0||String(x||'').indexOf('scope')>=0;
+  if(r.error){
+    if(m){
+      if(faltaDrive(r.error.message)){
+        m.innerHTML='Falta darle permiso de lectura de Drive a la cuenta de Google. Es un clic y una sola vez. <button class="sm" style="min-height:36px;margin-left:6px" onclick="conectarGoogle()">Reconectar Google</button>';
+        m.style.color='var(--warn)';
+      }else{m.textContent='No se pudo: '+r.error.message;m.style.color='var(--rojo2)';}
+    }
+    return;
+  }
+  const d=r.data||{};
+  if(d.ok===false&&faltaDrive(d.error_drive||d.mensaje)){
+    if(m){m.innerHTML='Falta darle permiso de lectura de Drive a la cuenta de Google. Es un clic y una sola vez. <button class="sm" style="min-height:36px;margin-left:6px" onclick="conectarGoogle()">Reconectar Google</button>';m.style.color='var(--warn)';}
+    return;
+  }
+  if(!d.calificadas){
+    if(m){m.textContent=(d.mensaje||('Revisé '+(d.revisadas||0)+' llamadas y no encontré nota de Gemini para '+(d.sin_nota||0)+'.'));m.style.color='var(--warn)';}
     return;
   }
   EMB=null;await verEmbudo();
-  const m2=$("embMsg");if(m2){m2.textContent='La IA calificó '+d.calificadas+' llamada(s).';m2.style.color='var(--ok)';}
+  const m2=$("embMsg");if(m2){
+    m2.textContent='La IA calificó '+d.calificadas+' llamada(s) leyendo sus notas de Gemini.'+(d.sin_nota?' Otras '+d.sin_nota+' no tienen nota.':'');
+    m2.style.color='var(--ok)';}
 }
 
 function embPct(v,bueno,regular){
