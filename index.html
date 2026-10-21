@@ -3333,6 +3333,53 @@ async function verCliente(id){
   // (Las fotos comparativas se movieron a la card "Progreso físico" de arriba.)
   h+=`</div>`;
 
+  // ---- Pasos promedio por semana ---------------------------------------
+  // Los pasos se registran AL DÍA SIGUIENTE (el cliente mira su reloj y mete los
+  // de ayer), así que el dato diario suelto engaña. Lo que sirve para decidir es
+  // el promedio semanal.
+  {
+    const SU=(sue.data||[]).filter(x=>Number(x.pasos)>0);
+    const objPasos=(atl.data&&+atl.data.pasos_objetivo)||0;
+    if(SU.length){
+      // Semana ISO (lunes a domingo) a partir de la fecha.
+      const semDe=(f)=>{const d=new Date(f+'T12:00:00');const j=(d.getDay()+6)%7;d.setDate(d.getDate()-j);return d.toISOString().slice(0,10);};
+      const porSem={};
+      SU.forEach(x=>{const k=semDe(x.fecha);(porSem[k]=porSem[k]||[]).push(Number(x.pasos));});
+      const sems=Object.keys(porSem).sort((a,b)=>b.localeCompare(a)).slice(0,8);
+      const prom=(k)=>porSem[k].reduce((a,b)=>a+b,0)/porSem[k].length;
+      const maxP=Math.max(...sems.map(prom),objPasos||0,1);
+      const global=SU.reduce((a,x)=>a+Number(x.pasos),0)/SU.length;
+      const fmtSem=(k)=>{const d=new Date(k+'T12:00:00');const f=new Date(d);f.setDate(f.getDate()+6);
+        const dd=(z)=>String(z.getDate()).padStart(2,'0')+'/'+String(z.getMonth()+1).padStart(2,'0');
+        return dd(d)+' al '+dd(f);};
+      h+=`<div class="card"><h2 style="margin-top:0">Pasos promedio por semana</h2>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+          <div style="flex:1;min-width:150px"><div class="muted" style="font-size:11px">Promedio de todo el periodo</div>
+            <div style="font-weight:800;font-size:19px">${Math.round(global).toLocaleString('es-CO')}</div>
+            <div class="muted" style="font-size:11px">${SU.length} día(s) con registro</div></div>
+          ${objPasos?`<div style="flex:1;min-width:150px"><div class="muted" style="font-size:11px">Objetivo</div>
+            <div style="font-weight:800;font-size:19px;color:${global>=objPasos?'var(--ok)':'var(--warn)'}">${objPasos.toLocaleString('es-CO')}</div>
+            <div class="muted" style="font-size:11px">${global>=objPasos?'lo está cumpliendo':'le faltan '+Math.round(objPasos-global).toLocaleString('es-CO')+' al día'}</div></div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${sems.map(k=>{const p=prom(k);const pct=Math.max(2,(p/maxP)*100);const ok=objPasos&&p>=objPasos;
+            return `<div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+                <span class="muted">${fmtSem(k)} <span style="font-size:11px">· ${porSem[k].length} día(s)</span></span>
+                <b style="color:${ok?'var(--ok)':'var(--txt)'}">${Math.round(p).toLocaleString('es-CO')}</b></div>
+              <div style="position:relative;height:10px;background:var(--card2);border-radius:5px;overflow:hidden">
+                <div style="width:${pct.toFixed(1)}%;height:100%;background:${ok?'var(--ok)':'#5f93e0'};border-radius:5px"></div>
+                ${objPasos?`<div style="position:absolute;left:${Math.min(99,(objPasos/maxP)*100).toFixed(1)}%;top:-2px;width:2px;height:14px;background:var(--txt);opacity:.6"></div>`:''}
+              </div></div>`;}).join('')}
+        </div>
+        ${objPasos?'<div class="muted" style="font-size:11px;margin-top:8px">La rayita vertical es el objetivo.</div>':''}
+      </div>`;
+    }else{
+      h+=`<div class="card"><h2 style="margin-top:0">Pasos promedio por semana</h2>
+        <div class="muted" style="font-size:12.5px">Todavía no ha registrado pasos. En la app los pide como "pasos de ayer", porque el día de hoy no ha cerrado.</div></div>`;
+    }
+  }
+
   // ---- Revisión del registro de comida (panel completo en regPanel)
   {
     const RL=(regLog.data||[]);const objK=+o.kcal||0;const nom1=(nom||'el cliente').split(' ')[0];
