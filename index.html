@@ -583,6 +583,61 @@ async function guardarSegmento(uid,segv){
   verPagos();
 }
 
+// ===================== QUIÉN VE QUÉ =====================
+// Un solo lugar donde vive el reparto de pestañas. Antes había cinco banderas
+// sueltas (es_principal, es_setter, es_socio, es_comercial) y cada camino hacía
+// lo suyo. Ahora manda `perfiles.rol_consola`.
+//
+// OJO: esconder una pestaña NO es seguridad. El filtro de verdad está en las
+// edge functions (consola-rutina corta las acciones del comercial y le recorta
+// los datos; finanzas pide clave; embudo no manda cifras de plata).
+const PESTANAS_POR_ROL={
+  // Dueño: todo.
+  dueno:'*',
+  // Entrenador: entrenamiento y setteo. Sin finanzas, sin pagos, sin consola interna.
+  entrenador:['clientes','crm','recordatorios','seguimiento','llamadas','contactar','embudo',
+              'resumen','revision','riesgo','salud','prospecto',
+              'ejercicios','plantillas','alimentos','restaurantes','comunidad','sugerencias'],
+  // Comercial (closer y setter): prospección, el CRM de clientes y el embudo sin plata.
+  comercial:['contactar','crm','embudo'],
+};
+let MI_ROL='';
+
+function rolDe(p){
+  if(!p)return '';
+  if(p.rol_consola)return String(p.rol_consola);
+  // Cuentas viejas sin rol puesto: se deduce de las banderas de antes.
+  if(p.es_socio)return 'dueno';
+  if(p.rol==='entrenador')return 'entrenador';
+  if(p.es_setter||p.es_comercial)return 'comercial';
+  return '';
+}
+
+function puedeVer(pestana){
+  const permitidas=PESTANAS_POR_ROL[MI_ROL];
+  if(permitidas==='*')return true;
+  return Array.isArray(permitidas)&&permitidas.indexOf(pestana)>=0;
+}
+
+// Deja a la vista solo las pestañas del rol y abre la primera que le toque.
+function aplicarPermisos(){
+  const todas=['clientes','crm','recordatorios','seguimiento','llamadas','pagos','finanzas','embudo','contactar',
+    'resumen','revision','riesgo','ejercicios','plantillas','alimentos','restaurantes','salud','prospecto',
+    'comunidad','sugerencias','interno'];
+  let primera='';
+  todas.forEach(t=>{
+    const b=$("t-"+t);if(!b)return;
+    const ok=puedeVer(t);
+    b.classList.toggle('hide',!ok);
+    if(ok&&!primera)primera=t;
+  });
+  // El menú "Más" solo tiene sentido si queda algo adentro.
+  const dentroDeMas=['resumen','revision','riesgo','ejercicios','plantillas','alimentos','restaurantes','salud','prospecto','comunidad','sugerencias','interno'];
+  const hayMas=dentroDeMas.some(t=>puedeVer(t));
+  const mb=$("masBtn");if(mb)mb.classList.toggle('hide',!hayMas);
+  return primera;
+}
+
 let MI_SOCIO=false;
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
@@ -590,44 +645,18 @@ async function trasLogin(){
   // corre DESPUÉS de este gate. Si se selecciona por nombre y aún no existe, el query FALLA
   // y deja a TODOS sin poder entrar (huevo/gallina). Con "*" toma es_setter si ya existe.
   const {data:p}=await sb.from("perfiles").select("*").eq("user_id",MIID).maybeSingle();
-  const _esEnt=p&&p.rol==="entrenador"; const _esSet=p&&!!p.es_setter;
-  // SOCIO: ve la pestaña privada de Finanzas. La columna es_socio la crea la edge
-  // `finanzas` (acción migrar); con select("*") no rompe si todavía no existe.
-  const _esSoc=p&&!!p.es_socio; MI_SOCIO=_esSoc;
-  // COMERCIAL: closer y setter ven el embudo, sin las cifras de plata (el
-  // servidor ni siquiera se las manda). Ver la edge `embudo`.
-  const _esCom=p&&!!p.es_comercial;
-  if(!_esEnt&&!_esSet&&!_esSoc&&!_esCom){show("login",true);$("loginErr").textContent="Esta cuenta no tiene acceso a la consola.";await sb.auth.signOut();return;}
+  MI_ROL=rolDe(p);
+  if(!MI_ROL){show("login",true);$("loginErr").textContent="Esta cuenta no tiene acceso a la consola.";await sb.auth.signOut();return;}
   MI_PRINCIPAL=!!(p&&p.es_principal); // entrenador principal: puede asignar clientes a otros entrenadores
-  MI_SETTER=_esSet;
-  // SETTER de ventas (no entrenador): solo ve la cola de contacto. Salta toda la carga
-  // pesada de entrenador (rutinas, biblioteca, RLS) que además no le está permitida.
-  // COMERCIAL que no es nada más: entra SOLO al embudo.
-  if(_esCom&&!_esEnt&&!_esSet&&!_esSoc){
-    show("login",false);show("app",true);show("logout",true);
-    document.querySelectorAll('.nav button').forEach(b=>{ if(b.id!=='t-embudo') b.classList.add('hide'); });
-    const _mb2=$("masBtn");if(_mb2)_mb2.classList.add('hide');
-    const _te2=$("t-embudo");if(_te2)_te2.classList.remove('hide');
-    tab('embudo');
-    return;
-  }
-  // SOCIO que no es entrenador (ej. María): entra SOLO a Finanzas, nada más.
-  if(_esSoc&&!_esEnt&&!_esSet){
-    show("login",false);show("app",true);show("logout",true);
-    document.querySelectorAll('.nav button').forEach(b=>{ if(b.id!=='t-finanzas'&&b.id!=='t-embudo') b.classList.add('hide'); });
-    const _mb=$("masBtn");if(_mb)_mb.classList.add('hide');
-    const _tf=$("t-finanzas");if(_tf)_tf.classList.remove('hide');
-    const _te=$("t-embudo");if(_te)_te.classList.remove('hide');
-    tab('finanzas');
-    return;
-  }
-  if(_esSet&&!_esEnt){
-    show("login",false);show("app",true);show("logout",true);
-    document.querySelectorAll('.nav button').forEach(b=>{ if(b.id!=='t-contactar') b.classList.add('hide'); });
-    const mm=$("masBtn");if(mm)mm.classList.add('hide');
-    tab('contactar');
-    return;
-  }
+  MI_SOCIO=MI_ROL==='dueno';
+  MI_SETTER=!!(p&&p.es_setter);
+
+  show("login",false);show("app",true);show("logout",true);
+  const _primera=aplicarPermisos();
+
+  // COMERCIAL: no carga nada de entrenamiento (ni puede: el servidor se lo niega).
+  if(MI_ROL==='comercial'){ tab(puedeVer('contactar')?'contactar':(_primera||'crm')); return; }
+
   // AUTO-REPARACIÓN (1 vez por navegador): restaura las policies de LECTURA del
   // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
   // Idempotente y silencioso; el botón de "Salud de datos" lo permite correr a mano.
@@ -637,9 +666,6 @@ async function trasLogin(){
       if(_rep&&_rep.data&&_rep.data.ok)localStorage.setItem('lectura_reparada_v17','1');
     }
   }catch(e){/* si falla, el botón manual queda disponible */}
-  show("login",false);show("app",true);show("logout",true);
-  if(_esSoc){const _tf=$("t-finanzas");if(_tf)_tf.classList.remove("hide");}
-  if(_esSoc||_esCom||_esEnt){const _te=$("t-embudo");if(_te)_te.classList.remove("hide");}
   const _cl=$("clientes");if(_cl)_cl.innerHTML='<div class="muted" style="padding:14px">Cargando clientes…</div>'; // estado de carga (antes quedaba en blanco)
   const fab=$("iaFab");if(fab)fab.classList.remove("hide"); // botón IA siempre presente
   // Lista vía edge (service_role): NO depende del RLS → SIEMPRE salen todos.
@@ -5838,6 +5864,7 @@ async function generarDigest(){
 const AREAS_INT=["General","Clientes","Rutinas","Nutrición","Informes","Comunidad"];
 async function verInterno(){
   $("v-interno").innerHTML='<div class="card">Cargando…</div>';
+  if(MI_ROL==='dueno')setTimeout(verEquipo,0);
   const [fbr,dgr]=await Promise.all([
     sb.from("feedback_interno").select("*").order("created_at",{ascending:false}),
     sb.from("digests").select("*").eq("ambito","consola").order("created_at",{ascending:false}).limit(1),
@@ -6486,6 +6513,71 @@ $("lb").addEventListener('touchmove',e=>{if(!LB_touch)return;if(e.touches.length
 $("lb").addEventListener('touchend',()=>{if(LB_touch&&LB_s<=1&&Math.abs(LB_touch.dx||0)>60)lbGo(LB_touch.dx<0?1:-1);LB_touch=null;},{passive:true});
 
 init();
+
+// ===================== EQUIPO Y ACCESOS (solo dueños) =====================
+// Reparte las pestañas por rol. El cambio se guarda en `perfiles.rol_consola`
+// y las edge functions lo respetan: no es solo esconder botones.
+const ROL_NOMBRE={dueno:'Dueño · todo',entrenador:'Entrenador · entrenamiento y setteo',comercial:'Comercial · prospección y CRM'};
+const ROL_QUE_VE={
+  dueno:'Todas las pestañas, incluidas Finanzas y el Embudo con cifras.',
+  entrenador:'Clientes, CRM, recordatorios, fotos y medidas, llamadas, contactar, embudo sin plata y toda la biblioteca. No ve Finanzas ni Pagos.',
+  comercial:'Solo contactar, el CRM de clientes y el embudo sin plata. El servidor no le manda macros, fotos ni medidas.',
+};
+
+async function verEquipo(){
+  const cont=$("v-interno");if(!cont)return;
+  const r=await invokeFn('consola-rutina',{body:{action:'equipo'}});
+  if(r.error){cont.insertAdjacentHTML('afterbegin','<div class="card"><div class="alert">No se pudo cargar el equipo: '+esc(r.error.message)+'</div></div>');return;}
+  const eq=(r.data&&r.data.equipo)||[],yo=r.data.yo;
+  const opciones=(actual)=>['dueno','entrenador','comercial',''].map(v=>`<option value="${v}"${(actual||'')===v?' selected':''}>${v?ROL_NOMBRE[v]:'Sin acceso'}</option>`).join('');
+  let h=`<div class="card" id="cardEquipo"><h2 style="margin-top:0">Equipo y accesos</h2>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">Lo que cambies aquí no solo esconde pestañas: las edge functions también lo respetan.</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Quién</th><th>Correo</th><th>Qué puede ver</th></tr>
+      ${eq.map(m=>`<tr style="border-top:1px solid var(--line)">
+        <td style="padding:8px 0"><b>${esc(m.nombre||'(sin nombre)')}</b>${m.user_id===yo?' <span class="muted" style="font-size:11px">(tú)</span>':''}</td>
+        <td class="muted" style="font-size:12px">${esc(m.email||'—')}</td>
+        <td><select style="margin:0;min-height:40px;max-width:280px" ${m.user_id===yo?'disabled title="No te quites tu propio acceso"':''} onchange="cambiarRol('${m.user_id}',this.value)">${opciones(m.rol_consola||rolDe(m))}</select>
+          <div class="muted" style="font-size:11px;margin-top:3px">${esc(ROL_QUE_VE[m.rol_consola||rolDe(m)]||'Sin acceso a la consola.')}</div></td></tr>`).join('')}
+    </table>
+    <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+      <h3 style="margin-top:0">Darle acceso a alguien más</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">La persona tiene que haberse registrado antes en la app con ese correo.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:2;min-width:220px"><label class="lbl" for="eqCorreo">Correo</label>
+          <input id="eqCorreo" type="email" placeholder="closer@..." onkeydown="if(event.key==='Enter')buscarCuenta()" /></div>
+        <button style="min-height:44px" onclick="buscarCuenta()">Buscar</button>
+      </div>
+      <div id="eqRes" style="margin-top:10px"></div>
+    </div>
+    <div id="eqMsg" class="muted" style="font-size:12.5px;margin-top:10px"></div>
+  </div>`;
+  const viejo=$("cardEquipo");if(viejo)viejo.remove();
+  cont.insertAdjacentHTML('afterbegin',h);
+}
+
+async function cambiarRol(uid,rol){
+  const m=$("eqMsg");if(m){m.textContent='Guardando…';m.style.color='';}
+  const r=await invokeFn('consola-rutina',{body:{action:'equipo_rol',user_id:uid,rol_consola:rol}});
+  if(r.error){if(m){m.textContent='No se guardó: '+r.error.message;m.style.color='var(--rojo2)';}return;}
+  await verEquipo();
+  const m2=$("eqMsg");if(m2){m2.textContent='Listo. La persona lo ve la próxima vez que entre.';m2.style.color='var(--ok)';}
+}
+
+async function buscarCuenta(){
+  const res=$("eqRes");if(!res)return;
+  res.innerHTML='<div class="muted" style="font-size:12.5px">Buscando…</div>';
+  const r=await invokeFn('consola-rutina',{body:{action:'buscar_cuenta',correo:($("eqCorreo")||{}).value||''}});
+  if(r.error){res.innerHTML='<div class="alert">'+esc(r.error.message)+'</div>';return;}
+  const hits=(r.data&&r.data.encontrados)||[];
+  if(!hits.length){res.innerHTML='<div class="muted" style="font-size:12.5px">No encontré ninguna cuenta con ese correo.</div>';return;}
+  res.innerHTML=hits.map(h=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)">
+    <span style="flex:1;min-width:180px"><b>${esc(h.nombre)}</b><div class="muted" style="font-size:11.5px">${esc(h.email)}</div></span>
+    <button class="sm ghost" style="min-height:40px" onclick="cambiarRol('${h.user_id}','comercial')">Comercial</button>
+    <button class="sm ghost" style="min-height:40px" onclick="cambiarRol('${h.user_id}','entrenador')">Entrenador</button>
+    <button class="sm ghost" style="min-height:40px" onclick="cambiarRol('${h.user_id}','dueno')">Dueño</button>
+  </div>`).join('');
+}
 
 // ===================== FINANZAS DE LA EMPRESA (privado: solo socios) =====================
 // Pestaña cerrada con doble llave: la cuenta debe tener perfiles.es_socio=true Y
