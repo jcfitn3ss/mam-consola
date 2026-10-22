@@ -152,6 +152,17 @@
   /* Franja de simulación: tiene que ser imposible de confundir con la vista real. */
   .simBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:repeating-linear-gradient(45deg,rgba(224,184,74,.14),rgba(224,184,74,.14) 10px,rgba(224,184,74,.07) 10px,rgba(224,184,74,.07) 20px);border:1px solid var(--warn);border-radius:10px;padding:8px 12px;margin-bottom:12px}
   .simBar b{color:var(--warn)}
+  /* Tablero de misión: qué hay que hacer hoy, en orden, con final. */
+  .mision{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--card2);border:1px solid var(--line);border-left-width:3px;border-radius:10px;margin-bottom:7px;transition:border-color .15s}
+  .mision .num{min-width:42px;font-size:19px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+  .mision .txt{flex:1;min-width:0}
+  .mision .txt b{display:block;font-size:13.5px;font-weight:700}
+  .mision .txt span{display:block;font-size:11.5px;color:var(--muted)}
+  .mision.lista{opacity:.45;border-left-color:var(--line2)}
+  .mision.lista .txt b{text-decoration:line-through}
+  .tabBarra{height:8px;background:var(--card2);border-radius:4px;overflow:hidden;margin:8px 0 4px}
+  .tabBarra > div{height:100%;background:var(--ok);border-radius:4px;transition:width .35s ease}
+  .tabFin{display:flex;align-items:center;gap:12px;padding:16px 14px;border:1px solid var(--ok);border-radius:12px;background:rgba(95,208,127,.07)}
   /* ② Franja "Hoy": triage del día de un vistazo */
   .hoy{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .hoyCard{flex:1;min-width:148px;background:var(--card);border:1px solid var(--line);border-left-width:3px;border-radius:12px;padding:11px 13px;cursor:pointer;transition:transform .08s,border-color .15s;box-shadow:var(--sh);text-align:left}
@@ -1094,25 +1105,119 @@ async function resolverAlertaFicha(aid,cid){const {error}=await sb.from("alertas
 // ② Franja "Hoy": el triage del día de un vistazo. Cada número lleva a su pestaña.
 // Usa datos ya cargados (alertas, suscripciones, inactividad, altura) + 1 consulta
 // de reuniones sin resumen. Se recalcula al cargar la prioridad y al resolver algo.
+// ---- TABLERO DE MISIÓN ----
+// Pinta una lista de acciones con su contador y su atajo, no un resumen de
+// métricas. La regla que lo hace servir: LA LISTA TIENE QUE PODER ACABARSE.
+// Por eso los contadores se acotan a lo que de verdad se puede cerrar hoy.
+// Sin emojis, sin puntos, sin insignias: lo que entretiene es que se vacíe.
+function tableroHTML(titulo, misiones){
+  const total=misiones.length;
+  const hechas=misiones.filter(m=>!m.n).length;
+  const pend=misiones.reduce((a,m)=>a+m.n,0);
+  const pct=total?Math.round((hechas/total)*100):100;
+  if(hechas===total){
+    return `<div class="card" style="margin-bottom:14px"><div class="tabFin">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="16 9 11 14 8 11"/></svg>
+      <div><div style="font-weight:800;font-size:15px">Misión cumplida</div>
+        <div class="muted" style="font-size:12.5px">${esc(titulo)}: no queda nada pendiente.</div></div>
+    </div></div>`;
+  }
+  // Orden por urgencia: lo que cuesta plata primero. Lo ya hecho, al final.
+  const ord=misiones.slice().sort((a,b)=>(a.n?0:1)-(b.n?0:1)||a.orden-b.orden);
+  return `<div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <h2 style="margin:0">${esc(titulo)}</h2>
+      <span class="muted" style="font-size:12.5px">${hechas} de ${total} listas · ${pend} pendiente${pend===1?'':'s'}</span>
+    </div>
+    <div class="tabBarra"><div style="width:${pct}%"></div></div>
+    <div style="margin-top:10px">
+      ${ord.map(m=>`<div class="mision${m.n?'':' lista'}" style="border-left-color:${m.n?m.color:'var(--line2)'}">
+        <div class="num" style="color:${m.n?m.color:'var(--muted)'}">${m.n}</div>
+        <div class="txt"><b>${esc(m.titulo)}</b><span>${esc(m.sub||'')}</span></div>
+        ${m.n?`<button class="sm" style="min-height:38px;flex:0 0 auto" onclick="${m.accion}">${esc(m.boton||'Resolver')}</button>`:''}
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
 async function renderHoy(){
   const el=$("hoyStrip");if(!el)return;
-  const nAlert=(typeof ALERTAS!=='undefined'?ALERTAS:[]).length;
+  // Las alertas se acotan: hay miles acumuladas y el sistema crea ~114 al día.
+  // Si se contaran todas, la lista nunca se acabaría. Además se quitan los dos
+  // tipos que YA son otra misión de esta misma lista, para no contar doble.
+  const DUPLICADAS=['Inactividad','Fotos y medidas'];
+  const d7=hace(7);
+  const nAlert=(typeof ALERTAS!=='undefined'?ALERTAS:[]).filter(a=>
+    String(a.created_at||'').slice(0,10)>=d7 && DUPLICADAS.indexOf(String(a.tipo||''))<0).length;
   const nPago=CLIENTES.filter(c=>c._susE==='vencido'&&c._susT!=='fundador'&&c._susT!=='gratis').length;
   const nInact=CLIENTES.filter(c=>c._inact!=null&&c._inact>=14).length;
   const nAltura=CLIENTES.filter(c=>!c.altura).length;
+  const nRisk=(CLIENTES||[]).filter(c=>(c._churn||0)>=45).length;
   let nReu=0;
   try{const hoy=hace(0);const {data}=await sb.from("reuniones").select("resumen,transcripcion,fecha").gte("fecha",hace(40)).lte("fecha",hoy);nReu=(data||[]).filter(r=>!(r.resumen&&String(r.resumen).trim())&&!(r.transcripcion&&String(r.transcripcion).trim())).length;}catch(e){}
-  const card=(emoji,n,label,color,on)=>`<div class="hoyCard" style="border-left-color:${n>0?color:'var(--muted)'}" onclick="${on}"><div class="n" style="color:${n>0?color:'var(--muted)'}">${n}</div><div class="l">${emoji} ${label}</div></div>`;
-  let cards=
-    card('',nAlert,'Alertas abiertas','var(--rojo)','toggleCampana()')+
-    card('',nPago,'Pagos por revisar','var(--warn)',"tab('pagos')")+
-    card('',nInact,'Inactivos 14+ días','var(--warn)',"tab('recordatorios')")+
-    card('',nReu,'Reunión sin resumen','var(--muted)',"tab('llamadas')")+
-    card('',nAltura,'Sin altura','var(--rojo)',"tab('salud')");
-  if(ATLETAS_FO&&ATLETAS_FO.length)cards+=card('',ATLETAS_FO.length,'Fuera de objetivo de peso','var(--warn)',"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})");
-  const nRisk=(CLIENTES||[]).filter(c=>(c._churn||0)>=45).length;
-  if(nRisk)cards+=card('',nRisk,'Riesgo de baja','var(--rojo)',"tab('riesgo')");
-  el.innerHTML=cards;
+  // Sin foto ni medidas este mes: se pide aparte porque no viene en CLIENTES.
+  // Se guarda en memoria 10 minutos: renderHoy se repinta cada vez que se
+  // resuelve una alerta y no vale la pena pedirlo de nuevo cada vez.
+  let nFM=0;
+  try{
+    const fresco=window.__fmCache&&(Date.now()-window.__fmCache.t)<600000;
+    const r=fresco?window.__fmCache.r:await invokeFn('consola-rutina',{body:{action:'seguimiento_fm'}});
+    if(!fresco&&r&&r.data)window.__fmCache={t:Date.now(),r:r};
+    if(r&&r.data){
+      const mes=hace(0).slice(0,7);
+      const ult=(arr)=>{const m={};(arr||[]).forEach(x=>{if(x.fecha&&(!m[x.user_id]||x.fecha>m[x.user_id]))m[x.user_id]=x.fecha;});return m;};
+      const UF=ult(r.data.fotos),UM=ult(r.data.medidas);
+      nFM=CLIENTES.filter(c=>{
+        const f=UF[c.user_id]||'',m=UM[c.user_id]||'';
+        return f.slice(0,7)!==mes&&m.slice(0,7)!==mes;
+      }).length;
+    }
+  }catch(e){}
+
+  const misiones=[
+    {orden:1,n:nPago,  color:'var(--rojo)', titulo:'Pagos vencidos por revisar', sub:'es plata que ya se está yendo', accion:"tab('pagos')", boton:'Ver pagos'},
+    {orden:2,n:nRisk,  color:'var(--rojo)', titulo:'Clientes en riesgo de baja', sub:'se van si nadie los llama', accion:"tab('riesgo')", boton:'Ver riesgo'},
+    {orden:3,n:nAlert, color:'var(--rojo)', titulo:'Alertas sin responder', sub:'de los últimos 7 días, sin contar las que ya son otra misión', accion:'toggleCampana()', boton:'Abrir avisos'},
+    {orden:4,n:nInact, color:'var(--warn)', titulo:'Inactivos de 14 días o más', sub:'dejaron de entrar a la app', accion:"tab('recordatorios')", boton:'Recordar'},
+    {orden:5,n:nFM,    color:'var(--warn)', titulo:'Sin foto ni medidas este mes', sub:'sin eso no se puede medir el avance', accion:"tab('seguimiento')", boton:'Ver seguimiento'},
+    {orden:6,n:nAltura,color:'var(--warn)', titulo:'Clientes sin altura', sub:'bloquea el plan de alimentación', accion:"tab('salud')", boton:'Completar'},
+    {orden:7,n:nReu,   color:'var(--muted)',titulo:'Reuniones sin resumen', sub:'queda sin registro lo que se habló', accion:"tab('llamadas')", boton:'Ver llamadas'},
+  ];
+  if(ATLETAS_FO&&ATLETAS_FO.length){
+    misiones.push({orden:8,n:ATLETAS_FO.length,color:'var(--warn)',titulo:'Atletas fuera de objetivo de peso',sub:'hay que ajustar antes de la tarima',accion:"var e=document.getElementById('atletasFO');if(e)e.scrollIntoView({behavior:'smooth'})",boton:'Ver atletas'});
+  }
+  el.innerHTML=tableroHTML('Tu día', misiones);
+}
+
+// ---- Tablero del modo comercial ----
+// Se arma con lo que la pestaña Contactar ya cargó (window.CU_ALL), así no
+// cuesta una consulta más. Devuelve '' si todavía no hay datos.
+function tableroComercialHTML(){
+  const all=window.CU_ALL;
+  if(!Array.isArray(all)||!all.length)return '';
+  const hoy=hace(0);
+  const sinTocar=(typeof cuEncPendientes==='function')?cuEncPendientes(all):[];
+  const nHoy=sinTocar.filter(i=>String(i.lead_creado||'').slice(0,10)===hoy).length;
+  const nCaliente=sinTocar.filter(i=>(typeof cuTemp==='function')&&cuTemp(i)==='CALIENTE').length;
+  // Seguimiento vencido: se le escribió y lleva 7 días o más sin volver a tocarlo.
+  // Seguimiento vencido: ya existe el criterio del módulo, se reusa.
+  const nSeg=(typeof cuSegVencido==='function')?all.filter(cuSegVencido).length:0;
+  const nVenc=all.filter(i=>i.grupo==='Vencido'||i.estado==='vencido').length;
+  // Ventas sin cédula: solo si Finanzas está abierta en esta sesión.
+  let nSinCedula=0, hayFin=false;
+  try{
+    const lista=(window.FIN&&FIN.registro&&FIN.registro.lista)||null;
+    if(lista){hayFin=true;nSinCedula=lista.filter(v=>!v.cliente_cedula).length;}
+  }catch(e){}
+
+  const misiones=[
+    {orden:1,n:nCaliente,color:'var(--rojo)', titulo:'Leads calientes sin tocar', sub:'dijeron que pueden invertir y quieren empezar ya', accion:'cuAbrirEncuesta()', boton:'Trabajarlos'},
+    {orden:2,n:nHoy,     color:'var(--rojo)', titulo:'Llegaron hoy y nadie los tocó', sub:'de la encuesta de captación', accion:'cuAbrirEncuesta()', boton:'Contactar'},
+    {orden:3,n:nSeg,     color:'var(--warn)', titulo:'Seguimientos vencidos', sub:'se les escribió y llevan 7 días o más sin respuesta ni toque', accion:"cuIrA('hoy')", boton:'Retomar'},
+    {orden:4,n:nVenc,    color:'var(--warn)', titulo:'Pagos vencidos por contactar', sub:'ya fueron clientes: son los más fáciles de recuperar', accion:"cuIrA('')", boton:'Recuperar'},
+  ];
+  if(hayFin)misiones.push({orden:5,n:nSinCedula,color:'var(--warn)',titulo:'Ventas sin cédula',sub:'sin cédula no se le puede mandar el acuerdo',accion:"tab('finanzas')",boton:'Completar'});
+  return tableroHTML('Tu día comercial', misiones);
 }
 // Evaluación compartida de la semana de prep — MISMA lógica para el aviso de Hoy y el
 // panel de la ficha, así nunca se contradicen. Afinado: tolerancia ~0.6% del objetivo
@@ -1518,6 +1623,14 @@ function cuHaceCuanto(iso){
 
 // El botón del aviso: cambia a la cola de la encuesta Y BAJA a la lista. Sin el scroll
 // parecía que el botón no hacía nada, porque el cambio ocurría fuera de la pantalla.
+// Lleva a una cola concreta de Contactar desde el tablero de misión.
+function cuIrA(filtro){
+  CU_FILTRO=filtro||''; CU_GRUPO=''; CU_Q='';
+  renderContactar();
+  const n=document.getElementById('cu_lista');
+  if(n) try{ n.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ n.scrollIntoView(); }
+}
+
 function cuAbrirEncuesta(){
   CU_FILTRO='encuesta'; CU_GRUPO=''; CU_Q='';
   renderContactar();
@@ -1914,6 +2027,9 @@ function renderContactar(){
   h+='</div>';
   el.innerHTML=h;
   cuFoco();
+  // El tablero de misión del modo comercial va de primeras. Se inyecta aquí
+  // porque renderContactar reescribe todo el contenedor en cada pintada.
+  try{ if(MI_MODO==='comercial'){ const t=tableroComercialHTML(); if(t)el.insertAdjacentHTML('afterbegin',t); } }catch(e){}
 }
 // Abre WhatsApp con el GUION del segmento de la persona y registra el toque.
 // Si aún no tenía estado, queda "contactado". Feedback inmediato (toast) = sensación de juego.
