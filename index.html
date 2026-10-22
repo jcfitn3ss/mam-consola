@@ -1565,7 +1565,44 @@ async function verContactar(force){
     try{ const gc=await invokeFn('crm-config',{body:{action:'get'}}); if(gc&&gc.data&&gc.data.guiones) window.CU_GUIONES=gc.data.guiones; }catch(e){}
   }
   renderContactar();
+  autoSyncAgenda(); // en segundo plano: trae las citas nuevas del calendario
 }
+
+// Las citas que la gente agenda por el enlace SOLO viven en Google Calendar.
+// Antes había que apretar "Releer el calendario" a mano y, si nadie lo hacía, la
+// cita era invisible aunque existiera (pasó con Jessica Cediel el 22-oct).
+// Esto lee una ventana corta (3 días atrás, 60 adelante) al abrir Contactar, en
+// segundo plano y una vez cada 10 minutos. Barato y suficiente para no perder
+// ninguna cita nueva.
+async function autoSyncAgenda(){
+  try{
+    const ya=Number(sessionStorage.getItem('agenda_sync')||0);
+    if(ya&&(Date.now()-ya)<600000)return cargarCitas();
+    sessionStorage.setItem('agenda_sync',String(Date.now()));
+    await invokeFn('embudo',{body:{action:'sync',dias:3,clave:finClave()}});
+  }catch(e){/* si falla, el botón manual sigue */}
+  cargarCitas();
+}
+
+// Trae las citas próximas y las pega al lead por correo, para que en la cola se
+// vea quién ya tiene llamada agendada y no se le escriba como si nada.
+async function cargarCitas(){
+  try{
+    const r=await invokeFn('embudo',{body:{action:'datos',meses:2,clave:finClave()}});
+    const ll=(r&&r.data&&r.data.llamadas)||[];
+    const hoy=hace(0);
+    const m={};
+    ll.forEach(l=>{
+      const c=String(l.invitado_correo||'').toLowerCase();
+      const f=String(l.inicio||'').slice(0,10);
+      if(!c||!f||f<hoy)return;                 // solo las que vienen
+      if(!m[c]||f<m[c].fecha)m[c]={fecha:f,inicio:l.inicio,titulo:l.titulo};
+    });
+    window.CU_CITAS=m;
+    if(Object.keys(m).length)renderContactar();
+  }catch(e){/* sin citas la cola funciona igual */}
+}
+
 // Aplica los filtros/búsqueda EN EL NAVEGADOR (mismo criterio que tenía el servidor).
 // ───────── Cola de la encuesta propia (aplica.musculoalmaximo.com/captar) ─────────
 // El problema que resuelve: las vistas "Recién llegaron", "Para hoy" y "Nuevos 48h" filtran
@@ -1760,6 +1797,10 @@ function cuGatillo(i){
   if(i.grupo==='Vencido') return {t:'Canceló'+(i.fin_prueba?' · venció '+fFechaCorta(i.fin_prueba):'')+' · winback',c:'#D9A21B'};
   if(i.en_app&&i.fin_prueba){const dd=cuDiasDesde(i.fin_prueba);if(dd!=null&&dd<0)return {t:'En prueba · vence en '+(-dd)+' d',c:'var(--warn)'};}
   if(!i.en_app) return {t:'No descargó'+(i.lead_creado?' · escribió '+fFechaCorta(i.lead_creado):''),c:'var(--muted)'};
+  // Si ya tiene llamada agendada, eso manda sobre cualquier otra etiqueta: no se
+  // le escribe como si nada a alguien que ya tiene cita.
+  const _cita=(window.CU_CITAS||{})[String(i.email||'').toLowerCase()];
+  if(_cita) return {t:'CITA AGENDADA · '+fFechaCorta(_cita.fecha)+' '+String(_cita.inicio||'').slice(11,16),c:'var(--ok)'};
   if(cuReaplico(i)) return {t:'VOLVIÓ a llenar el formulario '+fFechaCorta(i.form_ultimo),c:'var(--warn)'};
   if(i.lead_creado) return {t:'Llenó el formulario '+fFechaCorta(i.lead_creado),c:'var(--muted)'};
   return {t:'',c:'var(--muted)'};
