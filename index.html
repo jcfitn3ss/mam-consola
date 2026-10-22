@@ -1562,7 +1562,16 @@ async function verContactar(force){
     el.innerHTML='<div class="card">Cargando CRM… (una sola vez)</div>';
     const {data,error}=await invokeFn('crm-unificado',{body:{all:true}});
     if(error||(data&&data.error)){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`;return;}
-    window.CU_ALL=data.items||[]; window.CU_META={counts:data.counts||{},nivelCount:data.nivelCount||{},total_general:data.total_general||0,generado:data.generado,cupon:data.cupon||null};
+    // Los leads importados del Sheet traen el texto literal "Sin contactar" en
+    // contacto_estado. Ese valor no existe en CONTACTAR_ESTADOS, asi que el selector
+    // salia vacio ("—") y la consola los contaba como YA trabajados cuando en realidad
+    // nadie los ha tocado (toques=0, contacto_ultimo vacio en los 371 casos).
+    // Se normaliza al leer; la base no se toca.
+    window.CU_ALL=(data.items||[]).map(i=>{
+      const e=String(i.contacto_estado||'').trim().toLowerCase();
+      if(e==='sin contactar'||e==='sin_contactar'||e==='sin contacto') i.contacto_estado='';
+      return i;
+    }); window.CU_META={counts:data.counts||{},nivelCount:data.nivelCount||{},total_general:data.total_general||0,generado:data.generado,cupon:data.cupon||null};
     // Guiones editables del equipo (si el equipo los cambió). Silencioso si falla.
     try{ const gc=await invokeFn('crm-config',{body:{action:'get'}}); if(gc&&gc.data&&gc.data.guiones) window.CU_GUIONES=gc.data.guiones; }catch(e){}
   }
