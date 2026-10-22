@@ -155,6 +155,11 @@
   /* `.hide` está definida ARRIBA de estas dos, así que con la misma especificidad
      perdía y la franja de simulación salía siempre, vacía. Esto la desempata. */
   .simBar.hide,.modoTag.hide{display:none}
+  /* Encabezado de tarjeta: título a la izquierda y acciones a la derecha, sin
+     `float`. Con float los botones se salían del borde de la tarjeta. */
+  .cardHead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+  .cardHead h2{margin:0}
+  .cardHead .acciones{display:flex;gap:6px;flex-wrap:wrap}
   /* Enlace que se ve y se alinea como botón: un <a> no centra su texto solo y
      al lado de un <button> real quedaba descuadrado (pasaba con WhatsApp). */
   .btnLink{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 14px;border-radius:9px;font-weight:700;font-size:12px;text-decoration:none;line-height:1}
@@ -4389,7 +4394,7 @@ function pickSlot(i,slot){
   // Agrupar las fotos por fecha (una sección por día).
   const grupos={};INF_FOTOS_LIB.forEach((f,idx)=>{(grupos[f.fecha]=grupos[f.fecha]||[]).push(Object.assign({idx},f));});
   const cuerpo=Object.keys(grupos).sort().map(fch=>`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--rojo2);font-weight:700;letter-spacing:.5px;margin-bottom:5px">${esc(fFechaCorta(fch))}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${grupos[fch].map(f=>`<div onclick="asignarFoto(${f.idx})" style="width:92px;cursor:pointer;text-align:center"><img src="${esc(f.url)}" style="width:92px;height:112px;object-fit:cover;border-radius:6px;border:1px solid var(--line)"><div style="font-size:10px;color:var(--muted)">${esc(f.tipo||'')}</div></div>`).join("")}</div></div>`).join("");
-  g.innerHTML=`<div style="font-size:12px;margin-bottom:8px">Elige la foto para <b>${slot==='antes'?'ANTES (izquierda)':'DESPUÉS (derecha)'}</b> · fila ${i+1} <button class="sm ghost" style="float:right" onclick="cerrarGaleria()">Cerrar</button></div>${cuerpo}`;
+  g.innerHTML=`<div style="font-size:12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">Elige la foto para <b>${slot==='antes'?'ANTES (izquierda)':'DESPUÉS (derecha)'}</b> · fila ${i+1} <button class="sm ghost" style="margin-left:auto" onclick="cerrarGaleria()">Cerrar</button></div>${cuerpo}`;
 }
 function cerrarGaleria(){const g=$("inf_galeria");if(g)g.classList.add("hide");INF_PICK=null;}
 function asignarFoto(idx){if(!INF_PICK)return;const f=INF_FOTOS_LIB[idx];if(!f)return;INF_FOTOS_SEL[INF_PICK.i][INF_PICK.slot]={path:f.path,fecha:f.fecha,url:f.url};cerrarGaleria();renderFotosEditor();}
@@ -8545,10 +8550,12 @@ function embRender(){
   const grupo=(t)=>`<tr><td colspan="${M.length+1}" style="position:sticky;left:0;padding:14px 0 5px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;background:var(--card)">${t}</td></tr>`;
 
   let h=`<div class="card">
-    <h2 style="margin-top:0">Embudo de ventas
-      <span style="float:right;display:flex;gap:6px">
+    <div class="cardHead">
+      <h2>Embudo de ventas</h2>
+      <span class="acciones">
         <button class="sm ghost" style="min-height:40px" onclick="embIA()">Calificar con IA</button>
-        <button class="sm ghost" style="min-height:40px" onclick="embSync()">Releer el calendario</button></span></h2>
+        <button class="sm ghost" style="min-height:40px" onclick="embSync()">Releer el calendario</button></span>
+    </div>
     <div class="muted" style="font-size:12.5px;margin-bottom:12px">
       ${d.total_llamadas} llamadas de venta leídas del calendario. Nadie escribe estos números.
       ${plata?'':' <b>Estás viendo el embudo sin las cifras de plata.</b>'}
