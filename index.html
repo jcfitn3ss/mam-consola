@@ -380,6 +380,9 @@ let CU_GRUPO=''; // filtro de grupo del CRM unificado (Contactar)
 let CU_SINCLI=true; // Contactar: ocultar clientes (Miguel contacta prospectos, no clientes)
 let CU_Q=''; // texto del buscador de Contactar (persiste entre re-renders)
 let CU_FILTRO=''; // filtro especial (ej. 'dijo_no_canjeo')
+// Ventana de tiempo y orden de la cola. Son independientes del filtro: se pueden
+// combinar ("los de hoy, por prioridad"). CU_DIA vacío = sin límite de fecha.
+let CU_DIA='', CU_ORDEN='prioridad';
 let CU_ARRANQUE=false; // ya se eligió la vista inicial de Contactar (una sola vez por sesión)
 let _cuTimer=null;
 function cuBuscar(){ clearTimeout(_cuTimer); _cuTimer=setTimeout(()=>renderContactar(),120); } // búsqueda en vivo (client-side, instantánea)
@@ -1676,10 +1679,29 @@ function cuAbrirEncuesta(){
   if(n) try{ n.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ n.scrollIntoView(); }
 }
 
+// Recorta por ventana de fecha (cuándo aplicó de verdad) y ordena.
+// Prioridad = CALIENTE primero, luego TIBIO, y dentro de cada grupo lo más nuevo.
+// Es el orden con el que se debe trabajar la cola; "por fecha" sirve para revisar
+// qué entró en un día concreto.
+function cuVentanaOrden(lista){
+  let l=lista||[];
+  if(CU_DIA){
+    const dias=CU_DIA==='hoy'?0:Number(CU_DIA)||0;
+    const hoy=hace(0);
+    const desde=CU_DIA==='hoy'?hoy:hace(dias);
+    l=l.filter(i=>{const f=String(cuAplico(i)||'').slice(0,10);return f&&f>=desde;});
+  }
+  const temp=i=>{const t=(typeof cuTemp==='function')?cuTemp(i):'';return t==='CALIENTE'?0:(t==='TIBIO'?1:2);};
+  const fecha=i=>new Date(cuAplico(i)||0).getTime();
+  if(CU_ORDEN==='prioridad') l=l.slice().sort((a,b)=>temp(a)-temp(b)||fecha(b)-fecha(a));
+  else l=l.slice().sort((a,b)=>fecha(b)-fecha(a));
+  return l;
+}
+
 function cuFiltrar(){
   const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
   if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
-  if(CU_FILTRO==='encuesta') return cuEncuesta(all);
+  if(CU_FILTRO==='encuesta') return cuVentanaOrden(cuEncuesta(all));
   if(CU_FILTRO==='reciente') return cuRecientes(all);
   if(CU_FILTRO==='rutina') return all.filter(i=>/rutina/i.test(i.origen||''));
   if(CU_FILTRO==='hoy') return cuParaHoy(all);
@@ -1694,7 +1716,7 @@ function cuFiltrar(){
   l=l.filter(i=>i.contacto_estado!=='seguimiento');
   if(CU_SINCLI) l=l.filter(i=>i.grupo!=='Cliente');
   if(CU_GRUPO) l=l.filter(i=>i.grupo===CU_GRUPO);
-  return l;
+  return cuVentanaOrden(l);
 }
 // Días desde el último contacto (para el badge "toca re-contactar").
 function cuDiasDesde(iso){ if(!iso)return null; const d=Math.floor((Date.now()-new Date(iso).getTime())/86400000); return isNaN(d)?null:d; }
@@ -1795,7 +1817,14 @@ function renderContactar(){
   const gchip=(label,val)=>`<button class="sm ${CU_GRUPO===val&&!CU_FILTRO?'':'ghost'}" style="border-radius:20px" onclick="CU_GRUPO='${val.replace(/'/g,"")}';CU_FILTRO='';renderContactar()">${esc(label)}${counts[val]!=null?' ('+counts[val]+')':''}</button>`;
   // Vistas de trabajo (distintas de los grupos): esquinas rectas para diferenciarlas.
   const wchip=(label,val,n)=>`<button class="sm ${CU_FILTRO===val?'':'ghost'}" style="border-radius:8px" onclick="CU_FILTRO=CU_FILTRO==='${val}'?'':'${val}';CU_GRUPO='';renderContactar()">${esc(label)}${n?' ('+n+')':''}</button>`;
+  // Chips de ventana de fecha y de orden.
+  const dchip=(label,val,n)=>`<button class="sm ${CU_DIA===val?'':'ghost'}" style="border-radius:20px" onclick="CU_DIA='${val}';renderContactar()">${esc(label)}${n!=null&&n>0?' ('+n+')':''}</button>`;
+  const ochip=(label,val)=>`<button class="sm ${CU_ORDEN===val?'':'ghost'}" style="border-radius:20px" onclick="CU_ORDEN='${val}';renderContactar()">${esc(label)}</button>`;
   const ALL=window.CU_ALL||[];
+  // Cuántos aplicaron en cada ventana (sobre los que no son clientes).
+  const _noCli=ALL.filter(i=>i.grupo!=='Cliente');
+  const _enVentana=(d)=>{const desde=d==='hoy'?hace(0):hace(Number(d)||0);return _noCli.filter(i=>{const f=String(cuAplico(i)||'').slice(0,10);return f&&f>=desde;}).length;};
+  const nDiaHoy=_enVentana('hoy'), nDia7=_enVentana('7'), nDia30=_enVentana('30');
   const colaHoy=cuParaHoy(ALL);
   const nHoy=colaHoy.length;
   const nReciente=cuRecientes(ALL).length;
@@ -1872,6 +1901,18 @@ function renderContactar(){
         return `<button onclick="CU_FILTRO='${val}';CU_GRUPO='';renderContactar()" style="min-height:44px;padding:0 14px;background:none;border:none;border-bottom:2px solid ${on?'var(--rojo)':'transparent'};border-radius:0;color:${on?'var(--txt)':'var(--muted)'};font-weight:700;font-size:13px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:7px">${esc(label)}${n?`<span style="font-size:11px;background:${on?'var(--rojo)':'var(--card2)'};color:${on?'#fff':'inherit'};border-radius:9px;padding:1px 7px;font-weight:800">${n}</span>`:''}</button>`;};
       return `<div style="display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:14px;flex-wrap:wrap">
         ${tab('Encuesta nueva','encuesta',nEnc)}${tab('Para hoy','hoy',nHoy)}${tab('Seguimiento','seguimiento',nSeg)}
+      </div>
+      <!-- Cuándo aplicaron y en qué orden trabajarlos. Son independientes del
+           filtro: se pueden combinar ("los de hoy, por prioridad"). -->
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:10px 0 4px">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Cuándo aplicaron</span>
+          ${dchip('Hoy','hoy',nDiaHoy)}${dchip('7 días','7',nDia7)}${dchip('30 días','30',nDia30)}${dchip('Todos','')}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Orden</span>
+          ${ochip('Por prioridad','prioridad')}${ochip('Por fecha','fecha')}
+        </div>
       </div>
       <details${CU_FILTRO&&!['encuesta','hoy','seguimiento'].includes(CU_FILTRO)||CU_GRUPO?' open':''}>
         <summary style="cursor:pointer;font-size:12px;color:var(--muted);padding:10px 2px;min-height:44px;display:flex;align-items:center;font-weight:600">Más filtros y grupos</summary>
