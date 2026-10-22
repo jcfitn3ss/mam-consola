@@ -1219,7 +1219,7 @@ function tableroComercialHTML(){
   if(!Array.isArray(all)||!all.length)return '';
   const hoy=hace(0);
   const sinTocar=(typeof cuEncPendientes==='function')?cuEncPendientes(all):[];
-  const nHoy=sinTocar.filter(i=>String(i.lead_creado||'').slice(0,10)===hoy).length;
+  const nHoy=sinTocar.filter(i=>String(cuAplico(i)||'').slice(0,10)===hoy).length;
   const nCaliente=sinTocar.filter(i=>(typeof cuTemp==='function')&&cuTemp(i)==='CALIENTE').length;
   // Seguimiento vencido: se le escribió y lleva 7 días o más sin volver a tocarlo.
   // Seguimiento vencido: ya existe el criterio del módulo, se reusa.
@@ -1579,6 +1579,22 @@ const ENC_MAPA={
   invertir:{listo:'Listo para invertir',depende:'Depende del plan',info:'Solo busca info'},
   'coach-antes':{si:'Ya tuvo coach',no:'Nunca tuvo coach'}
 };
+// Cuándo aplicó DE VERDAD. El formulario deduplica por teléfono: si alguien que
+// ya estaba en la base vuelve a aplicar, se anexa la respuesta al lead viejo y
+// `lead_creado` no se mueve. Sin esto, quien aplicó hoy aparecía con la fecha de
+// hace meses y no salía en ninguna cola. (Caso Jessica Cediel, 22-oct.)
+function cuAplico(i){
+  const f=String((i&&i.form_ultimo)||'');
+  const c=String((i&&i.lead_creado)||'');
+  return (f&&f>c.slice(0,10))?f:c;
+}
+// ¿Volvió a aplicar después de haber entrado a la base?
+function cuReaplico(i){
+  const f=String((i&&i.form_ultimo)||'');
+  const c=String((i&&i.lead_creado)||'').slice(0,10);
+  return !!(f&&c&&f>c);
+}
+
 function cuEncDatos(i){
   const out={meta:'',nivel:'',empezar:'',invertir:'',coach:'',edad:'',comentario:''};
   String(i.tags||'').split(',').forEach(t=>{
@@ -1626,7 +1642,7 @@ function cuEncuesta(all){
   // ordenara solo por fecha, el que ya contactaste hoy seguiría de primero mañana.
   const hecho=i=>(!i.contacto_estado||i.contacto_estado==='sin_contactar')?0:1;
   return (all||[]).filter(i=>cuEsEncuesta(i)&&i.grupo!=='Cliente')
-    .sort((a,b)=>hecho(a)-hecho(b)||new Date(b.lead_creado||0).getTime()-new Date(a.lead_creado||0).getTime());
+    .sort((a,b)=>hecho(a)-hecho(b)||new Date(cuAplico(b)||0).getTime()-new Date(cuAplico(a)||0).getTime());
 }
 // Sin contactar = nadie le ha escrito todavía (estado vacío o "sin contactar").
 function cuEncPendientes(all){
@@ -1722,6 +1738,7 @@ function cuGatillo(i){
   if(i.grupo==='Vencido') return {t:'Canceló'+(i.fin_prueba?' · venció '+fFechaCorta(i.fin_prueba):'')+' · winback',c:'#D9A21B'};
   if(i.en_app&&i.fin_prueba){const dd=cuDiasDesde(i.fin_prueba);if(dd!=null&&dd<0)return {t:'En prueba · vence en '+(-dd)+' d',c:'var(--warn)'};}
   if(!i.en_app) return {t:'No descargó'+(i.lead_creado?' · escribió '+fFechaCorta(i.lead_creado):''),c:'var(--muted)'};
+  if(cuReaplico(i)) return {t:'VOLVIÓ a llenar el formulario '+fFechaCorta(i.form_ultimo),c:'var(--warn)'};
   if(i.lead_creado) return {t:'Llenó el formulario '+fFechaCorta(i.lead_creado),c:'var(--muted)'};
   return {t:'',c:'var(--muted)'};
 }
@@ -1786,7 +1803,7 @@ function renderContactar(){
   const encTodos=cuEncuesta(ALL);
   const encPend=cuEncPendientes(ALL);
   const nEnc=encTodos.length, nEncPend=encPend.length;
-  const encUltimo=encPend.length?encPend[0].lead_creado:(encTodos.length?encTodos[0].lead_creado:'');
+  const encUltimo=encPend.length?cuAplico(encPend[0]):(encTodos.length?cuAplico(encTodos[0]):'');
   const nEncCal=encPend.filter(i=>cuTemp(i)==='CALIENTE').length;
   // Contactos de hoy = actividad del setter (solo sube, sensación de puntos).
   const contactsHoy=ALL.filter(i=>i.grupo!=='Cliente'&&cuEsHoy(i.contacto_ultimo)).length;
