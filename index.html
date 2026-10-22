@@ -139,6 +139,19 @@
   .menu button.on{background:var(--rojo);color:#fff}
   .menu .menuGrp{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;padding:8px 12px 3px;opacity:.8}
   .menu .menuGrp:first-child{padding-top:2px}
+  /* Menú de perfil (arriba a la derecha): modo de trabajo, "ver como" y salir. */
+  .perfilWrap{position:relative}
+  .perfilWrap .menu{top:42px}
+  .menu .menuSep{height:1px;background:var(--line2);margin:6px 4px}
+  .menu .opcion{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .menu .opcion .marca{color:var(--rojo);font-weight:800}
+  /* Etiqueta del modo actual, junto al logo. */
+  .modoTag{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;padding:3px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--muted);margin-left:10px;vertical-align:2px}
+  .modoTag.servicio{color:#5fd07f;border-color:rgba(95,208,127,.4);background:rgba(95,208,127,.1)}
+  .modoTag.comercial{color:#5f93e0;border-color:rgba(95,147,224,.4);background:rgba(95,147,224,.1)}
+  /* Franja de simulación: tiene que ser imposible de confundir con la vista real. */
+  .simBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:repeating-linear-gradient(45deg,rgba(224,184,74,.14),rgba(224,184,74,.14) 10px,rgba(224,184,74,.07) 10px,rgba(224,184,74,.07) 20px);border:1px solid var(--warn);border-radius:10px;padding:8px 12px;margin-bottom:12px}
+  .simBar b{color:var(--warn)}
   /* ② Franja "Hoy": triage del día de un vistazo */
   .hoy{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .hoyCard{flex:1;min-width:148px;background:var(--card);border:1px solid var(--line);border-left-width:3px;border-radius:12px;padding:11px 13px;cursor:pointer;transition:transform .08s,border-color .15s;box-shadow:var(--sh);text-align:left}
@@ -159,12 +172,17 @@
 <body>
 <div class="wrap">
   <header class="appbar">
-    <div class="brand"><span class="brandMark">M</span><h1>Músculo al Máximo <span class="brandSub">· Consola</span></h1></div>
+    <div class="brand"><span class="brandMark">M</span><h1>Músculo al Máximo <span class="brandSub">· Consola</span><span id="modoTag" class="modoTag hide"></span></h1></div>
     <div style="display:flex;gap:8px;align-items:center">
       <button id="campana" class="ghost hide" onclick="toggleCampana()">Avisos <span id="nAl" class="pill" style="background:var(--rojo);color:#fff">0</span></button>
+      <div class="perfilWrap">
+        <button id="perfilBtn" class="ghost hide" onclick="togglePerfil(event)">Mi cuenta ▾</button>
+        <div class="menu" id="perfilMenu"></div>
+      </div>
       <button id="logout" class="ghost hide" onclick="logout()">Salir</button>
     </div>
   </header>
+  <div id="simBar" class="simBar hide"></div>
   <div id="campanaPanel" class="card hide" style="max-width:420px;margin-left:auto;max-height:65vh;overflow:auto"></div>
 
   <div id="login" class="card hide" style="max-width:380px;margin-top:24px">
@@ -384,6 +402,8 @@ function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios",
 function toggleMas(e){if(e)e.stopPropagation();const m=$("masMenu");if(m)m.classList.toggle("open");}
 // Cerrar el menú "Más" al hacer clic fuera.
 document.addEventListener("click",e=>{const m=$("masMenu"),b=$("masBtn");if(m&&m.classList.contains("open")&&!m.contains(e.target)&&e.target!==b)m.classList.remove("open");});
+// Lo mismo para el menú de perfil.
+document.addEventListener("click",e=>{const m=$("perfilMenu"),b=$("perfilBtn");if(m&&m.classList.contains("open")&&!m.contains(e.target)&&e.target!==b)m.classList.remove("open");});
 // ---- SALUD DE DATOS: huecos por cliente (sin plan/rutina/objetivo/altura, etc.) ----
 async function verSalud(){
   $("v-salud").innerHTML='<div class="card">Analizando la salud de datos de tus clientes…</div>';
@@ -613,6 +633,36 @@ function rolDe(p){
   return '';
 }
 
+// ===================== MODOS DE TRABAJO =====================
+// ROL es lo que la cuenta tiene permitido. Vive en la base y no cambia aquí.
+// MODO es lo que la persona está mirando ahora. Se cambia con un clic y se
+// recuerda en el navegador. Una cuenta con un solo modo nunca ve el selector.
+//
+// El corte entre los dos modos es una sola pregunta: ¿esta persona ya pagó?
+//   servicio  → clientes que ya pagaron
+//   comercial → gente que todavía no paga
+const MODOS={
+  servicio:{nombre:'Servicio',entrada:'clientes',ayuda:'Clientes que ya pagaron'},
+  comercial:{nombre:'Comercial',entrada:'contactar',ayuda:'Gente que todavía no paga'},
+};
+
+// Qué modos tiene una cuenta. La regla sale del rol y de las banderas que ya
+// existen: no hay correos quemados ni filas nuevas que tocar.
+function modosDe(p){
+  const r=rolDe(p);
+  if(r==='dueno')return ['servicio','comercial'];
+  if(r==='entrenador')return (p&&(p.es_setter||p.es_comercial))?['servicio','comercial']:['servicio'];
+  if(r==='comercial')return ['comercial'];
+  return [];
+}
+
+let MI_MODOS=[], MI_MODO='';
+// Rol real contra rol simulado. Solo un dueño puede simular, y la simulación
+// nunca toca la base: es para verificar el reparto sin pedirle la clave a nadie.
+let MI_ROL_REAL='', MI_PERFIL=null, SIMULANDO=null;
+
+const MODO_GUARDADO='mam_modo';
+
 function puedeVer(pestana){
   const permitidas=PESTANAS_POR_ROL[MI_ROL];
   if(permitidas==='*')return true;
@@ -638,6 +688,104 @@ function aplicarPermisos(){
   return primera;
 }
 
+// ---- Menú de perfil: modo de trabajo, "ver como" y salir ----
+function togglePerfil(e){
+  if(e)e.stopPropagation();
+  const m=$("perfilMenu");if(!m)return;
+  const abierto=m.classList.contains('open');
+  if(!abierto)pintarPerfilMenu();
+  m.classList.toggle('open',!abierto);
+}
+
+function pintarPerfilMenu(){
+  const m=$("perfilMenu");if(!m)return;
+  let h='';
+  // Modo de trabajo: solo si la cuenta tiene más de uno.
+  if(MI_MODOS.length>1){
+    h+='<div class="menuGrp">Modo de trabajo</div>';
+    h+=MI_MODOS.map(k=>`<button class="opcion${k===MI_MODO?' on':''}" onclick="cambiarModo('${k}')">
+      <span>${MODOS[k].nombre}<span class="muted" style="display:block;font-size:10.5px;font-weight:400">${MODOS[k].ayuda}</span></span>
+      ${k===MI_MODO?'<span class="marca">·</span>':''}</button>`).join('');
+  }
+  // "Ver como": simular un rol. Solo para dueños, y solo sobre el rol REAL.
+  if(MI_ROL_REAL==='dueno'){
+    h+='<div class="menuSep"></div><div class="menuGrp">Ver como</div>';
+    const roles=[['dueno','Dueño'],['entrenador','Entrenador'],['entrenador_setter','Entrenador con setteo'],['comercial','Comercial']];
+    h+=roles.map(([k,t])=>`<button class="opcion${(SIMULANDO||'dueno')===k?' on':''}" onclick="verComo('${k}')">
+      <span>${t}</span>${(SIMULANDO||'dueno')===k?'<span class="marca">·</span>':''}</button>`).join('');
+  }
+  h+='<div class="menuSep"></div>';
+  h+='<button onclick="cerrarPerfil();logout()">Salir</button>';
+  m.innerHTML=h;
+}
+
+function cerrarPerfil(){const m=$("perfilMenu");if(m)m.classList.remove('open');}
+
+// Pinta la etiqueta del modo junto al logo y la franja de simulación.
+function pintarEstadoModo(){
+  const t=$("modoTag");
+  if(t){
+    if(MI_MODO&&MI_MODOS.length){
+      t.className='modoTag '+MI_MODO;
+      t.textContent=MODOS[MI_MODO].nombre;
+    }else{t.className='modoTag hide';t.textContent='';}
+  }
+  const s=$("simBar");
+  if(s){
+    if(SIMULANDO){
+      const nom={dueno:'Dueño',entrenador:'Entrenador',entrenador_setter:'Entrenador con setteo',comercial:'Comercial'}[SIMULANDO]||SIMULANDO;
+      s.classList.remove('hide');
+      s.innerHTML=`<b>Estás viendo la consola como ${esc(nom)}.</b>
+        <span class="muted" style="font-size:12.5px">Es una simulación: no cambia nada en la base.</span>
+        <button class="sm" style="margin-left:auto" onclick="verComo('')">Volver a mi vista</button>`;
+    }else{s.classList.add('hide');s.innerHTML='';}
+  }
+}
+
+// Cambia de modo sin recargar: reaplica permisos y abre la entrada del modo.
+function cambiarModo(k){
+  if(!MODOS[k]||MI_MODOS.indexOf(k)<0)return;
+  MI_MODO=k;
+  try{localStorage.setItem(MODO_GUARDADO,k);}catch(e){}
+  cerrarPerfil();
+  pintarEstadoModo();
+  const primera=aplicarPermisos();
+  const entrada=MODOS[k].entrada;
+  tab(puedeVer(entrada)?entrada:(primera||'clientes'));
+}
+
+// Simula un rol (solo dueños). '' vuelve al rol real.
+function verComo(k){
+  if(MI_ROL_REAL!=='dueno')return;
+  cerrarPerfil();
+  if(!k||k==='dueno'){
+    SIMULANDO=null;
+    MI_ROL=MI_ROL_REAL;
+    MI_MODOS=modosDe(MI_PERFIL);
+  }else{
+    SIMULANDO=k;
+    // 'entrenador_setter' no es un rol de la base: es un entrenador CON la
+    // bandera de setteo, que es lo que le da el segundo modo.
+    const esSetter=k==='entrenador_setter';
+    MI_ROL=esSetter?'entrenador':k;
+    MI_MODOS=modosDe({rol_consola:MI_ROL,es_setter:esSetter});
+  }
+  if(MI_MODOS.indexOf(MI_MODO)<0)MI_MODO=MI_MODOS[0]||'';
+  pintarEstadoModo();
+  const primera=aplicarPermisos();
+  const entrada=MI_MODO?MODOS[MI_MODO].entrada:'';
+  tab((entrada&&puedeVer(entrada))?entrada:(primera||'clientes'));
+}
+
+// Arranca el modo: el último que se usó, si la cuenta todavía lo tiene.
+function arrancarModo(p){
+  MI_MODOS=modosDe(p);
+  let guardado='';
+  try{guardado=localStorage.getItem(MODO_GUARDADO)||'';}catch(e){}
+  MI_MODO=(MI_MODOS.indexOf(guardado)>=0)?guardado:(MI_MODOS[0]||'');
+  pintarEstadoModo();
+}
+
 let MI_SOCIO=false;
 async function trasLogin(){
   const {data:{user}}=await sb.auth.getUser();MIID=user.id;
@@ -647,12 +795,16 @@ async function trasLogin(){
   const {data:p}=await sb.from("perfiles").select("*").eq("user_id",MIID).maybeSingle();
   MI_ROL=rolDe(p);
   if(!MI_ROL){show("login",true);$("loginErr").textContent="Esta cuenta no tiene acceso a la consola.";await sb.auth.signOut();return;}
+  MI_ROL_REAL=MI_ROL; MI_PERFIL=p; SIMULANDO=null;
   MI_PRINCIPAL=!!(p&&p.es_principal); // entrenador principal: puede asignar clientes a otros entrenadores
   MI_SOCIO=MI_ROL==='dueno';
   MI_SETTER=!!(p&&p.es_setter);
+  arrancarModo(p);
 
   show("login",false);show("app",true);show("logout",true);
+  const _pb=$("perfilBtn");if(_pb)_pb.classList.remove('hide');
   const _primera=aplicarPermisos();
+  const _entrada=MI_MODO?MODOS[MI_MODO].entrada:'';
 
   // COMERCIAL: no carga nada de entrenamiento (ni puede: el servidor se lo niega).
   if(MI_ROL==='comercial'){ tab(puedeVer('contactar')?'contactar':(_primera||'crm')); return; }
@@ -704,6 +856,10 @@ async function trasLogin(){
   await cargarSolicitudes();
   autoSyncPagos(); // en segundo plano: cruza TODOS con RevenueCat y activa a quien pagó
   autoLimpiarSesiones(); // en segundo plano: borra sesiones atascadas que traban el entreno
+  // Abrir el modo con el que se quedó la última vez. "clientes" ya viene abierta
+  // por defecto en el HTML, así que solo hace falta mover la vista si el modo
+  // guardado entra por otro lado.
+  if(_entrada&&_entrada!=='clientes'&&puedeVer(_entrada))tab(_entrada);
 }
 
 // Auto-detección de pagos: al abrir la consola cruzamos a TODOS los clientes con
