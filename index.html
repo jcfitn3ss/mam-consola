@@ -8570,7 +8570,9 @@ async function verEmbudo(){
       cont.innerHTML='<div class="card" style="max-width:460px;margin:48px auto"><h2 style="margin-top:0">Embudo</h2><div class="muted" style="margin-bottom:10px">Falta preparar la tabla del embudo. Se hace una sola vez.</div><button onclick="embPreparar()">Preparar</button></div>';return;}
     cont.innerHTML='<div class="card"><div class="alert">'+esc(m)+'</div></div>';return;
   }
-  EMB=r.data;embRender();
+  EMB=r.data;
+  if(EMB_VISTA==='setter'){ if(!SET)await cargarSetter(); setRender(); }
+  else embRender();
 }
 
 async function embPreparar(){
@@ -8626,6 +8628,151 @@ async function embIA(){
     m2.style.color='var(--ok)';}
 }
 
+// ---- Pestaña del SETTER dentro del Embudo ----
+// El embudo del setter va ANTES que el del closer: antes de que haya llamada,
+// alguien abrió una conversación. Se registra a mano (nombre + usuario de IG)
+// porque el DM de Instagram exige revisión de app en Meta y no está conectado.
+// El usuario de IG es la llave: cuando Meta apruebe, los DMs reales se cruzan
+// solos contra lo que el setter ya venía registrando.
+let EMB_VISTA='cierre', SET=null;
+
+const EST_CONV={
+  iniciada:{t:'Escrita',c:'#9c98a6'},
+  respondio:{t:'Respondió',c:'#3987e5'},
+  agendada:{t:'Agendó',c:'#199e70'},
+  no_interesa:{t:'No le interesa',c:'#d95926'},
+};
+
+function embTabs(){
+  const t=(k,n)=>`<button class="sm ${EMB_VISTA===k?'':'ghost'}" style="border-radius:20px" onclick="embIrVista('${k}')">${n}</button>`;
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${t('cierre','Cierre')}${t('setter','Setter')}</div>`;
+}
+
+async function embIrVista(v){
+  EMB_VISTA=v;
+  if(v==='setter'){ if(!SET)await cargarSetter(); setRender(); }
+  else { if(!EMB)await verEmbudo(); else embRender(); }
+}
+
+async function cargarSetter(){
+  const r=await embCall('setter',{meses:7});
+  if(r.error){$("v-embudo").innerHTML=embTabs()+'<div class="card"><div class="alert">'+esc(r.error.message)+'</div></div>';return;}
+  SET=r.data;
+}
+
+function setRender(){
+  const d=SET;if(!d){$("v-embudo").innerHTML=embTabs()+'<div class="card"><div class="muted">Cargando…</div></div>';return;}
+  const M=d.meses||[], L=d.lista||[], PS=d.por_setter||{};
+  const NOM=['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const mesNom=(m)=>NOM[Number(m.split('-')[1])]+' '+m.split('-')[0].slice(2);
+  const hoy=d.mes_actual;
+  const fila=(et,ay,celdas,estilo)=>`<tr style="${estilo||''}">
+    <td style="position:sticky;left:0;background:var(--card);padding:7px 10px 7px 0;white-space:nowrap;border-right:1px solid var(--line)">
+      <span style="font-size:12.5px">${et}</span>${ay?`<div class="muted" style="font-size:10.5px">${ay}</div>`:''}</td>
+    ${celdas.map(c=>`<td style="text-align:right;padding:7px 10px;white-space:nowrap;font-size:12.5px">${c}</td>`).join('')}</tr>`;
+
+  let h=embTabs();
+  h+=`<div class="card">
+    <div class="cardHead"><h2>Embudo del setter</h2>
+      <span class="acciones"><button class="sm ghost" style="min-height:40px" onclick="SET=null;embIrVista('setter')">Actualizar</button></span></div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">${d.total} conversación(es) registradas. Se escriben a mano: Instagram todavía no está conectado.</div>
+    <div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%">
+      <tr><td style="position:sticky;left:0;background:var(--card);border-right:1px solid var(--line)"></td>
+        ${M.map(m=>`<td style="text-align:right;padding:7px 10px;white-space:nowrap;font-weight:800;font-size:12.5px;${m.mes===hoy?'color:#5f93e0':''}">${esc(mesNom(m.mes))}${m.mes===hoy?'<div class="muted" style="font-size:10px;font-weight:400">en curso</div>':''}</td>`).join('')}</tr>
+      ${fila('Conversaciones abiertas','a cuánta gente le escribió',M.map(m=>`<b>${m.iniciadas}</b>`))}
+      ${fila('Respondieron','',M.map(m=>`${m.respondieron}`))}
+      ${fila('% de respuesta','de los que escribió, cuántos contestaron',M.map(m=>embPct(m.pct_respuesta,40,20)))}
+      ${fila('Agendaron','',M.map(m=>`<b>${m.agendadas}</b>`),'background:rgba(95,147,224,.06)')}
+      ${fila('% que agenda','sobre todos los que escribió',M.map(m=>embPct(m.pct_agenda,15,7)))}
+      ${fila('% agenda de los que responden','',M.map(m=>embPct(m.pct_agenda_sobre_respuesta,35,20)))}
+      ${fila('No les interesa','',M.map(m=>`<span class="muted">${m.no_interesa}</span>`))}
+    </table></div>
+  </div>`;
+
+  // Quién está moviendo la aguja.
+  const setters=Object.keys(PS);
+  if(setters.length){
+    h+=`<div class="card"><h3 style="margin-top:0">Por setter</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Quién</th><th style="text-align:right">Escribió</th><th style="text-align:right">Respondieron</th><th style="text-align:right">Agendaron</th><th style="text-align:right">% agenda</th></tr>
+        ${setters.map(k=>{const x=PS[k];return `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:6px 0">${esc(k)}</td>
+          <td style="text-align:right">${x.iniciadas}</td>
+          <td style="text-align:right">${x.respondieron}</td>
+          <td style="text-align:right;font-weight:700">${x.agendadas}</td>
+          <td style="text-align:right">${embPct(x.iniciadas?x.agendadas/x.iniciadas:null,15,7)}</td></tr>`;}).join('')}
+      </table></div>`;
+  }
+
+  // Registrar una conversación: lo mínimo, como lo pidió JC.
+  h+=`<div class="card"><h3 style="margin-top:0">Anotar una conversación</h3>
+    <div class="finGrid">
+      <div class="finF"><label for="scNombre">Quién es</label>
+        <span class="finWrap"><input id="scNombre" placeholder="nombre de la persona" style="padding-right:12px" onkeydown="if(event.key==='Enter')setGuardar()" /></span></div>
+      <div class="finF"><label for="scIG">Usuario de Instagram</label>
+        <span class="finWrap"><input id="scIG" placeholder="@usuario" style="padding-right:12px" onkeydown="if(event.key==='Enter')setGuardar()" /></span></div>
+      <div class="finF"><label for="scSetter">Quién escribió</label>
+        <span class="finWrap"><input id="scSetter" placeholder="Ian Rozo" style="padding-right:12px" /></span></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <button style="min-height:44px" onclick="setGuardar()">Anotar</button>
+      <span id="scMsg" class="muted" style="font-size:12.5px"></span>
+    </div>
+    <div class="muted" style="font-size:11.5px;margin-top:8px">El usuario de Instagram no se puede repetir: si ya está anotado, se actualiza en vez de duplicarse.</div>
+  </div>`;
+
+  // La lista, con el estado cambiable de un toque.
+  h+=`<div class="card"><h3 style="margin-top:0">Conversaciones</h3>
+    ${L.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Cuándo</th><th>Quién</th><th>Instagram</th><th>Setter</th><th>Estado</th><th></th></tr>
+      ${L.map(c=>{
+        const e=EST_CONV[c.estado_real]||EST_CONV.iniciada;
+        const auto=c.estado_real!==c.estado;
+        return `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 0" class="muted">${esc(String(c.fecha||'').slice(0,10))}</td>
+          <td>${esc(c.nombre)}</td>
+          <td><a href="https://instagram.com/${esc(c.ig_usuario)}" target="_blank" rel="noopener" style="color:#5f93e0;text-decoration:none">@${esc(c.ig_usuario)}</a></td>
+          <td class="muted">${esc(c.setter||'—')}</td>
+          <td><span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:${e.c}22;color:${e.c};border:1px solid ${e.c}55">${e.t}</span>${auto?'<span class="muted" style="font-size:10px;margin-left:5px">tiene llamada</span>':''}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <select style="margin:0;padding:4px 6px;font-size:12px;width:auto" onchange="setEstado('${c.id}',this.value)">
+              ${Object.keys(EST_CONV).map(k=>`<option value="${k}"${c.estado===k?' selected':''}>${EST_CONV[k].t}</option>`).join('')}
+            </select>
+            <button class="sm ghost" style="min-height:32px;padding:4px 8px" onclick="setBorrar('${c.id}')">Quitar</button></td></tr>`;
+      }).join('')}
+    </table></div>`:'<div class="muted" style="font-size:12.5px">Todavía no hay ninguna. Anota la primera arriba.</div>'}
+  </div>`;
+
+  $("v-embudo").innerHTML=h;
+}
+
+async function setGuardar(){
+  const v=(id)=>{const e=$(id);return e?e.value.trim():'';};
+  const m=$("scMsg");
+  if(!v('scNombre')){if(m){m.textContent='Falta el nombre.';m.style.color='var(--warn)';}return;}
+  if(!v('scIG')){if(m){m.textContent='Falta el usuario de Instagram.';m.style.color='var(--warn)';}return;}
+  if(m){m.textContent='Guardando…';m.style.color='';}
+  const r=await embCall('conv_guardar',{fila:{nombre:v('scNombre'),ig_usuario:v('scIG'),setter:v('scSetter')}});
+  if(r.error){if(m){m.textContent='No se guardó: '+r.error.message;m.style.color='var(--rojo2)';}return;}
+  ['scNombre','scIG'].forEach(i=>{const e=$(i);if(e)e.value='';});
+  SET=null;await cargarSetter();setRender();
+  const m2=$("scMsg");if(m2){m2.textContent='Anotada.';m2.style.color='var(--ok)';}
+}
+
+async function setEstado(id,estado){
+  const c=((SET&&SET.lista)||[]).find(x=>String(x.id)===String(id));if(!c)return;
+  const r=await embCall('conv_guardar',{fila:{id:id,nombre:c.nombre,ig_usuario:c.ig_usuario,setter:c.setter,fecha:c.fecha,estado:estado}});
+  if(r.error){alert('No se guardó: '+r.error.message);return;}
+  SET=null;await cargarSetter();setRender();
+}
+
+async function setBorrar(id){
+  if(!confirm('¿Quitar esta conversación?'))return;
+  const r=await embCall('conv_borrar',{id:id});
+  if(r.error){alert('No se pudo quitar: '+r.error.message);return;}
+  SET=null;await cargarSetter();setRender();
+}
+
 function embPct(v,bueno,regular){
   if(v==null)return '<span class="muted">—</span>';
   const p=v*100;
@@ -8648,7 +8795,8 @@ function embRender(){
     ${celdas.map(c=>`<td style="text-align:right;padding:7px 10px;white-space:nowrap;font-size:12.5px">${c}</td>`).join('')}</tr>`;
   const grupo=(t)=>`<tr><td colspan="${M.length+1}" style="position:sticky;left:0;padding:14px 0 5px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;background:var(--card)">${t}</td></tr>`;
 
-  let h=`<div class="card">
+  let h=embTabs();
+  h+=`<div class="card">
     <div class="cardHead">
       <h2>Embudo de ventas</h2>
       <span class="acciones">
