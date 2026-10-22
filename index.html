@@ -197,34 +197,35 @@
 
   <div id="app" class="hide">
     <div class="nav">
+      <!-- MODO SERVICIO: el cliente ya pagó. -->
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
-      <button id="t-crm" onclick="tab('crm')">Clientes (CRM)</button>
-      <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
       <button id="t-seguimiento" onclick="tab('seguimiento')">Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
+      <button id="t-revision" onclick="tab('revision')">Revisión del día</button>
+      <button id="t-riesgo" onclick="tab('riesgo')">Riesgo de baja</button>
+      <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
+      <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
+      <button id="t-resumen" onclick="tab('resumen')">Resumen de gestión</button>
+      <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
+      <!-- MODO COMERCIAL: todavía no paga. -->
+      <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
+      <button id="t-crm" onclick="tab('crm')">Clientes (CRM)</button>
+      <button id="t-embudo" class="hide" onclick="tab('embudo')">Embudo</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
       <button id="t-finanzas" class="hide" onclick="tab('finanzas')">Finanzas</button>
-      <button id="t-embudo" class="hide" onclick="tab('embudo')">Embudo</button>
-      <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
-      <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Más ▾</button>
+      <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Biblioteca ▾</button>
       <div class="menu" id="masMenu">
-        <div class="menuGrp">Decisiones</div>
-        <button id="t-resumen" onclick="tab('resumen')">Resumen de gestión</button>
-        <button id="t-revision" onclick="tab('revision')">Revisión del día</button>
-        <button id="t-riesgo" onclick="tab('riesgo')">Riesgo de baja</button>
-        <div class="menuGrp">Biblioteca</div>
         <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
         <button id="t-plantillas" onclick="tab('plantillas')">Rutinas estándar</button>
         <button id="t-alimentos" onclick="tab('alimentos')">Alimentos</button>
         <button id="t-restaurantes" onclick="tab('restaurantes')">Restaurantes</button>
-        <div class="menuGrp">Operación</div>
-        <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
         <button id="t-prospecto" onclick="tab('prospecto')">Prospecto (PDF)</button>
-        <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
-        <div class="menuGrp">Consola</div>
-        <button id="t-sugerencias" onclick="tab('sugerencias')">Sugerencias</button>
-        <button id="t-interno" onclick="tab('interno')">Mejorar consola</button>
       </div>
+      <!-- Sugerencias y Mejorar consola no son pestañas de trabajo: viven en el
+           menú de perfil. Los botones siguen aquí (ocultos) porque `tab()` y
+           `aplicarPermisos` los buscan por id. -->
+      <button id="t-sugerencias" class="hide" onclick="tab('sugerencias')">Sugerencias</button>
+      <button id="t-interno" class="hide" onclick="tab('interno')">Mejorar consola</button>
       <span id="buildVer" title="Versión de la consola. Si no coincide con la última, recarga con Ctrl/Cmd+Shift+R." style="font-size:10px;color:var(--muted);margin-left:10px;align-self:center">v2026-10-11 · versión app por cliente</span>
     </div>
 
@@ -394,10 +395,12 @@ async function login(){$("loginErr").textContent="Entrando…";const {error}=awa
 async function loginLink(){const em=$("email").value.trim();if(!em){$("loginErr").textContent="Escribe el correo.";return;}$("loginErr").textContent="Enviando enlace…";const {error}=await sb.auth.signInWithOtp({email:em,options:{emailRedirectTo:location.origin+location.pathname}});$("loginErr").textContent=error?error.message:("Enlace enviado a "+em+". Ábrelo desde este navegador.");}
 async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
-const TABS_SEC=["resumen","revision","riesgo","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"];
+// Las que viven dentro del desplegable: al abrir una, el botón toma su nombre.
+const TABS_SEC=["ejercicios","plantillas","alimentos","restaurantes","prospecto"];
 function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","finanzas","embudo","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
-  // "Más ▾": si la pestaña activa es secundaria, resáltalo y muestra su nombre; cierra el menú.
-  const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Más")+" ▾";}
+  // "Biblioteca ▾": si la pestaña activa es de la biblioteca, resáltalo y muestra
+  // su nombre; si no, vuelve a decir "Biblioteca". Cierra el menú al final.
+  const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Biblioteca")+" ▾";}
   const mm=$("masMenu");if(mm)mm.classList.remove("open");}
 function toggleMas(e){if(e)e.stopPropagation();const m=$("masMenu");if(m)m.classList.toggle("open");}
 // Cerrar el menú "Más" al hacer clic fuera.
@@ -663,10 +666,29 @@ let MI_ROL_REAL='', MI_PERFIL=null, SIMULANDO=null;
 
 const MODO_GUARDADO='mam_modo';
 
+// Qué pestañas vive cada modo. El rol dice lo que la cuenta PUEDE ver; el modo
+// dice lo que tiene sentido mirar ahora. Se cruzan: hay que pasar los dos.
+const PESTANAS_POR_MODO={
+  servicio:['clientes','seguimiento','llamadas','revision','riesgo','recordatorios','comunidad','resumen','salud',
+            // Biblioteca (van dentro del desplegable)
+            'ejercicios','plantillas','alimentos','restaurantes','prospecto'],
+  comercial:['contactar','crm','embudo','pagos','finanzas'],
+};
+// Las de la Biblioteca, que es el único desplegable que queda en la barra.
+const TABS_BIBLIOTECA=['ejercicios','plantillas','alimentos','restaurantes','prospecto'];
+// Estas dos no son pestañas de trabajo: viven en el menú de perfil.
+const TABS_PERFIL=['sugerencias','interno'];
+
 function puedeVer(pestana){
+  // 1) ¿El rol lo permite?
   const permitidas=PESTANAS_POR_ROL[MI_ROL];
-  if(permitidas==='*')return true;
-  return Array.isArray(permitidas)&&permitidas.indexOf(pestana)>=0;
+  const porRol=(permitidas==='*')||(Array.isArray(permitidas)&&permitidas.indexOf(pestana)>=0);
+  if(!porRol)return false;
+  // 2) Las del menú de perfil no dependen del modo: no son pestañas de trabajo.
+  if(TABS_PERFIL.indexOf(pestana)>=0)return true;
+  // 3) ¿El modo en el que estoy la incluye?
+  const delModo=PESTANAS_POR_MODO[MI_MODO];
+  return Array.isArray(delModo)&&delModo.indexOf(pestana)>=0;
 }
 
 // Deja a la vista solo las pestañas del rol y abre la primera que le toque.
@@ -677,14 +699,21 @@ function aplicarPermisos(){
   let primera='';
   todas.forEach(t=>{
     const b=$("t-"+t);if(!b)return;
+    // Sugerencias y Mejorar consola se alcanzan desde el menú de perfil: su
+    // botón de la barra queda oculto siempre, aunque el rol las permita.
+    if(TABS_PERFIL.indexOf(t)>=0){b.classList.add('hide');return;}
     const ok=puedeVer(t);
     b.classList.toggle('hide',!ok);
     if(ok&&!primera)primera=t;
   });
-  // El menú "Más" solo tiene sentido si queda algo adentro.
-  const dentroDeMas=['resumen','revision','riesgo','ejercicios','plantillas','alimentos','restaurantes','salud','prospecto','comunidad','sugerencias','interno'];
-  const hayMas=dentroDeMas.some(t=>puedeVer(t));
-  const mb=$("masBtn");if(mb)mb.classList.toggle('hide',!hayMas);
+  // El desplegable de Biblioteca solo tiene sentido si queda algo adentro.
+  const hayBiblio=TABS_BIBLIOTECA.some(t=>puedeVer(t));
+  const mb=$("masBtn");
+  if(mb){
+    mb.classList.toggle('hide',!hayBiblio);
+    // Si la pestaña abierta no es de Biblioteca, el botón vuelve a su nombre.
+    if(!hayBiblio)mb.classList.remove('on');
+  }
   return primera;
 }
 
@@ -713,6 +742,13 @@ function pintarPerfilMenu(){
     const roles=[['dueno','Dueño'],['entrenador','Entrenador'],['entrenador_setter','Entrenador con setteo'],['comercial','Comercial']];
     h+=roles.map(([k,t])=>`<button class="opcion${(SIMULANDO||'dueno')===k?' on':''}" onclick="verComo('${k}')">
       <span>${t}</span>${(SIMULANDO||'dueno')===k?'<span class="marca">·</span>':''}</button>`).join('');
+  }
+  // Sugerencias y Mejorar consola: no son trabajo del día, son de la consola.
+  const deConsola=TABS_PERFIL.filter(t=>puedeVer(t));
+  if(deConsola.length){
+    h+='<div class="menuSep"></div><div class="menuGrp">Consola</div>';
+    const nom={sugerencias:'Sugerencias',interno:'Mejorar consola'};
+    h+=deConsola.map(t=>`<button onclick="cerrarPerfil();tab('${t}')">${nom[t]}</button>`).join('');
   }
   h+='<div class="menuSep"></div>';
   h+='<button onclick="cerrarPerfil();logout()">Salir</button>';
