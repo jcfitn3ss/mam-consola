@@ -1930,7 +1930,7 @@ function cuTandaHTML(all){
         ${i.telefono?`<button class="ghost" style="min-height:44px;border-radius:10px" onclick="cuIARedactar('${k}')">Escribir con IA</button>`:''}
         <span style="flex:1"></span>
         <button class="ghost" style="min-height:44px;border-radius:10px" onclick="marcarLead(${arg},'no_interesado')" title="Lo descarta y pasa al siguiente">No va</button>
-        <button class="ghost" style="min-height:44px;border-radius:10px" onclick="cuTandaIr(${CU_TANDA_I+1})" ${CU_TANDA_I+1>=T.length?'disabled style="min-height:44px;border-radius:10px;opacity:.4;cursor:default"':''}>Siguiente</button>
+        <button class="ghost" style="min-height:44px;border-radius:10px${CU_TANDA_I+1>=T.length?';opacity:.4;cursor:default':''}" ${CU_TANDA_I+1>=T.length?'disabled':''} onclick="cuTandaIr(${CU_TANDA_I+1})">Siguiente</button>
       </div>
       ${abAge?cuPanelAgendaHTML(i,k):''}
       ${(eIA.texto||eIA.cargando||eIA.error)?cuIAPanelHTML(i,k):''}
@@ -2231,10 +2231,9 @@ function renderContactar(){
       ${panelRes}${panelAgenda}${panelIA}
     </div>`:'';
 
-    h+=`<div data-k="${k}" tabindex="0" role="button" aria-expanded="${abierto?'true':'false'}"
-        onclick="cuAbrir('${k}',event)" onkeydown="cuAbrirTecla('${k}',event)"
+    h+=`<div data-k="${k}" onclick="cuAbrir('${k}',event)"
         style="display:flex;gap:10px;align-items:center;padding:11px 12px 11px ${bordeTemp?'12px':'14px'};border-bottom:1px solid var(--line);cursor:pointer;outline-offset:-2px;${bordeTemp?`border-left:3px solid ${bordeTemp};`:''}${sel?'background:rgba(226,59,59,.07);':(abierto?'background:var(--card2);':'')}">
-      <span style="flex:none;color:var(--muted);display:inline-flex;transition:transform .18s;transform:rotate(${abierto?'90':'0'}deg)">${SVG_CARET}</span>
+      <button class="ghost" aria-expanded="${abierto?'true':'false'}" aria-label="${abierto?'Cerrar':'Abrir'} el detalle de ${esc(i.nombre||i.email||'esta persona')}" onclick="cuAbrir('${k}',null)" style="flex:none;background:none;border:none;padding:4px;min-height:0;color:var(--muted);display:inline-flex;align-items:center;transition:transform .18s;transform:rotate(${abierto?'90':'0'}deg)">${SVG_CARET}</button>
       <input type="checkbox" ${sel?'checked':''} onchange="cuToggleSel('${k}',this.checked)" title="Seleccionar" style="width:17px;height:17px;flex:none;cursor:pointer">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:14.5px">${esc(i.nombre||i.email||'(sin nombre)')}</b>${encNuevo?` <span style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;background:var(--rojo);color:#fff;border-radius:5px;padding:2px 7px">nuevo</span>`:''}${niv}${chip(i.grupo)}${toqueChip}</div>
@@ -2294,11 +2293,6 @@ function cuAbrir(k,ev){
     if(window.CU_IA&&window.CU_IA[k]) window.CU_IA[k].abierto=false;
   } else window.CU_OPEN.add(k);
   renderContactar();
-}
-function cuAbrirTecla(k,ev){
-  if(!ev||(ev.key!=='Enter'&&ev.key!==' ')) return;
-  if(ev.target&&ev.target.closest&&ev.target.closest('button,select,a,input,textarea')) return;
-  ev.preventDefault(); cuAbrir(k,null);
 }
 // ───────── La IA del CRM, dentro de la consola ─────────
 // Antes había que salirse a aplica.musculoalmaximo.com/crm para escribir el mensaje o
