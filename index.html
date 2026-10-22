@@ -680,7 +680,14 @@ const MODO_GUARDADO='mam_modo';
 // Qué pestañas vive cada modo. El rol dice lo que la cuenta PUEDE ver; el modo
 // dice lo que tiene sentido mirar ahora. Se cruzan: hay que pasar los dos.
 const PESTANAS_POR_MODO={
-  servicio:['clientes','seguimiento','llamadas','revision','riesgo','recordatorios','comunidad','resumen','salud',
+  // REGLA: una pestaña vive en los DOS modos solo cuando responde una pregunta
+  // genuinamente distinta en cada uno. Si es la misma pregunta, va en uno solo.
+  // Hoy la única que cumple es `crm`: en servicio responde "¿quién dejó de
+  // mandar fotos, a quién se le vence el plan?" y en comercial "¿quién ya es
+  // cliente, a quién le toca renovar?" — y renovar es vender. Además el
+  // servidor ya le recorta lo clínico al rol comercial, así que es la misma
+  // pestaña con la profundidad que cada rol tiene permitida.
+  servicio:['clientes','crm','seguimiento','llamadas','revision','riesgo','recordatorios','comunidad','resumen','salud',
             // Biblioteca (van dentro del desplegable)
             'ejercicios','plantillas','alimentos','restaurantes','prospecto'],
   comercial:['contactar','crm','embudo','pagos','finanzas'],
