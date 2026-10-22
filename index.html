@@ -152,6 +152,12 @@
   /* Franja de simulación: tiene que ser imposible de confundir con la vista real. */
   .simBar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:repeating-linear-gradient(45deg,rgba(224,184,74,.14),rgba(224,184,74,.14) 10px,rgba(224,184,74,.07) 10px,rgba(224,184,74,.07) 20px);border:1px solid var(--warn);border-radius:10px;padding:8px 12px;margin-bottom:12px}
   .simBar b{color:var(--warn)}
+  /* `.hide` está definida ARRIBA de estas dos, así que con la misma especificidad
+     perdía y la franja de simulación salía siempre, vacía. Esto la desempata. */
+  .simBar.hide,.modoTag.hide{display:none}
+  /* Enlace que se ve y se alinea como botón: un <a> no centra su texto solo y
+     al lado de un <button> real quedaba descuadrado (pasaba con WhatsApp). */
+  .btnLink{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 14px;border-radius:9px;font-weight:700;font-size:12px;text-decoration:none;line-height:1}
   /* Tablero de misión: qué hay que hacer hoy, en orden, con final. */
   .mision{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--card2);border:1px solid var(--line);border-left-width:3px;border-radius:10px;margin-bottom:7px;transition:border-color .15s}
   .mision .num{min-width:42px;font-size:19px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
@@ -418,6 +424,10 @@ function toggleMas(e){if(e)e.stopPropagation();const m=$("masMenu");if(m)m.class
 document.addEventListener("click",e=>{const m=$("masMenu"),b=$("masBtn");if(m&&m.classList.contains("open")&&!m.contains(e.target)&&e.target!==b)m.classList.remove("open");});
 // Lo mismo para el menú de perfil.
 document.addEventListener("click",e=>{const m=$("perfilMenu"),b=$("perfilBtn");if(m&&m.classList.contains("open")&&!m.contains(e.target)&&e.target!==b)m.classList.remove("open");});
+// Abre la ficha de un cliente desde cualquier lista (Salud de datos, Riesgo…).
+// Antes había que anotar el nombre, irse a Clientes y buscarlo a mano.
+function abrirFicha(uid){ if(!uid)return; tab('clientes'); verCliente(uid); }
+
 // ---- SALUD DE DATOS: huecos por cliente (sin plan/rutina/objetivo/altura, etc.) ----
 async function verSalud(){
   $("v-salud").innerHTML='<div class="card">Analizando la salud de datos de tus clientes…</div>';
@@ -448,16 +458,16 @@ async function verSalud(){
       // Editor en LOTE: input por persona (prellenado) + guardar. Nombre + 2 apellidos.
       cuerpo=`<div style="display:flex;flex-direction:column;gap:6px">`+arr.map((x,i)=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="sn_${i}" data-nocaps value="${esc(x.nombre_completo||x.nombre||'')}" placeholder="Nombre y dos apellidos" style="margin:0;flex:1;min-width:200px"><button class="sm" onclick="guardarNombreSalud('${x.user_id}','sn_${i}',this)">Guardar</button><span class="salMsg" style="font-size:11px"></span></div>`).join('')+`</div>`;
     } else if(k==='inactivos_14d'){
-      cuerpo=`<div style="display:flex;flex-direction:column;gap:6px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.dias_sin_entrenar!=null?x.dias_sin_entrenar+' días sin entrenar':'nunca ha entrenado'}</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
+      cuerpo=`<div style="display:flex;flex-direction:column;gap:6px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${x.user_id?`<a href="#" onclick="event.preventDefault();abrirFicha('${x.user_id}')" style="color:var(--txt);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px">${esc(x.nombre)}</a>`:esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.dias_sin_entrenar!=null?x.dias_sin_entrenar+' días sin entrenar':'nunca ha entrenado'}</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
       <div class="muted" style="font-size:11px;margin-top:8px">Mensaje sugerido para reactivar (cópialo): <span style="color:var(--txt)">"Hola {nombre}, te vi flojito con los entrenos esta semana. Cuéntame qué pasó y retomamos hoy mismo — no perdamos el ritmo que ya llevabas."</span></div>`;
     } else if(k==='nunca_han_entrado'){
-      cuerpo=`<div style="display:flex;flex-direction:column;gap:4px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b>${x.email?`<span class="muted" style="font-size:12px;user-select:text">${esc(x.email)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="resetClave('${x.user_id}')">Resetear clave</button><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
+      cuerpo=`<div style="display:flex;flex-direction:column;gap:4px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${x.user_id?`<a href="#" onclick="event.preventDefault();abrirFicha('${x.user_id}')" style="color:var(--txt);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px">${esc(x.nombre)}</a>`:esc(x.nombre)}</b>${x.email?`<span class="muted" style="font-size:12px;user-select:text">${esc(x.email)}</span>`:''}<span style="flex:1"></span><button class="sm" onclick="resetClave('${x.user_id}')">Resetear clave</button><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>
       <div class="muted" style="font-size:11px;margin-top:8px">Alternativa sin clave: diles que en la app usen "Entrar sin clave (enlace al correo)" con ese mismo correo.</div>`;
     } else if(k==='sesiones_abandonadas'){
       const totAband=arr.reduce((a,x)=>a+(+x.n||0),0);
       cuerpo=`<button class="sm danger" onclick="limpiarSesionesAbandonadas(this)" style="margin-bottom:8px">Limpiar TODAS las abandonadas (${totAband})</button> <span id="limpSesMsg" class="muted" style="font-size:12px"></span>
       <div class="muted" style="font-size:11px;margin:2px 0 6px">Destraba a todos de una. No toca las series/workouts ni las sesiones de hoy.</div>
-      <div style="display:flex;flex-direction:column;gap:2px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.n} atascada(s)</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>`;
+      <div style="display:flex;flex-direction:column;gap:2px">`+arr.map(x=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--line)"><b style="min-width:150px">${x.user_id?`<a href="#" onclick="event.preventDefault();abrirFicha('${x.user_id}')" style="color:var(--txt);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px">${esc(x.nombre)}</a>`:esc(x.nombre)}</b><span class="pill" style="background:var(--card2)">${x.n} atascada(s)</span><span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir ficha →</button></div>`).join('')+`</div>`;
     } else {
       cuerpo=`<div style="display:flex;flex-wrap:wrap;gap:6px">${arr.map(n=>`<span class="pill" style="background:var(--card2)">${esc(typeof n==='string'?n:(n.nombre||''))}</span>`).join('')}</div>`;
     }
@@ -565,7 +575,7 @@ async function verPagos(){
   if(pruebas.length){
     prH+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Estas personas están en prueba. La idea es <b>venderles la app</b> antes de que venza. Ordenadas por menos días restantes.</div>`;
     const conD=pruebas.map(x=>({...x,_d:diasRest(x.trial_fin)})).sort((a,b)=>(a._d==null?999:a._d)-(b._d==null?999:b._d));
-    prH+=`<table><tr><th>Cliente</th><th>Días restantes</th><th></th></tr>`+conD.map(x=>{const nom=(x.nombre||'').split(' ')[0]||'';const wl=x.telefono?waLink(x.telefono,guionVenta(nom)):null;const dtxt=x._d==null?'—':(x._d<0?`<span style="color:var(--rojo)">vencida hace ${-x._d}d</span>`:`<b style="color:${x._d<=2?'var(--rojo)':'var(--warn)'}">${x._d}d</b>`);return `<tr><td><b>${esc(x.nombre)}</b></td><td>${dtxt}</td><td style="display:flex;gap:6px">${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px">WhatsApp</a>`:'<span class="muted" style="font-size:11px">sin tel.</span>'}<button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`;}).join('')+`</table>`;
+    prH+=`<table><tr><th>Cliente</th><th>Días restantes</th><th></th></tr>`+conD.map(x=>{const nom=(x.nombre||'').split(' ')[0]||'';const wl=x.telefono?waLink(x.telefono,guionVenta(nom)):null;const dtxt=x._d==null?'—':(x._d<0?`<span style="color:var(--rojo)">vencida hace ${-x._d}d</span>`:`<b style="color:${x._d<=2?'var(--rojo)':'var(--warn)'}">${x._d}d</b>`);return `<tr><td><b>${esc(x.nombre)}</b></td><td>${dtxt}</td><td style="display:flex;gap:6px">${wl?`<a href="${wl}" target="_blank" class="btnLink" style="background:#25d366;color:#000">WhatsApp</a>`:'<span class="muted" style="font-size:11px">sin tel.</span>'}<button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`;}).join('')+`</table>`;
   } else prH+=`<div class="muted" style="font-size:12px">No hay nadie en prueba ahora.</div>`;
   prH+=`</div>`;h+=prH;
   h+=`<div class="card"><h2 style="margin-top:0">Recurrentes (tiers de tienda)</h2>
@@ -1473,7 +1483,7 @@ function verRiesgo(){
   const med=CLIENTES.filter(c=>(c._churn||0)>=25&&(c._churn||0)<45).sort((a,b)=>(b._churn||0)-(a._churn||0));
   const nivel=v=>v>=70?['','var(--rojo)']:v>=45?['','#e0843a']:['','var(--warn)'];
   const msgSug=c=>{const n=(c.nombre||'').split(' ')[0]||'';return `Hola ${n}, te noté flojito esta semana. ¿Cómo vas? Cuéntame qué se te atravesó y lo retomamos hoy mismo — no perdamos el ritmo que ya llevabas.`;};
-  const fila=c=>{const nv=nivel(c._churn),tel=c._tel||'',wl=tel?waLink(tel,msgSug(c)):null;return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${nv[0]} ${esc(c.nombre||c.user_id.slice(0,8))}</b> <span class="pill" style="background:var(--card2);color:${nv[1]};font-weight:700">${c._churn}%</span><div class="muted" style="font-size:12px">${esc((c._churnR||[]).join(' · ')||'—')}</div></div><div style="display:flex;gap:6px;flex-shrink:0">${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px">WhatsApp</a>`:''}<button class="sm ghost" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir →</button></div></div>`;};
+  const fila=c=>{const nv=nivel(c._churn),tel=c._tel||'',wl=tel?waLink(tel,msgSug(c)):null;return `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><b>${nv[0]} ${esc(c.nombre||c.user_id.slice(0,8))}</b> <span class="pill" style="background:var(--card2);color:${nv[1]};font-weight:700">${c._churn}%</span><div class="muted" style="font-size:12px">${esc((c._churnR||[]).join(' · ')||'—')}</div></div><div style="display:flex;gap:6px;flex-shrink:0">${wl?`<a href="${wl}" target="_blank" class="btnLink" style="background:#25d366;color:#000">WhatsApp</a>`:''}<button class="sm ghost" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir →</button></div></div>`;};
   let h=`<div class="card" style="border:1px solid ${risk.length?'var(--rojo)':'var(--ok)'}"><h2 style="margin-top:0">Riesgo de baja · ${risk.length} en riesgo</h2>
     <div class="muted" style="font-size:12px;margin-bottom:6px">Score que combina pago + actividad + onboarding. Contacta a los de arriba HOY: recuperar cuesta menos que conseguir uno nuevo. El botón WhatsApp lleva un mensaje sugerido (edítalo antes de enviar).</div>`;
   if(!risk.length)h+=`<div style="color:var(--ok)">✓ Nadie en riesgo alto ahora mismo.</div>`;
@@ -2253,8 +2263,8 @@ async function verCRM(){
       <td style="white-space:nowrap;font-size:12px">${s.precio!=null?('$'+s.precio):'—'}</td>
       <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${sf.dot}"></span>${sf.t}</span></td>
       <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:${sm.dot}"></span>${sm.t}</span></td>
-      <td><input type="date" value="${cm.renov_plan||''}" onchange="crmGuardar('${c.user_id}',{renov_plan:this.value})" style="margin:0;font-size:11px;width:130px"></td>
-      <td><input type="date" value="${cm.fin_plan||''}" onchange="crmGuardar('${c.user_id}',{fin_plan:this.value})" style="margin:0;font-size:11px;width:130px"></td>
+      <td><input type="date" value="${cm.renov_plan||''}" onchange="crmGuardar('${c.user_id}',{renov_plan:this.value})" style="margin:0;font-size:11px;width:112px"></td>
+      <td><input type="date" value="${cm.fin_plan||''}" onchange="crmGuardar('${c.user_id}',{fin_plan:this.value})" style="margin:0;font-size:11px;width:112px"></td>
       <td><input value="${esc(cm.objetivo||'')}" placeholder="${esc(objApp||'objetivo…')}" onchange="crmGuardar('${c.user_id}',{objetivo:this.value})" style="margin:0;font-size:12px;min-width:180px"></td>
       <td><input value="${esc(cm.observaciones||'')}" placeholder="notas…" onchange="crmGuardar('${c.user_id}',{observaciones:this.value})" style="margin:0;font-size:12px;min-width:180px"></td>
       <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:5px 8px;border-radius:7px;font-weight:700;font-size:11px">WhatsApp</a>`:''}</td>
@@ -2268,7 +2278,7 @@ async function verCRM(){
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${chip('todos','Todos')}${chip('activos','Activos')}${chip('fotos','Fotos vencidas')}${chip('renov','Por renovar')}</div>
   </div>
-  <div class="card" style="overflow-x:auto"><table class="data" style="min-width:1180px"><thead><tr>
+  <div class="card" style="overflow-x:auto;max-width:100%"><table class="data" style="min-width:1040px"><thead><tr>
     <th>Cliente</th><th>Estado</th><th>Producto</th><th>Inicio</th><th>Pago</th><th>Foto</th><th>Medida</th><th>Renov. plan</th><th>Fin plan</th><th>Objetivo</th><th>Observaciones</th><th></th>
   </tr></thead><tbody>${rows.map(fila).join('')||'<tr><td colspan="12" class="muted" style="padding:14px">Sin clientes que coincidan.</td></tr>'}</tbody></table></div>`;
   $("v-crm").innerHTML=h;
@@ -2328,7 +2338,7 @@ async function verSeguimiento(){
       <span class="pill" style="background:var(--card2)">${txt(x.dm)}</span>
       <span class="pill" style="background:var(--card2);color:${x.col};font-weight:700">${x.estado}</span>
       <span style="flex:1"></span>
-      ${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px">WhatsApp</a>`:`<span class="muted" style="font-size:11px">sin teléfono</span>`}
+      ${wl?`<a href="${wl}" target="_blank" class="btnLink" style="background:#25d366;color:#000">WhatsApp</a>`:`<span class="muted" style="font-size:11px">sin teléfono</span>`}
       <button class="sm ghost" onclick="tab('clientes');verCliente('${x.c.user_id}')">Abrir →</button>
     </div>`;};
 
@@ -2669,7 +2679,11 @@ function cmpFotos(){
 }
 function _cmpTabla(A,B,keys,unitFn){
   const rows=keys.map(([k,l])=>{const va=A?A[k]:null,vb=B?B[k]:null;if(va==null&&vb==null)return '';const u=unitFn(k);const d=(va!=null&&vb!=null)?Math.round((vb-va)*10)/10:null;const col=d==null?'var(--muted)':(d<0?'var(--ok)':d>0?'var(--warn)':'var(--muted)');return `<tr><td>${l}</td><td>${va!=null?va+u:'—'}</td><td>${vb!=null?vb+u:'—'}</td><td style="color:${col};font-weight:600">${d==null?'—':(d>0?'+':'')+d+u}</td></tr>`;}).join('');
-  return `<table style="font-size:12px;width:100%;border-collapse:collapse"><tr><th style="text-align:left">Medida</th><th>A</th><th>B</th><th>Δ</th></tr>${rows}</table>`;
+  // La cabecera lleva las FECHAS, no "A" y "B": leyendo la tabla sola no se sabía
+  // qué era cada columna y tocaba subir a mirar los selectores.
+  const fA=A&&A.fecha?String(A.fecha).slice(0,10):'A';
+  const fB=B&&B.fecha?String(B.fecha).slice(0,10):'B';
+  return `<table style="font-size:12px;width:100%;border-collapse:collapse"><tr><th style="text-align:left">Medida</th><th>${esc(fA)}</th><th>${esc(fB)}</th><th>Δ</th></tr>${rows}</table>`;
 }
 function cmpMed(){
   const M=window.__cmpM||[];const v=document.getElementById('cmpMedView');if(!v)return;
