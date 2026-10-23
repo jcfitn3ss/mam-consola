@@ -8809,6 +8809,14 @@ async function embIA(){
 // solos contra lo que el setter ya venía registrando.
 let EMB_VISTA='cierre', SET=null;
 
+// Quien dio el primer paso. Cambia por completo que significa la tasa de respuesta:
+// en frio un 20% es buen numero; en entrante, por debajo del 70% el problema es que
+// nos estamos demorando en contestar.
+const TIPO_CONV={
+  escribimos:{t:'Le escribimos',corto:'Frío',c:'#9c98a6'},
+  escribio:{t:'Nos escribió',corto:'Entrante',c:'#199e70'},
+};
+const tipoDeConv=(c)=>TIPO_CONV[String((c&&c.tipo)||'escribimos')]||TIPO_CONV.escribimos;
 const EST_CONV={
   iniciada:{t:'Escrita',c:'#9c98a6'},
   respondio:{t:'Respondió',c:'#3987e5'},
@@ -8858,6 +8866,15 @@ function setRender(){
       ${fila('Agendaron','',M.map(m=>`<b>${m.agendadas}</b>`),'background:rgba(95,147,224,.06)')}
       ${fila('% que agenda','sobre todos los que escribió',M.map(m=>embPct(m.pct_agenda,15,7)))}
       ${fila('% agenda de los que responden','',M.map(m=>embPct(m.pct_agenda_sobre_respuesta,35,20)))}
+      <tr><td colspan="${M.length+1}" style="padding:12px 10px 5px 0"><span class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase">Le escribimos nosotros (en frío)</span></td></tr>
+      ${fila('Abiertas en frío','',M.map(m=>`<b>${(m.escribimos||{}).iniciadas||0}</b>`))}
+      ${fila('% de respuesta en frío','meta: más de 20%',M.map(m=>embPct((m.escribimos||{}).pct_respuesta,20,10)))}
+      ${fila('Agendaron en frío','',M.map(m=>`${(m.escribimos||{}).agendadas||0}`))}
+      <tr><td colspan="${M.length+1}" style="padding:12px 10px 5px 0"><span class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase">Nos escribieron (entrantes)</span></td></tr>
+      ${fila('Entrantes','',M.map(m=>`<b>${(m.escribio||{}).iniciadas||0}</b>`))}
+      ${fila('% de respuesta entrante','meta: más de 70%',M.map(m=>embPct((m.escribio||{}).pct_respuesta,70,50)))}
+      ${fila('Agendaron entrantes','',M.map(m=>`${(m.escribio||{}).agendadas||0}`))}
+      ${fila('% que agenda entrante','sobre los que nos escribieron',M.map(m=>embPct((m.escribio||{}).pct_agenda,30,15)))}
       ${fila('No les interesa','',M.map(m=>`<span class="muted">${m.no_interesa}</span>`))}
     </table></div>
   </div>`;
@@ -8867,10 +8884,11 @@ function setRender(){
   if(setters.length){
     h+=`<div class="card"><h3 style="margin-top:0">Por setter</h3>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Quién</th><th style="text-align:right">Escribió</th><th style="text-align:right">Respondieron</th><th style="text-align:right">Agendaron</th><th style="text-align:right">% agenda</th></tr>
+        <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Quién</th><th style="text-align:right">En frío</th><th style="text-align:right">Entrantes</th><th style="text-align:right">Respondieron</th><th style="text-align:right">Agendaron</th><th style="text-align:right">% agenda</th></tr>
         ${setters.map(k=>{const x=PS[k];return `<tr style="border-top:1px solid var(--line)">
           <td style="padding:6px 0">${esc(k)}</td>
-          <td style="text-align:right">${x.iniciadas}</td>
+          <td style="text-align:right">${x.frias||0}</td>
+          <td style="text-align:right">${x.entrantes||0}</td>
           <td style="text-align:right">${x.respondieron}</td>
           <td style="text-align:right;font-weight:700">${x.agendadas}</td>
           <td style="text-align:right">${embPct(x.iniciadas?x.agendadas/x.iniciadas:null,15,7)}</td></tr>`;}).join('')}
@@ -8884,6 +8902,11 @@ function setRender(){
         <span class="finWrap"><input id="scNombre" placeholder="nombre de la persona" style="padding-right:12px" onkeydown="if(event.key==='Enter')setGuardar()" /></span></div>
       <div class="finF"><label for="scIG">Usuario de Instagram</label>
         <span class="finWrap"><input id="scIG" placeholder="@usuario" style="padding-right:12px" onkeydown="if(event.key==='Enter')setGuardar()" /></span></div>
+      <div class="finF"><label for="scTipo">Tipo de contacto</label>
+        <span class="finWrap"><select id="scTipo" style="padding-right:12px">
+          <option value="escribimos">Le escribimos</option>
+          <option value="escribio">Nos escribió</option>
+        </select></span></div>
       <div class="finF"><label for="scSetter">Quién escribió</label>
         <span class="finWrap"><input id="scSetter" placeholder="Ian Rozo" style="padding-right:12px" /></span></div>
     </div>
@@ -8897,7 +8920,7 @@ function setRender(){
   // La lista, con el estado cambiable de un toque.
   h+=`<div class="card"><h3 style="margin-top:0">Conversaciones</h3>
     ${L.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
-      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Cuándo</th><th>Quién</th><th>Instagram</th><th>Setter</th><th>Estado</th><th></th></tr>
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Cuándo</th><th>Quién</th><th>Instagram</th><th>Tipo de contacto</th><th>Setter</th><th>Estado</th><th></th></tr>
       ${L.map(c=>{
         const e=EST_CONV[c.estado_real]||EST_CONV.iniciada;
         const auto=c.estado_real!==c.estado;
@@ -8905,6 +8928,9 @@ function setRender(){
           <td style="padding:7px 0" class="muted">${esc(String(c.fecha||'').slice(0,10))}</td>
           <td>${esc(c.nombre)}</td>
           <td><a href="https://instagram.com/${esc(c.ig_usuario)}" target="_blank" rel="noopener" style="color:#5f93e0;text-decoration:none">@${esc(c.ig_usuario)}</a></td>
+          <td><select style="margin:0;padding:4px 6px;font-size:11.5px;width:auto;color:${tipoDeConv(c).c}" onchange="setTipo('${c.id}',this.value)" title="Quién dio el primer paso">
+            ${Object.keys(TIPO_CONV).map(k=>`<option value="${k}"${String(c.tipo||'escribimos')===k?' selected':''}>${TIPO_CONV[k].t}</option>`).join('')}
+          </select></td>
           <td class="muted">${esc(c.setter||'—')}</td>
           <td><span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:${e.c}22;color:${e.c};border:1px solid ${e.c}55">${e.t}</span>${auto?'<span class="muted" style="font-size:10px;margin-left:5px">tiene llamada</span>':''}</td>
           <td style="text-align:right;white-space:nowrap">
@@ -8925,16 +8951,21 @@ async function setGuardar(){
   if(!v('scNombre')){if(m){m.textContent='Falta el nombre.';m.style.color='var(--warn)';}return;}
   if(!v('scIG')){if(m){m.textContent='Falta el usuario de Instagram.';m.style.color='var(--warn)';}return;}
   if(m){m.textContent='Guardando…';m.style.color='';}
-  const r=await embCall('conv_guardar',{fila:{nombre:v('scNombre'),ig_usuario:v('scIG'),setter:v('scSetter')}});
+  const r=await embCall('conv_guardar',{fila:{nombre:v('scNombre'),ig_usuario:v('scIG'),setter:v('scSetter'),tipo:v('scTipo')||'escribimos'}});
   if(r.error){if(m){m.textContent='No se guardó: '+r.error.message;m.style.color='var(--rojo2)';}return;}
   ['scNombre','scIG'].forEach(i=>{const e=$(i);if(e)e.value='';});
   SET=null;await cargarSetter();setRender();
   const m2=$("scMsg");if(m2){m2.textContent='Anotada.';m2.style.color='var(--ok)';}
 }
 
-async function setEstado(id,estado){
+async function setEstado(id,estado){ return setCampo(id,{estado:estado}); }
+async function setTipo(id,tipo){ return setCampo(id,{tipo:tipo}); }
+// Guarda un cambio suelto conservando el resto de la fila. Si no se reenviaran
+// todos los campos, cambiar el estado pisaria el tipo con su valor por defecto.
+async function setCampo(id,cambio){
   const c=((SET&&SET.lista)||[]).find(x=>String(x.id)===String(id));if(!c)return;
-  const r=await embCall('conv_guardar',{fila:{id:id,nombre:c.nombre,ig_usuario:c.ig_usuario,setter:c.setter,fecha:c.fecha,estado:estado}});
+  const fila=Object.assign({id:id,nombre:c.nombre,ig_usuario:c.ig_usuario,setter:c.setter,fecha:c.fecha,estado:c.estado,tipo:c.tipo||'escribimos',nota:c.nota},cambio);
+  const r=await embCall('conv_guardar',{fila:fila});
   if(r.error){alert('No se guardó: '+r.error.message);return;}
   SET=null;await cargarSetter();setRender();
 }
