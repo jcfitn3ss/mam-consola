@@ -8826,13 +8826,167 @@ const EST_CONV={
 
 function embTabs(){
   const t=(k,n)=>`<button class="sm ${EMB_VISTA===k?'':'ghost'}" style="border-radius:20px" onclick="embIrVista('${k}')">${n}</button>`;
-  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${t('cierre','Cierre')}${t('setter','Setter')}</div>`;
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${t('cierre','Cierre')}${t('setter','Setter')}${t('origen','Origen')}</div>`;
 }
 
 async function embIrVista(v){
   EMB_VISTA=v;
   if(v==='setter'){ if(!SET)await cargarSetter(); setRender(); }
+  else if(v==='origen'){ if(!ORI)await cargarOrigen(); oriRender(); }
   else { if(!EMB)await verEmbudo(); else embRender(); }
+}
+
+// ───────── ORIGEN DEL LEAD ─────────
+// El formulario ya guarda el codigo que viaja en el enlace (?a=reel-sentadilla).
+// Aqui se le pone nombre, se dice si es pauta u organico, y se ve hasta donde
+// llego esa gente: cuantos agendaron, cuantos asistieron y cuantos cerraron.
+let ORI=null;
+const TIPO_PIEZA={
+  pauta:{t:'Pauta',c:'#d95926'},
+  organico:{t:'Orgánico',c:'#199e70'},
+  sin_clasificar:{t:'Sin clasificar',c:'#e0b84a'},
+  sin_codigo:{t:'Sin código',c:'#9c98a6'},
+};
+const URL_FORM='https://aplica.musculoalmaximo.com/captar';
+
+async function cargarOrigen(){
+  const r=await embCall('origen',{});
+  if(r.error){$("v-embudo").innerHTML=embTabs()+'<div class="card"><div class="alert">'+esc(r.error.message)+'</div></div>';return;}
+  ORI=r.data;
+}
+
+function oriRender(){
+  const d=ORI;if(!d){$("v-embudo").innerHTML=embTabs()+'<div class="card"><div class="muted">Cargando…</div></div>';return;}
+  const L=d.lista||[], PT=d.por_tipo||{};
+  const sinCodigo=(d.total_leads||0)-(d.con_codigo||0);
+  const pctSin=d.total_leads?Math.round(sinCodigo/d.total_leads*100):0;
+
+  let h=embTabs();
+
+  // Lo primero es decir cuanto de la base es ciego. Sin eso, cualquier tabla de
+  // abajo se lee como si fuera la foto completa y no lo es.
+  h+=`<div class="card">
+    <div class="cardHead"><h2>De dónde viene cada lead</h2>
+      <span class="acciones"><button class="sm ghost" style="min-height:40px" onclick="ORI=null;embIrVista('origen')">Actualizar</button></span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+      ${[['Leads totales',d.total_leads,''],['Con código de enlace',d.con_codigo,'#199e70'],['Sin código',sinCodigo,pctSin>50?'#d95926':''],['Llamadas agendadas',d.llamadas_totales,'']]
+        .map(([l,n,c])=>`<div style="flex:1;min-width:130px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:11px 13px">
+          <div style="font-size:21px;font-weight:800${c?';color:'+c:''}">${n}</div>
+          <div class="muted" style="font-size:11px">${l}</div></div>`).join('')}
+    </div>
+    ${pctSin>50?`<div style="margin-top:12px;background:rgba(224,184,74,.08);border:1px solid rgba(224,184,74,.35);border-left:3px solid var(--warn);border-radius:10px;padding:12px 14px">
+      <div style="font-size:13px;font-weight:700;color:var(--warn)">El ${pctSin}% de la base no dice de dónde vino</div>
+      <div class="muted" style="font-size:12.5px;margin-top:4px">El formulario solo sabe de qué publicación viene alguien si el enlace trae un código. Abajo generas el enlace de cada publicación; desde ahí los leads nuevos entran etiquetados. Lo viejo no se puede recuperar.</div>
+    </div>`:''}
+  </div>`;
+
+  // Pauta contra organico: la pregunta de fondo.
+  const tipos=Object.keys(PT).filter(k=>PT[k].leads>0);
+  if(tipos.length){
+    h+=`<div class="card"><h3 style="margin-top:0">Pauta contra orgánico</h3>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:460px">
+        <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Tráfico</th><th style="text-align:right">Leads</th><th style="text-align:right">Agendaron</th><th style="text-align:right">% agenda</th><th style="text-align:right">Cerraron</th></tr>
+        ${tipos.map(k=>{const x=PT[k], tp=TIPO_PIEZA[k]||TIPO_PIEZA.sin_codigo;
+          return `<tr style="border-top:1px solid var(--line)">
+            <td style="padding:7px 0"><span style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:${tp.c}22;color:${tp.c};border:1px solid ${tp.c}55">${tp.t}</span></td>
+            <td style="text-align:right">${x.leads}</td>
+            <td style="text-align:right;font-weight:700">${x.agendaron}</td>
+            <td style="text-align:right">${embPct(x.leads?x.agendaron/x.leads:null,3,1)}</td>
+            <td style="text-align:right">${x.cerraron}</td></tr>`;}).join('')}
+      </table></div>
+      <div class="muted" style="font-size:11.5px;margin-top:9px">Una pieza queda en <b>sin clasificar</b> hasta que le pongas nombre abajo. <b>Sin código</b> son los leads que entraron por un enlace sin etiquetar.</div>
+    </div>`;
+  }
+
+  // Publicacion por publicacion, ordenado por lo que de verdad importa: quien agenda.
+  h+=`<div class="card"><h3 style="margin-top:0">Publicación por publicación</h3>
+    ${L.filter(g=>g.codigo).length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:620px">
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Publicación</th><th>Tráfico</th><th style="text-align:right">Leads</th><th style="text-align:right">Agendaron</th><th style="text-align:right">Asistieron</th><th style="text-align:right">Cerraron</th><th style="text-align:right">% agenda</th><th></th></tr>
+      ${L.filter(g=>g.codigo).map(g=>{const tp=TIPO_PIEZA[g.tipo]||TIPO_PIEZA.sin_clasificar;
+        return `<tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 0">
+            <div style="font-weight:600">${esc(g.nombre)}</div>
+            <div class="muted" style="font-size:10.5px">?a=${esc(g.codigo)}${g.red?' · '+esc(g.red):''}</div>
+          </td>
+          <td><span style="display:inline-block;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:999px;background:${tp.c}22;color:${tp.c};border:1px solid ${tp.c}55">${tp.t}</span></td>
+          <td style="text-align:right">${g.leads}</td>
+          <td style="text-align:right;font-weight:700">${g.agendaron}</td>
+          <td style="text-align:right">${g.asistieron}</td>
+          <td style="text-align:right">${g.cerraron}</td>
+          <td style="text-align:right">${embPct(g.pct_agenda,3,1)}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="sm ghost" style="min-height:32px;padding:4px 9px" onclick="oriEditar('${esc(g.codigo)}')">${g.tipo==='sin_clasificar'?'Nombrar':'Editar'}</button>
+          </td></tr>`;}).join('')}
+    </table></div>`:'<div class="muted" style="font-size:12.5px">Todavía no entra nadie con código. Genera el primer enlace abajo y úsalo en tu próxima publicación.</div>'}
+  </div>`;
+
+  // Generador: que copiar y pegar sea un gesto, no un trámite.
+  h+=`<div class="card"><h3 style="margin-top:0">El enlace de una publicación</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">Pon un código corto, dinos qué publicación es y de dónde sale. Copias el enlace y lo usas en la bio, la historia o el anuncio. Todo el que entre por ahí queda etiquetado.</div>
+    <div class="finGrid">
+      <div class="finF"><label for="opCodigo">Código del enlace</label>
+        <span class="finWrap"><input id="opCodigo" placeholder="reel-sentadilla" style="padding-right:12px" oninput="oriPreview()" /></span></div>
+      <div class="finF"><label for="opNombre">Qué publicación es</label>
+        <span class="finWrap"><input id="opNombre" placeholder="Reel: los 3 errores de la sentadilla" style="padding-right:12px" /></span></div>
+      <div class="finF"><label for="opTipo">Tráfico</label>
+        <span class="finWrap"><select id="opTipo" style="padding-right:12px">
+          <option value="organico">Orgánico</option>
+          <option value="pauta">Pauta</option>
+        </select></span></div>
+      <div class="finF"><label for="opRed">Dónde se publica</label>
+        <span class="finWrap"><input id="opRed" placeholder="Instagram · bio" style="padding-right:12px" /></span></div>
+      <div class="finF" style="grid-column:1/-1"><label for="opUrl">Enlace de la publicación (opcional)</label>
+        <span class="finWrap"><input id="opUrl" placeholder="https://instagram.com/p/…" style="padding-right:12px" /></span></div>
+    </div>
+    <div style="margin-top:13px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+      <div class="muted" style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px">El enlace que vas a usar</div>
+      <div id="opPreview" style="font-size:13.5px;font-weight:600;word-break:break-all;color:var(--txt)">${URL_FORM}</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:13px;flex-wrap:wrap">
+      <button style="min-height:44px" onclick="oriGuardar()">Guardar y copiar el enlace</button>
+      <button class="ghost" style="min-height:44px" onclick="oriLimpiar()">Limpiar</button>
+      <span id="opMsg" class="muted" style="font-size:12.5px"></span>
+    </div>
+  </div>`;
+
+  $("v-embudo").innerHTML=h;
+}
+
+function oriEnlace(){
+  const c=($("opCodigo")||{}).value||'';
+  const limpio=c.trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');
+  return limpio?URL_FORM+'?a='+limpio:URL_FORM;
+}
+function oriPreview(){ const e=$("opPreview"); if(e)e.textContent=oriEnlace(); }
+function oriLimpiar(){ ['opCodigo','opNombre','opRed','opUrl'].forEach(i=>{const e=$(i);if(e)e.value='';}); oriPreview(); const m=$("opMsg"); if(m)m.textContent=''; }
+
+// Rellena el formulario con una pieza que ya existe, para renombrarla o reclasificarla.
+function oriEditar(codigo){
+  const p=((ORI&&ORI.piezas)||[]).find(x=>String(x.codigo)===String(codigo));
+  const g=((ORI&&ORI.lista)||[]).find(x=>String(x.codigo)===String(codigo));
+  const set=(id,v)=>{const e=$(id);if(e)e.value=v||'';};
+  set('opCodigo',codigo);
+  set('opNombre',p?p.nombre:(g?g.nombre:''));
+  set('opRed',p?p.red:'');
+  set('opUrl',p?p.url:'');
+  const t=$("opTipo"); if(t)t.value=(p&&p.tipo)||'organico';
+  oriPreview();
+  const e=$("opCodigo"); if(e){e.scrollIntoView({block:'center',behavior:'smooth'});e.focus();}
+}
+
+async function oriGuardar(){
+  const v=(id)=>{const e=$(id);return e?e.value.trim():'';};
+  const m=$("opMsg");
+  const codigo=v('opCodigo').toLowerCase().replace(/[^a-z0-9_-]/g,'');
+  if(!codigo){if(m){m.textContent='Falta el código del enlace.';m.style.color='var(--warn)';}return;}
+  if(!v('opNombre')){if(m){m.textContent='Ponle un nombre a la publicación.';m.style.color='var(--warn)';}return;}
+  if(m){m.textContent='Guardando…';m.style.color='';}
+  const enlace=URL_FORM+'?a='+codigo;
+  const r=await embCall('pieza_guardar',{fila:{codigo:codigo,nombre:v('opNombre'),tipo:v('opTipo')||'organico',red:v('opRed'),url:v('opUrl')}});
+  if(r.error){if(m){m.textContent='No se guardó: '+r.error.message;m.style.color='var(--rojo2)';}return;}
+  try{ await navigator.clipboard.writeText(enlace); }catch(e){}
+  ORI=null;await cargarOrigen();oriRender();
+  const m2=$("opMsg");if(m2){m2.textContent='Guardada. El enlace quedó copiado.';m2.style.color='var(--ok)';}
 }
 
 async function cargarSetter(){
