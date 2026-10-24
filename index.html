@@ -934,6 +934,7 @@ async function trasLogin(){
   await cargarSolicitudes();
   autoSyncPagos(); // en segundo plano: cruza TODOS con RevenueCat y activa a quien pagó
   contPrecargar(); // en segundo plano: para que la revisión de contenido salga en el tablero
+  contarAlertas(); // el total real de notificaciones, que la consulta corta en mil
   autoLimpiarSesiones(); // en segundo plano: borra sesiones atascadas que traban el entreno
   // Abrir el modo con el que se quedó la última vez. "clientes" ya viene abierta
   // por defecto en el HTML, así que solo hace falta mover la vista si el modo
@@ -1014,7 +1015,7 @@ async function cargarPrioridad(){
   const d14=hace(14);
   const d60=hace(60);
   const [al,su,ck,pl,ob,pf,se,pe]=await Promise.all([
-    sb.from("alertas").select("id,cliente_id,tipo,texto,created_at").eq("estado","abierta").order("created_at",{ascending:false}),
+    sb.from("alertas").select("id,cliente_id,tipo,texto,created_at").eq("estado","abierta").order("created_at",{ascending:false}).limit(1000),
     sb.from("sueno").select("user_id,horas,fecha").gte("fecha",d14),
     sb.from("checkins").select("user_id,dart,fatiga,energia,fecha").gte("fecha",d14).order("fecha",{ascending:false}),
     sb.from("planes").select("user_id,inicio"),
@@ -1107,10 +1108,26 @@ async function cargarPrioridad(){
 }
 // Campanita de notificaciones (alertas abiertas de todos los clientes).
 function renderCampana(){
-  const b=$("nAl");if(b)b.textContent=ALERTAS.length;show("campana",true);
+  const tope=ALERTAS.length>=1000;   // Supabase corta en 1000 sin avisar
+  const totalReal=(window.ALERTAS_TOTAL&&ALERTAS_TOTAL>ALERTAS.length)?ALERTAS_TOTAL:ALERTAS.length;
+  const b=$("nAl");if(b)b.textContent=totalReal>999?'999+':totalReal;show("campana",true);
   const panel=$("campanaPanel");if(!panel)return;
   const nom=id=>{const c=CLIENTES.find(x=>x.user_id===id);return c?(c.nombre||id.slice(0,8)):id.slice(0,8);};
-  let h=`<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Notificaciones (${ALERTAS.length})</h2><button class="sm ghost" onclick="toggleCampana()">Cerrar</button></div>`;
+  // Por tipo, con el conteo real: con miles abiertas, resolver de una en una no
+  // es trabajo, es condena. Lo que de verdad sirve es cerrar un tipo entero.
+  const porTipo={}; ALERTAS.forEach(a=>{const t=String(a.tipo||'otras');porTipo[t]=(porTipo[t]||0)+1;});
+  const tipos=Object.keys(porTipo).sort((x,y)=>porTipo[y]-porTipo[x]);
+  let h=`<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Notificaciones (${totalReal})</h2><button class="sm ghost" onclick="toggleCampana()">Cerrar</button></div>`;
+  if(tope)h+=`<div class="muted" style="font-size:11.5px;margin-top:5px;color:var(--warn)">Se muestran las ${ALERTAS.length} más nuevas de ${totalReal}. El servidor no entrega más de mil por consulta.</div>`;
+  if(tipos.length>1){
+    h+=`<div style="margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:9px 11px">
+      <div class="muted" style="font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:7px">Cerrar un tipo entero</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${tipos.map(t=>`<button class="sm ghost" style="min-height:40px" onclick="resolverTipo('${esc(t).replace(/'/g,"")}')">${esc(t)} · ${porTipo[t]}</button>`).join('')}
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:7px">Cierra las de ese tipo que estén cargadas. Útil cuando un tipo dejó de ser relevante.</div>
+    </div>`;
+  }
   if(!ALERTAS.length){h+=`<div class="muted" style="margin-top:6px">Sin notificaciones abiertas.</div>`;panel.innerHTML=h;return;}
   // ⑦ Agrupar por cliente: un bloque por persona con sus alertas dentro (antes era
   // una lista plana; con varias del mismo cliente se hacía larga y repetía el nombre).
@@ -1130,6 +1147,33 @@ function renderCampana(){
 }
 function toggleCampana(){const p=$("campanaPanel");if(p)p.classList.toggle("hide");}
 function abrirDesdeCampana(id){const p=$("campanaPanel");if(p)p.classList.add("hide");tab('clientes');verCliente(id);window.scrollTo(0,0);}
+// El total verdadero de alertas abiertas. La consulta de arriba trae mil como
+// mucho, asi que el badge mentia: decia 1000 habiendo cerca de 3.000.
+let ALERTAS_TOTAL=0;
+async function contarAlertas(){
+  try{
+    const {count}=await sb.from("alertas").select("id",{count:'exact',head:true}).eq("estado","abierta");
+    if(typeof count==='number'){ALERTAS_TOTAL=count;renderCampana();}
+  }catch(e){}
+}
+
+// Cierra de golpe las alertas cargadas de un tipo. Van en tandas de cincuenta
+// para no mandar una peticion por fila ni una sola gigante.
+async function resolverTipo(tipo){
+  const ids=ALERTAS.filter(a=>String(a.tipo||'otras')===tipo).map(a=>a.id);
+  if(!ids.length)return;
+  if(!confirm('¿Dar por resueltas '+ids.length+' notificación(es) de "'+tipo+'"?'))return;
+  let fallo=0;
+  for(let i=0;i<ids.length;i+=50){
+    const {error}=await sb.from("alertas").update({estado:"resuelta"}).in("id",ids.slice(i,i+50));
+    if(error)fallo++;
+  }
+  ALERTAS=ALERTAS.filter(a=>String(a.tipo||'otras')!==tipo);
+  ALERTAS_TOTAL=Math.max(0,ALERTAS_TOTAL-ids.length);
+  renderCampana();renderHoy();
+  if(fallo)toast('Algunas no se pudieron cerrar.','warn');
+}
+
 async function resolverAlerta(id){const {error}=await sb.from("alertas").update({estado:"resuelta"}).eq("id",id);if(error){toast(error.message,'warn');return;}ALERTAS=ALERTAS.filter(a=>String(a.id)!==String(id));renderCampana();renderHoy();}
 // Resolver una alerta DESDE la ficha del cliente: la marca resuelta, la quita de la
 // campana y refresca la ficha para que desaparezca de su sección de alertas.
