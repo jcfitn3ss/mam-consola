@@ -933,6 +933,7 @@ async function trasLogin(){
   await cargarPrioridad();
   await cargarSolicitudes();
   autoSyncPagos(); // en segundo plano: cruza TODOS con RevenueCat y activa a quien pagó
+  contPrecargar(); // en segundo plano: para que la revisión de contenido salga en el tablero
   autoLimpiarSesiones(); // en segundo plano: borra sesiones atascadas que traban el entreno
   // Abrir el modo con el que se quedó la última vez. "clientes" ya viene abierta
   // por defecto en el HTML, así que solo hace falta mover la vista si el modo
@@ -1248,6 +1249,18 @@ function tableroComercialHTML(){
     {orden:4,n:nVenc,    color:'var(--warn)', titulo:'Pagos vencidos por contactar', sub:'ya fueron clientes: son los más fáciles de recuperar', accion:"cuIrA('')", boton:'Recuperar'},
   ];
   if(hayFin)misiones.push({orden:5,n:nSinCedula,color:'var(--warn)',titulo:'Ventas sin cédula',sub:'sin cédula no se le puede mandar el acuerdo',accion:"tab('finanzas')",boton:'Completar'});
+  // Contenido: se precarga al arrancar, así el recordatorio sale aquí y no solo
+  // dentro de su pestaña. Una pieza sin medir es una pieza de la que no se
+  // aprende nada.
+  try{
+    const piezas=(window.CONT&&CONT.piezas)||null;
+    if(piezas){
+      const porMedir=piezas.filter(p=>p.sin_metricas&&p.dias>=2).length;
+      const sinMensajes=piezas.filter(p=>!p.sin_metricas&&(p.mensajes===null||p.mensajes===undefined)).length;
+      if(porMedir)misiones.push({orden:6,n:porMedir,color:'var(--warn)',titulo:'Piezas publicadas sin medir',sub:'ya pasaron 48 horas: Insights ya tiene los números',accion:"tab('contenido')",boton:'Revisar'});
+      if(sinMensajes)misiones.push({orden:7,n:sinMensajes,color:'#5f93e0',titulo:'Piezas sin el dato comercial',sub:'tienen alcance pero no cuántos mensajes trajeron',accion:"tab('contenido')",boton:'Completar'});
+    }
+  }catch(e){}
   return tableroHTML('Tu día comercial', misiones);
 }
 // Evaluación compartida de la semana de prep — MISMA lógica para el aviso de Hoy y el
@@ -8806,6 +8819,17 @@ function cDelta(ahora,antes,dec){
   return `<span style="font-size:11px;color:${sube?'var(--ok)':'var(--bad)'}">${sube?'+':''}${pct}% vs mes pasado</span>`;
 }
 
+// Trae el contenido una vez al arrancar, callado. El aviso de piezas sin medir
+// tiene que verse en el tablero del día; si solo apareciera dentro de la
+// pestaña, no serviría de recordatorio de nada.
+let CONT_PRECARGA=false;
+async function contPrecargar(){
+  if(CONT_PRECARGA||CONT)return; CONT_PRECARGA=true;
+  if(typeof puedeVer==='function'&&!puedeVer('contenido'))return;
+  try{ const r=await contCall('listar',{}); if(r&&r.data)CONT=r.data; }catch(e){}
+  try{ if(MI_MODO==='comercial'&&$("v-contactar")&&!$("v-contactar").classList.contains('hide'))renderContactar(); }catch(e){}
+}
+
 async function verContenido(){
   const cont=$("v-contenido");if(!cont)return;
   if(!CONT)cont.innerHTML='<div class="card"><div class="muted">Cargando el contenido…</div></div>';
@@ -8828,6 +8852,38 @@ async function contPreparar(){
 
 function contIrVista(v){ CONT_VISTA=v; CONT_TIPO=''; contRender(); }
 function contIrTipo(t){ CONT_TIPO=t; contRender(); }
+
+// Qué toca mirar hoy, por tramos. Una pieza no se revisa una vez: se lee a las
+// 48 h para saber si arrancó y a los 7 días para el número final. Y una pieza
+// con alcance pero sin mensajes está a medio medir: falta el dato que decide.
+function contRevisionHoy(todas){
+  const pri=todas.filter(p=>p.sin_metricas&&p.dias>=2&&p.dias<7);
+  const fin=todas.filter(p=>p.sin_metricas&&p.dias>=7);
+  const med=todas.filter(p=>!p.sin_metricas&&(p.mensajes===null||p.mensajes===undefined));
+  const hoy=todas.filter(p=>p.dias===0);
+  const total=pri.length+fin.length+med.length;
+  if(!total){
+    return `<div class="card"><div style="display:flex;gap:12px;align-items:center">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"/><polyline points="16 9 11 14 8 11"/></svg>
+      <div><div style="font-weight:800;font-size:15px">Revisión al día</div>
+      <div class="muted" style="font-size:12.5px">${todas.length?'Todas las piezas tienen sus números.':'Todavía no hay piezas registradas.'}${hoy.length?' Publicaste '+hoy.length+' hoy: vuelve en dos días a leer Insights.':''}</div></div>
+    </div></div>`;
+  }
+  const tramo=(arr,titulo,sub,color)=>arr.length?`<div style="border-left:3px solid ${color};padding-left:12px;margin-bottom:13px">
+      <div style="font-size:13.5px;font-weight:700;color:${color}">${arr.length} · ${esc(titulo)}</div>
+      <div class="muted" style="font-size:12px;margin-top:2px">${esc(sub)}</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">
+        ${arr.slice(0,6).map(p=>`<button class="sm ghost" style="min-height:40px" onclick="contEditar('${p.id}')">${esc(String(p.titulo).slice(0,38))} · ${p.dias}d</button>`).join('')}
+        ${arr.length>6?`<span class="muted" style="font-size:11.5px;align-self:center">y ${arr.length-6} más</span>`:''}
+      </div></div>`:'';
+  return `<div class="card" style="border-color:var(--line2)">
+    <div class="cardHead"><h3 style="margin:0">Revisión de hoy <span class="muted" style="font-size:12.5px;font-weight:400">· ${total} ${total===1?'pieza':'piezas'}</span></h3></div>
+    <div class="muted" style="font-size:12px;margin:2px 0 13px">Una pieza se lee dos veces: a las 48 horas para saber si arrancó, y a los 7 días para el número final.</div>
+    ${tramo(pri,'listas para la primera lectura','ya pasaron 48 horas: Insights ya tiene alcance y guardados','var(--warn)')}
+    ${tramo(fin,'con el número ya definitivo','más de 7 días: lo que marque ahora ya no cambia','var(--rojo2)')}
+    ${tramo(med,'medidas pero sin el dato comercial','tienen alcance pero no dijiste cuántos mensajes trajeron, que es lo que decide si sirvió','#5f93e0')}
+  </div>`;
+}
 
 function contRender(){
   const d=CONT;if(!d){$("v-contenido").innerHTML='<div class="card"><div class="muted">Cargando…</div></div>';return;}
@@ -8858,6 +8914,11 @@ function contRender(){
       ${caja('Mensajes por mil alcanzadas',cPorMil(A.por_mil),{a:A.por_mil,b:B.por_mil},1,true)}
     </div>
   </div>`;
+
+  // ---- LA REVISIÓN DE HOY. Instagram no entrega los números de una: a las
+  // 48 h ya se puede leer el alcance y a los 7 días el dato es definitivo. Por
+  // eso la revisión va por tramos, no "todo al día siguiente".
+  h+=contRevisionHoy(todas);
 
   // ---- Lo que se olvida: publicado hace más de 7 días y sin medir.
   const pend=d.pendientes||[];
