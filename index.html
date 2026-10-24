@@ -9805,6 +9805,13 @@ const EST_CONV={
   no_interesa:{t:'No le interesa',c:'#d95926'},
 };
 
+// Quien esta usando la consola ahora. Las 12 conversaciones que ya habia
+// quedaron sin autor porque habia que escribirlo a mano cada vez, y entonces
+// la tabla "Por setter" agrupaba todo en "sin asignar".
+function miNombre(){
+  const p=MI_PERFIL||{};
+  return String(p.nombre||p.nombre_completo||'').trim();
+}
 function embTabs(){
   const t=(k,n)=>`<button class="sm ${EMB_VISTA===k?'':'ghost'}" style="border-radius:20px" onclick="embIrVista('${k}')">${n}</button>`;
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${t('cierre','Cierre')}${t('setter','Setter')}${t('origen','Origen')}</div>`;
@@ -10043,7 +10050,8 @@ function setRender(){
           <option value="escribio">Nos escribió</option>
         </select></span></div>
       <div class="finF"><label for="scSetter">Quién escribió</label>
-        <span class="finWrap"><input id="scSetter" placeholder="Ian Rozo" style="padding-right:12px" /></span></div>
+        <span class="finWrap"><input id="scSetter" value="${esc(miNombre())}" placeholder="tu nombre" style="padding-right:12px" /></span>
+        <div class="finHint">Sale de tu cuenta. Cámbialo solo si anotas por otra persona.</div></div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
       <button style="min-height:44px" onclick="setGuardar()">Anotar</button>
@@ -10051,6 +10059,16 @@ function setRender(){
     </div>
     <div class="muted" style="font-size:11.5px;margin-top:8px">El usuario de Instagram no se puede repetir: si ya está anotado, se actualiza en vez de duplicarse.</div>
   </div>`;
+  // Las que se anotaron antes de que el autor se llenara solo: sin autor, la
+  // tabla de arriba las mete todas en "sin asignar" y deja de comparar nada.
+  const huerfanas=L.filter(c=>!String(c.setter||'').trim());
+  if(huerfanas.length&&miNombre()){
+    h+=`<div class="card" style="border-color:rgba(224,184,74,.35);background:rgba(224,184,74,.06)">
+      <div style="font-size:13.5px;font-weight:700;color:var(--warn)">${huerfanas.length} ${huerfanas.length===1?'conversación quedó':'conversaciones quedaron'} sin decir quién la hizo</div>
+      <div class="muted" style="font-size:12.5px;margin-top:4px">Sin autor no entran en la comparación por setter. Si fueron tuyas, adóptalas de un toque.</div>
+      <button class="sm" style="min-height:44px;margin-top:11px" onclick="setAdoptar()">Ponerlas a nombre de ${esc(miNombre())}</button>
+    </div>`;
+  }
 
   // La lista, con el estado cambiable de un toque.
   h+=`<div class="card"><h3 style="margin-top:0">Conversaciones</h3>
@@ -10078,6 +10096,22 @@ function setRender(){
   </div>`;
 
   $("v-embudo").innerHTML=h;
+}
+
+// Pone a tu nombre las conversaciones que quedaron sin autor. Van de una en
+// una a proposito: si alguna falla, las demas igual quedan.
+async function setAdoptar(){
+  const yo=miNombre(); if(!yo)return;
+  const pend=((SET&&SET.lista)||[]).filter(c=>!String(c.setter||'').trim());
+  if(!pend.length)return;
+  if(!confirm('¿Poner '+pend.length+' conversación(es) a nombre de '+yo+'?'))return;
+  let ok=0,fallo=0;
+  for(const c of pend){
+    const r=await embCall('conv_guardar',{fila:{id:c.id,nombre:c.nombre,ig_usuario:c.ig_usuario,fecha:c.fecha,estado:c.estado,tipo:c.tipo||'escribimos',nota:c.nota,setter:yo}});
+    if(r.error)fallo++; else ok++;
+  }
+  SET=null; await cargarSetter(); setRender();
+  if(fallo)alert('Quedaron '+ok+'. No se pudieron '+fallo+'.');
 }
 
 async function setGuardar(){
