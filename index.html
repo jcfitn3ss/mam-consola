@@ -1871,13 +1871,30 @@ let CU_TANDA_I = 0;
 
 // Los 5 de hoy: sin clientes, sin seguimiento, nadie los ha tocado todavia.
 // Orden: quien llego hoy primero, luego por temperatura, luego el mas reciente.
+// La meta de contactos del dia. Es lo que vuelve terminable el trabajo: sin un
+// numero fijo, la barra se mide contra una cola de cientos y nunca llega a 100.
+// Arranca en la tanda de cinco y cada quien la ajusta.
+const CU_META_MEM='mam_meta_dia';
+function cuMetaDia(){
+  let v=0; try{ v=Number(localStorage.getItem(CU_META_MEM)||0); }catch(e){}
+  return (v>0&&v<=200)?v:5;
+}
+function cuCambiarMeta(){
+  const v=prompt('¿A cuántas personas quieres contactar por día?', String(cuMetaDia()));
+  if(v===null)return;
+  const n=Math.round(Number(v)||0);
+  if(!(n>0&&n<=200)){alert('Pon un número entre 1 y 200.');return;}
+  try{ localStorage.setItem(CU_META_MEM,String(n)); }catch(e){}
+  renderContactar();
+}
+
 function cuTanda(all){
   const hoyStr=hace(0);
   const base=(all||[]).filter(i=>i.grupo!=='Cliente'&&!i.contacto_estado&&!cuEsHoy(i.contacto_ultimo));
   const temp=i=>{const t=cuTemp(i);return t==='CALIENTE'?0:(t==='TIBIO'?1:2);};
   const esDeHoy=i=>String(cuAplico(i)||'').slice(0,10)===hoyStr?0:1;
   const fecha=i=>new Date(cuAplico(i)||0).getTime();
-  return base.slice().sort((a,b)=>esDeHoy(a)-esDeHoy(b)||temp(a)-temp(b)||fecha(b)-fecha(a)).slice(0,5);
+  return base.slice().sort((a,b)=>esDeHoy(a)-esDeHoy(b)||temp(a)-temp(b)||fecha(b)-fecha(a)).slice(0,cuMetaDia());
 }
 function cuTandaIr(n){ CU_TANDA_I=Math.max(0,n); renderContactar(); }
 
@@ -1989,8 +2006,14 @@ function renderContactar(){
   // Contactos de hoy = actividad del setter (solo sube, sensación de puntos).
   const contactsHoy=ALL.filter(i=>i.grupo!=='Cliente'&&cuEsHoy(i.contacto_ultimo)).length;
   const pending=nHoy;                       // lo que queda en la cola
+  // La barra del dia se mide contra una META FIJA, no contra la cola entera.
+  // Antes el denominador era `contactsHoy + la cola completa`: con 200 en cola,
+  // contactar a cinco marcaba 2% y la barra nunca llegaba a 100. Un trabajo que
+  // no se puede terminar no se puede sostener. La meta sale de la tanda diaria.
+  const metaDia=cuMetaDia();
+  const pctHoy=Math.min(100,Math.round((contactsHoy/Math.max(1,metaDia))*100));
+  const metaHecha=contactsHoy>=metaDia;
   const totalDia=contactsHoy+pending;
-  const pctHoy=totalDia?Math.round(contactsHoy/totalDia*100):0;
   const nNuevos=(()=>{const lim=Date.now()-48*3600*1000;return ALL.filter(i=>i.grupo!=='Cliente'&&i.registrado&&new Date(i.registrado).getTime()>=lim).length;})();
   const nSeg=ALL.filter(i=>i.contacto_estado==='seguimiento').length;
   const nCanjeo=ALL.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21').length;
@@ -2029,17 +2052,23 @@ function renderContactar(){
         <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:44px;padding:0 18px" onclick="cuAbrirEncuesta()">Abrir ${nEncPend===1?'el':'los'} ${nEncPend}</button>
       </div>
     </div>`:''}
-    ${(()=>{const done=pending===0&&contactsHoy>0; const vacio=pending===0&&contactsHoy===0;
+    ${(()=>{const done=metaHecha; const vacio=pending===0&&contactsHoy===0;
       return `<div style="margin-top:12px;background:${done?'rgba(63,184,79,.10)':(CU_FILTRO==='hoy'?'rgba(226,59,59,.10)':'var(--card2)')};border:1px solid ${done?'var(--ok)':(CU_FILTRO==='hoy'?'var(--rojo)':'var(--line)')};border-radius:14px;padding:14px 16px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
         <div>
-          <div style="font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:${done?'var(--ok)':'var(--txt)'}">${done?'Cola de hoy lista. Crack.':(vacio?'Nada urgente ahora':'Cola de hoy')}</div>
-          <div class="muted" style="font-size:12px;margin-top:2px">${vacio?'No hay nadie urgente por contactar. Buen momento para nutrir seguimiento.':'Contactos hoy: <b style=\"color:var(--txt)\">'+contactsHoy+'</b> · quedan <b style=\"color:var(--txt)\">'+pending+'</b> en la cola'}</div>
+          <div style="font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:${done?'var(--ok)':'var(--txt)'}">${done?'Meta del día cumplida':(vacio?'Nada urgente ahora':'Tu meta de hoy')}</div>
+          <div class="muted" style="font-size:12px;margin-top:2px">${vacio?'No hay nadie urgente por contactar. Buen momento para nutrir seguimiento.':(done
+            ? 'Contactaste a <b style=\"color:var(--txt)\">'+contactsHoy+'</b>. Lo de más es ganancia; quedan '+pending+' en la cola para mañana.'
+            : '<b style=\"color:var(--txt)\">'+contactsHoy+' de '+metaDia+'</b> · faltan <b style=\"color:var(--txt)\">'+Math.max(0,metaDia-contactsHoy)+'</b> para cerrar el día'+(pending?' · '+pending+' en la cola':''))}</div>
         </div>
-        ${pending===0?'':`<button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:42px;padding:0 18px" onclick="CU_FILTRO='hoy';CU_GRUPO='';renderContactar()">Trabajar la cola</button>`}
+        ${(pending===0||metaHecha)?(metaHecha&&pending?`<button class="sm ghost" style="min-height:42px;border-radius:10px" onclick="CU_FILTRO='tanda';CU_GRUPO='';renderContactar()">Seguir de todas formas</button>`:''):`<button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:42px;padding:0 18px" onclick="CU_FILTRO='tanda';CU_GRUPO='';renderContactar()">Trabajar la tanda</button>`}
       </div>
       <div style="margin-top:12px;height:10px;background:#0B0C0F;border-radius:999px;overflow:hidden;border:1px solid var(--line)">
         <div style="height:100%;width:${pctHoy}%;background:linear-gradient(90deg,${done?'#3FB84F,#3FB84F':'#E23B3B,#D9A21B'});border-radius:999px;transition:width .5s ease"></div>
+      </div>
+      <div style="display:flex;gap:5px;margin-top:8px;align-items:center;flex-wrap:wrap">
+        ${Array.from({length:metaDia},(_,n)=>`<span title="${n<contactsHoy?'hecho':'pendiente'}" style="width:26px;height:5px;border-radius:3px;background:${n<contactsHoy?(done?'#3FB84F':'var(--rojo)'):'var(--line)'}"></span>`).join('')}
+        <button class="sm ghost" style="min-height:32px;padding:2px 9px;font-size:11px;margin-left:4px" onclick="cuCambiarMeta()">Meta: ${metaDia}/día</button>
       </div>
       ${nReciente>0?`<div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(226,59,59,.12);border:1px solid var(--rojo);border-radius:10px;padding:10px 12px">
         <div style="font-size:13px;font-weight:700">${nReciente} recién ${nReciente===1?'llegó':'llegaron'} (menos de 1 h) · la velocidad vende</div>
