@@ -236,6 +236,7 @@
       <button id="t-crm" onclick="tab('crm')">Clientes (CRM)</button>
       <button id="t-embudo" class="hide" onclick="tab('embudo')">Embudo</button>
       <button id="t-contenido" class="hide" onclick="tab('contenido')">Contenido</button>
+      <button id="t-metricas" class="hide" onclick="tab('metricas')">Métricas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
       <button id="t-finanzas" class="hide" onclick="tab('finanzas')">Finanzas</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Biblioteca ▾</button>
@@ -279,6 +280,7 @@
     <div id="v-finanzas" class="hide"></div>
     <div id="v-embudo" class="hide"></div>
     <div id="v-contenido" class="hide"></div>
+    <div id="v-metricas" class="hide"></div>
     <div id="v-salud" class="hide"></div>
     <div id="v-prospecto" class="hide"></div>
     <div id="v-restaurantes" class="hide"></div>
@@ -426,7 +428,7 @@ async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 // Las que viven dentro del desplegable: al abrir una, el botón toma su nombre.
 const TABS_SEC=["ejercicios","plantillas","alimentos","restaurantes","prospecto"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","finanzas","embudo","contenido","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","finanzas","embudo","contenido","metricas","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Biblioteca ▾": si la pestaña activa es de la biblioteca, resáltalo y muestra
   // su nombre; si no, vuelve a decir "Biblioteca". Cierra el menú al final.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Biblioteca")+" ▾";}
@@ -712,7 +714,7 @@ const PESTANAS_POR_MODO={
   servicio:['clientes','crm','seguimiento','llamadas','revision','riesgo','recordatorios','comunidad','resumen','salud',
             // Biblioteca (van dentro del desplegable)
             'ejercicios','plantillas','alimentos','restaurantes','prospecto'],
-  comercial:['contactar','crm','embudo','contenido','pagos','finanzas'],
+  comercial:['contactar','crm','embudo','contenido','pagos','finanzas','metricas'],
 };
 // Las de la Biblioteca, que es el único desplegable que queda en la barra.
 const TABS_BIBLIOTECA=['ejercicios','plantillas','alimentos','restaurantes','prospecto'];
@@ -733,7 +735,7 @@ function puedeVer(pestana){
 
 // Deja a la vista solo las pestañas del rol y abre la primera que le toque.
 function aplicarPermisos(){
-  const todas=['clientes','crm','recordatorios','seguimiento','llamadas','pagos','finanzas','embudo','contenido','contactar',
+  const todas=['clientes','crm','recordatorios','seguimiento','llamadas','pagos','finanzas','embudo','contenido','metricas','contactar',
     'resumen','revision','riesgo','ejercicios','plantillas','alimentos','restaurantes','salud','prospecto',
     'comunidad','sugerencias','interno'];
   let primera='';
@@ -9038,6 +9040,678 @@ async function contBorrar(id){
   const r=await contCall('borrar',{id:id});
   if(r.error){alert('No se pudo quitar: '+(r.error.message||r.error));return;}
   CONT_EDITA=null; CONT=null; await verContenido();
+}
+
+// ═══════════════════════════════════ MÉTRICAS ═══════════════════════════════
+// La jerarquía no se reordena: lo único que importa es la rentabilidad. ROI
+// arriba y grande; CPB abajo y pequeño, porque mirar el costo por llamada
+// primero hace que se apaguen campañas que están dando plata.
+//
+// Y la regla que más se rompe: TODO costo se calcula solo sobre lo que vino de
+// pauta. Mezclar lo orgánico infla el rendimiento y termina haciendo que pagues
+// por gente que ya llegaba gratis. Cada costo muestra el valor de pauta grande
+// y el total mezclado al lado, pequeño, para contraste.
+//
+// Vive en el modo comercial pero NO la ve el rol comercial: son cifras de plata.
+// Misma puerta que Finanzas (clave de socio en sessionStorage).
+let MET=null, MET_PERIODO='mes', MET_DETALLE=null, MET_PAUTA_EDITA=null;
+
+const MET_PERIODOS=[['mes','Este mes'],['anterior','Mes pasado'],['3','Últimos 3'],['12','Últimos 12']];
+const MET_PLATAFORMAS=[['meta','Meta'],['google','Google'],['tiktok','TikTok'],['otro','Otro']];
+const MET_TIPOS_PAUTA=[['broad','Broad'],['retargeting','Retargeting'],['otro','Otro']];
+const MET_ORIGENES=[['pagado','Pagado'],['organico','Orgánico'],['referido','Referido'],['base_antigua','Base antigua']];
+
+async function metCall(action,extra){
+  return await invokeFn('finanzas',{body:Object.assign({action:action,clave:finClave()},extra||{})});
+}
+
+// La misma puerta de Finanzas, pintada en este contenedor. La clave es la misma,
+// así que entrar por una pestaña abre la otra.
+function metCandado(msg){
+  $("v-metricas").innerHTML=`<div class="card" style="max-width:420px;margin:48px auto">
+    <h2 style="margin-top:0">Métricas</h2>
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">Sección privada: muestra facturación, inversión y cartera. Escribe la clave de finanzas.</div>
+    ${msg?`<div class="alert" style="margin-bottom:8px">${esc(msg)}</div>`:''}
+    <label class="lbl" for="metClaveInput">Clave de finanzas</label>
+    <input id="metClaveInput" type="password" autocomplete="off" onkeydown="if(event.key==='Enter')metEntrar()" />
+    <button style="width:100%;margin-top:10px;min-height:44px" onclick="metEntrar()">Entrar</button>
+  </div>`;
+  setTimeout(()=>{const i=$("metClaveInput");if(i)i.focus();},50);
+}
+async function metEntrar(){
+  const v=finVal('metClaveInput');
+  if(!v){metCandado('Escribe la clave.');return;}
+  sessionStorage.setItem('fin_clave',v);
+  MET=null; await verMetricas();
+}
+
+async function verMetricas(){
+  const cont=$("v-metricas");if(!cont)return;
+  if(!finClave()){metCandado();return;}
+  if(!MET)cont.innerHTML='<div class="card"><div class="muted">Armando las métricas…</div></div>';
+  const r=await metCall('metricas',{});
+  if(r.error){
+    const m=r.error.message||String(r.error)||'';
+    if(m.indexOf('incorrecta')>=0){sessionStorage.removeItem('fin_clave');metCandado('Clave incorrecta.');return;}
+    if(m.indexOf('sin_clave')>=0){metCandado('Todavía no hay clave de finanzas. Créala desde la pestaña Finanzas.');return;}
+    if(m.indexOf('migración')>=0||m.indexOf('vistas')>=0){
+      cont.innerHTML='<div class="card" style="max-width:460px;margin:48px auto"><h2 style="margin-top:0">Métricas</h2><div class="muted" style="margin-bottom:10px">Faltan las vistas de métricas en la base.</div></div>';return;}
+    cont.innerHTML='<div class="card"><div class="alert">'+esc(m)+'</div></div>';return;
+  }
+  MET=r.data; metRender();
+}
+
+// ---- Suma del periodo. Los KPIs NO se promedian: se recalculan sobre los
+// componentes sumados. El ROI de tres meses es la facturación de los tres
+// dividida entre la inversión de los tres, no el promedio de tres ROIs.
+function metAgregado(){
+  const todos=(MET&&MET.meses)||[];
+  let sel=[];
+  if(MET_PERIODO==='mes') sel=todos.slice(0,1);
+  else if(MET_PERIODO==='anterior') sel=todos.slice(1,2);
+  else sel=todos.slice(0,Number(MET_PERIODO)||3);
+  const prev=(MET_PERIODO==='mes')?todos.slice(1,2)
+    :(MET_PERIODO==='anterior')?todos.slice(2,3)
+    :todos.slice(Number(MET_PERIODO)||3,(Number(MET_PERIODO)||3)*2);
+  const sumar=(arr)=>{
+    const c=['ad_spend','revenue','front_end_cash','cobrado','ar','ventas','bookings','qb','show_ups','ofertas','cierres','bookings_pag','qb_pag','qbsu_pag','cierres_pag','bookings_org','cierres_org'];
+    const o={meses:arr.length};
+    c.forEach(k=>{o[k]=arr.reduce((a,m)=>a+(Number(m[k])||0),0);});
+    const d=(a,b)=>b>0?a/b:null;
+    o.roi_revenue=d(o.revenue,o.ad_spend);
+    o.roi_cash=d(o.front_end_cash,o.ad_spend);
+    o.cac=d(o.ad_spend,o.cierres_pag);
+    o.aov=d(o.front_end_cash,o.ventas);
+    o.pct_upfront=d(o.front_end_cash,o.revenue);
+    o.cpqbsu=d(o.ad_spend,o.qbsu_pag);
+    o.cpqb=d(o.ad_spend,o.qb_pag);
+    o.cpb=d(o.ad_spend,o.bookings_pag);
+    // El mismo costo sin separar origen: es el numero que engaña, va de contraste.
+    o.cpb_mezcla=d(o.ad_spend,o.bookings);
+    o.cpqb_mezcla=d(o.ad_spend,o.qb);
+    o.cac_mezcla=d(o.ad_spend,o.cierres);
+    o.pct_calificadas=d(o.qb,o.bookings);
+    o.pct_show_up=d(o.show_ups,o.bookings);
+    o.pct_ofertas=d(o.ofertas,o.show_ups);
+    o.pct_cierre=d(o.cierres,o.ofertas);
+    o.pct_cobradas=d(o.cobrado,o.revenue);
+    return o;
+  };
+  return {hoy:sumar(sel),antes:sumar(prev),meses:sel};
+}
+
+const metUSD=(n)=>n==null?null:'US$'+Math.round(Number(n)).toLocaleString('en-US');
+const metX=(n)=>n==null?null:Number(n).toFixed(2)+'x';
+const metPctTxt=(n)=>n==null?null:(Number(n)*100).toFixed(1)+'%';
+
+// Cuando un KPI no se puede calcular, DICE POR QUÉ. Un guion no le dice a nadie
+// qué hacer, y esta pantalla va a arrancar vacía.
+function metPorQueNo(k,A){
+  if(!A.ad_spend) return 'Sin inversión registrada en el periodo';
+  if(['cac'].includes(k)&&!A.cierres_pag) return 'Hay inversión pero cero cierres de pauta';
+  if(k==='cpqbsu'&&!A.qbsu_pag) return 'Ninguna llamada calificada de pauta se presentó';
+  if(k==='cpqb'&&!A.qb_pag) return 'Ninguna llamada de pauta quedó calificada';
+  if(k==='cpb'&&!A.bookings_pag) return 'Ninguna llamada agendada vino de pauta';
+  if(['roi_revenue'].includes(k)&&!A.revenue) return 'Sin ventas registradas en el periodo';
+  if(k==='roi_cash'&&!A.front_end_cash) return 'Sin primeros pagos registrados';
+  if(k==='aov'&&!A.ventas) return 'Sin ventas registradas';
+  return 'Faltan datos para calcularlo';
+}
+
+// Flecha contra el periodo anterior. Si no hay con qué comparar, calla.
+function metDelta(a,b,invertido){
+  if(a==null||b==null||!isFinite(Number(b))||Number(b)===0)return '';
+  const pct=Math.round(((Number(a)-Number(b))/Math.abs(Number(b)))*100);
+  if(pct===0)return '<span class="muted" style="font-size:11px">igual</span>';
+  const sube=pct>0, bueno=invertido?!sube:sube;
+  return `<span style="font-size:11px;color:${bueno?'var(--ok)':'var(--bad)'}">${sube?'+':''}${pct}%</span>`;
+}
+
+// La tarjeta de un KPI. `formula` siempre visible: quien la lee entiende qué
+// está mirando sin preguntar. `abre` la hace clicable hacia sus filas.
+function metKPI(o){
+  const hay=o.valor!=null;
+  const col=o.color||'var(--txt)';
+  const tam=o.grande?'34px':(o.chico?'19px':'26px');
+  return `<div style="flex:${o.grande?'1 1 220px':(o.chico?'1 1 150px':'1 1 180px')};min-width:${o.chico?'150px':'180px'};background:var(--card2);border:1px solid ${o.grande?'var(--line2)':'var(--line)'};border-radius:var(--r);padding:${o.grande?'16px 18px':'13px 15px'}${o.abre&&hay?';cursor:pointer':''}"
+    ${o.abre&&hay?`onclick="metAbrir('${o.abre}')" title="Ver las filas que lo componen"`:''}>
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;font-weight:700">${esc(o.titulo)}</div>
+    ${hay
+      ? `<div style="font-weight:800;font-size:${tam};color:${col};font-variant-numeric:tabular-nums;line-height:1.1;margin-top:4px">${o.valor}</div>
+         <div style="margin-top:3px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">${o.delta||''}${o.contraste?`<span class="muted" style="font-size:11px">mezclado: ${o.contraste}</span>`:''}</div>`
+      : `<div class="muted" style="font-size:12.5px;margin-top:6px;line-height:1.4">${esc(o.porque||'Sin datos')}</div>`}
+    <div class="muted" style="font-size:10.5px;margin-top:7px;font-style:italic">${esc(o.formula)}</div>
+  </div>`;
+}
+
+function metRender(){
+  if(!MET){$("v-metricas").innerHTML='<div class="card"><div class="muted">Cargando…</div></div>';return;}
+  if(MET_DETALLE){metDetalleRender();return;}
+  if(MET_PAUTA_EDITA){metPautaForm();return;}
+  const {hoy:A,antes:B}=metAgregado();
+  const nf=(k)=>metPorQueNo(k,A);
+
+  const per=(k,n)=>`<button class="sm ${MET_PERIODO===k?'':'ghost'}" style="border-radius:20px;min-height:44px" onclick="MET_PERIODO='${k}';metRender()">${n}</button>`;
+  let h=`<div class="cardHead" style="margin-bottom:10px">
+      <h2 style="margin:0">Métricas</h2>
+      <span class="acciones">
+        <button class="sm ghost" style="min-height:44px" onclick="metExportarPDF()">Exportar PDF</button>
+        <button class="sm ghost" style="min-height:44px" onclick="metExportarExcel()">Excel</button>
+        <button class="sm ghost" style="min-height:44px" onclick="MET=null;verMetricas()">Actualizar</button>
+      </span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${MET_PERIODOS.map(p=>per(p[0],p[1])).join('')}</div>`;
+
+  h+=metBloqueAlertas(A);
+  h+=metBloqueRentabilidad(A,B,nf);
+  h+=metBloqueCostos(A,B,nf);
+  h+=metBloqueEmbudo(A);
+  h+=metBloqueOrigen(A);
+  h+=metBloqueCartera(A,B,nf);
+  h+=metBloqueProyeccion(A);
+  h+=metBloquePauta();
+  h+=metBloqueHuerfanos();
+  $("v-metricas").innerHTML=h;
+}
+
+// ---- BLOQUE 6 · Las dos alertas. Van ARRIBA, como aviso, no escondidas abajo.
+function metBloqueAlertas(A){
+  const al=((MET&&MET.alertas)||[])[0]||{};
+  const avisos=[];
+  // Error 1 del material: miedo a los costos altos.
+  if(A.roi_revenue!=null&&A.roi_revenue>=2&&A.cpb!=null){
+    avisos.push({c:'var(--ok)',t:'El costo por llamada alto NO es problema aquí',
+      d:`Con un ROI de ${metX(A.roi_revenue)}, cada dólar invertido devuelve ${metX(A.roi_revenue)}. Apagar esta campaña por mirar el costo por llamada (${metUSD(A.cpb)}) es apagar algo que está dando plata.`});
+  }
+  // Error 2: invertir muy poco al dia.
+  const dias=(MET_PERIODO==='mes')?Math.max(1,new Date().getDate()):(A.meses*30);
+  const invDia=A.ad_spend/dias;
+  if(A.cac!=null&&invDia>0){
+    const d=A.cac/invDia;
+    if(d>10) avisos.push({c:'var(--warn)',t:`${d.toFixed(1)} días para una sola venta`,
+      d:`Invirtiendo ${metUSD(invDia)} al día y con un CAC de ${metUSD(A.cac)}, la campaña tarda ${d.toFixed(1)} días en juntar una conversión. Por encima de 10 nunca aprende. No es que los anuncios no funcionen, es que no le estás dando la leña suficiente al tren.`});
+    else avisos.push({c:'var(--ok)',t:`${d.toFixed(1)} días para una venta`,
+      d:`Con ${metUSD(invDia)} al día la campaña junta conversiones a buen ritmo.`});
+  }
+  if(al.alerta&&al.alerta!=='En rango') avisos.unshift({c:A.ad_spend?'var(--warn)':'var(--muted)',t:al.alerta,
+    d:A.ad_spend?'Sale de la vista de alertas del mes en curso.':'Carga la inversión abajo y los números de arriba empiezan a salir.'});
+  if(!avisos.length)return '';
+  return `<div class="card" style="border-color:var(--line2)">
+    ${avisos.map(a=>`<div style="border-left:3px solid ${a.c};padding-left:12px;margin:0 0 12px">
+      <div style="font-size:14px;font-weight:700;color:${a.c}">${esc(a.t)}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:3px;line-height:1.5">${esc(a.d)}</div></div>`).join('')}
+  </div>`;
+}
+
+// ---- BLOQUE 1 · RENTABILIDAD. Lo primero que se ve, y lo más grande.
+function metBloqueRentabilidad(A,B,nf){
+  const colRoi=(v)=>v==null?'var(--txt)':(v>=2?'var(--ok)':(v>=1?'var(--warn)':'var(--rojo2)'));
+  // El CAC se pone en rojo si pasa del 40% del precio: ahí deja de haber margen.
+  const precio=Number((MET&&MET.precio_ref)||1800);
+  const colCac=(A.cac==null)?'var(--txt)':(A.cac>precio*0.4?'var(--rojo2)':'var(--ok)');
+  const anillo=(A.pct_upfront!=null)?`<div style="flex:0 0 auto;text-align:center">
+      ${finRing(Math.min(100,A.pct_upfront*100),96)}
+      <div class="muted" style="font-size:11px;margin-top:4px">cobrado por adelantado</div></div>`:'';
+  return `<div class="card">
+    <h3 style="margin:0 0 3px">Rentabilidad</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">Lo único que de verdad decide. Si inviertes 1 y consigues 5, el resto son detalles.</div>
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:280px;display:flex;gap:10px;flex-wrap:wrap">
+        ${metKPI({titulo:'ROI Revenue',valor:metX(A.roi_revenue),color:colRoi(A.roi_revenue),grande:true,
+          formula:'facturación ÷ inversión',porque:nf('roi_revenue'),delta:metDelta(A.roi_revenue,B.roi_revenue),abre:'ventas'})}
+        ${metKPI({titulo:'ROI Cash',valor:metX(A.roi_cash),color:colRoi(A.roi_cash),grande:true,
+          formula:'dinero cobrado ÷ inversión',porque:nf('roi_cash'),delta:metDelta(A.roi_cash,B.roi_cash),abre:'ventas'})}
+        ${metKPI({titulo:'CAC',valor:metUSD(A.cac),color:colCac,
+          formula:'inversión ÷ cierres de pauta',porque:nf('cac'),delta:metDelta(A.cac,B.cac,true),
+          contraste:metUSD(A.cac_mezcla),abre:'ventas'})}
+        ${metKPI({titulo:'AOV',valor:metUSD(A.aov),formula:'primer pago promedio',porque:nf('aov'),
+          delta:metDelta(A.aov,B.aov),abre:'ventas'})}
+      </div>
+      ${anillo}
+    </div>
+    ${A.cac!=null&&A.cac>precio*0.4?`<div class="muted" style="font-size:12px;margin-top:10px;color:var(--rojo2)">El CAC pasa del 40% del precio de referencia (${metUSD(precio)}). Ahí el margen se come la venta.</div>`:''}
+  </div>`;
+}
+
+// ---- BLOQUE 2 · Qué cuesta llegar a una llamada. En orden de PRIORIDAD, no de
+// embudo: CPQBSU primero porque es el que predice la venta. Una llamada
+// calificada a la que nadie llega no vale nada. CPB de último y pequeño.
+function metBloqueCostos(A,B,nf){
+  return `<div class="card">
+    <h3 style="margin:0 0 3px">Qué cuesta llegar a una llamada</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">Solo sobre lo que vino de pauta. El número gris al lado es el mismo costo mezclando lo orgánico: ese es el que engaña.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">
+      ${metKPI({titulo:'CPQBSU · calificada que asiste',valor:metUSD(A.cpqbsu),grande:true,
+        formula:'inversión ÷ calificadas de pauta que se presentaron',porque:nf('cpqbsu'),
+        delta:metDelta(A.cpqbsu,B.cpqbsu,true),abre:'qbsu'})}
+      ${metKPI({titulo:'CPQB · calificada',valor:metUSD(A.cpqb),
+        formula:'inversión ÷ calificadas de pauta',porque:nf('cpqb'),
+        delta:metDelta(A.cpqb,B.cpqb,true),contraste:metUSD(A.cpqb_mezcla),abre:'qb'})}
+      ${metKPI({titulo:'CPB · llamada',valor:metUSD(A.cpb),chico:true,
+        formula:'inversión ÷ agendadas de pauta',porque:nf('cpb'),
+        delta:metDelta(A.cpb,B.cpb,true),contraste:metUSD(A.cpb_mezcla),abre:'bookings'})}
+    </div>
+    <div class="muted" style="font-size:11.5px;margin-top:10px">El CPB va de último a propósito: es un diagnóstico, no una decisión. Mirarlo primero hace que se apaguen campañas rentables.</div>
+  </div>`;
+}
+
+// ---- BLOQUE 3 · El embudo, paso por paso.
+function metBloqueEmbudo(A){
+  const paso=(nom,n,pct,meta,abre,ayuda)=>{
+    const ok=(pct==null)?null:(pct*100>=meta);
+    return `<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:600">${esc(nom)}</div>
+        ${ayuda?`<div class="muted" style="font-size:11px">${esc(ayuda)}</div>`:''}</div>
+      <div style="width:70px;text-align:right;font-weight:800;font-size:17px;font-variant-numeric:tabular-nums">${n}</div>
+      <div style="width:120px;text-align:right;font-variant-numeric:tabular-nums">
+        ${pct==null?'<span class="muted" style="font-size:12px">—</span>'
+          :`<b style="color:${ok?'var(--ok)':'var(--warn)'};font-size:13.5px">${metPctTxt(pct)}</b>
+            <div class="muted" style="font-size:10.5px">meta ${meta}%</div>`}</div>
+      <div style="width:64px;text-align:right">${n>0?`<button class="sm ghost" style="min-height:40px;padding:4px 10px" onclick="metAbrir('${abre}')">Ver</button>`:''}</div>
+    </div>`;
+  };
+  return `<div class="card">
+    <h3 style="margin:0 0 3px">El embudo</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:4px">Cada paso con su conversión al siguiente. Toca cualquiera para ver las filas.</div>
+    ${paso('Agendadas',A.bookings,null,0,'bookings','')}
+    ${paso('Calificadas',A.qb,A.pct_calificadas,70,'qb','sobre las agendadas')}
+    ${paso('Asistieron',A.show_ups,A.pct_show_up,70,'showups','sobre las agendadas')}
+    ${paso('Ofertas',A.ofertas,A.pct_ofertas,80,'ofertas','a cuántas se les presentó el precio, sobre las que asistieron')}
+    ${paso('Cierres',A.cierres,A.pct_cierre,25,'cierres','sobre las ofertas')}
+    <div class="muted" style="font-size:11.5px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">Casi nadie mide el paso de <b>ofertas</b>. Revela si el closer está llegando al precio o se está quedando atrapado en el descubrimiento.</div>
+  </div>`;
+}
+
+// ---- BLOQUE 4 · Orgánico contra pagado. Si el orgánico cierra igual o mejor,
+// la plata está comprando lo que ya llegaba solo.
+function metBloqueOrigen(A){
+  const col=(t,b,c,etiqueta)=>`<div style="flex:1;min-width:210px;background:var(--card2);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px">
+    <div style="font-size:13px;font-weight:700;color:${c}">${esc(t)}</div>
+    <div class="muted" style="font-size:11px;margin-bottom:10px">${esc(etiqueta)}</div>
+    ${b.map(x=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)">
+      <span class="muted" style="font-size:12.5px">${esc(x[0])}</span>
+      <b style="font-size:13px;font-variant-numeric:tabular-nums">${x[1]}</b></div>`).join('')}
+  </div>`;
+  const pctP=A.bookings_pag>0?(A.cierres_pag/A.bookings_pag):null;
+  const pctO=A.bookings_org>0?(A.cierres_org/A.bookings_org):null;
+  let veredicto='';
+  if(pctP!=null&&pctO!=null){
+    veredicto=(pctO>=pctP)
+      ? `El orgánico cierra ${metPctTxt(pctO)} contra ${metPctTxt(pctP)} de la pauta. La plata está comprando gente que convierte igual o peor que la que ya llegaba sola.`
+      : `La pauta cierra ${metPctTxt(pctP)} contra ${metPctTxt(pctO)} del orgánico. La inversión está trayendo gente mejor que la que llega sola.`;
+  }
+  return `<div class="card">
+    <h3 style="margin:0 0 3px">Orgánico contra pagado</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">La pregunta de fondo: ¿la pauta vale la pena?</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${col('Pagado',[['Agendadas',A.bookings_pag],['Calificadas',A.qb_pag],['Asistieron calificadas',A.qbsu_pag],['Cierres',A.cierres_pag],['% de cierre',pctP==null?'—':metPctTxt(pctP)]],'var(--warn)','lo que trajo la inversión')}
+      ${col('Orgánico',[['Agendadas',A.bookings_org],['Calificadas',Math.max(0,A.qb-A.qb_pag)],['Asistieron',Math.max(0,A.show_ups-A.qbsu_pag)],['Cierres',A.cierres_org],['% de cierre',pctO==null?'—':metPctTxt(pctO)]],'var(--ok)','lo que llegó solo')}
+    </div>
+    ${veredicto?`<div class="muted" style="font-size:12.5px;margin-top:11px;line-height:1.5">${esc(veredicto)}</div>`:'<div class="muted" style="font-size:12.5px;margin-top:11px">Hace falta marcar el origen en las llamadas para poder comparar.</div>'}
+  </div>`;
+}
+
+// ---- BLOQUE 5 · La plata que falta por entrar.
+function metBloqueCartera(A,B,nf){
+  return `<div class="card">
+    <h3 style="margin:0 0 3px">La plata que falta por entrar</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">Facturar no es cobrar.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${metKPI({titulo:'Front End Cash',valor:metUSD(A.front_end_cash),color:'var(--ok)',
+        formula:'suma de los primeros pagos',porque:nf('roi_cash'),delta:metDelta(A.front_end_cash,B.front_end_cash),abre:'ventas'})}
+      ${metKPI({titulo:'Cartera (A/R)',valor:metUSD(A.ar),color:A.ar>0?'var(--warn)':'var(--txt)',
+        formula:'facturado − cobrado',porque:'Sin ventas registradas',delta:metDelta(A.ar,B.ar,true),abre:'ventas'})}
+      ${metKPI({titulo:'Cuotas cobradas',valor:metPctTxt(A.pct_cobradas),
+        formula:'cobrado ÷ facturado',porque:'Sin ventas registradas',delta:metDelta(A.pct_cobradas,B.pct_cobradas),abre:'ventas'})}
+    </div>
+  </div>`;
+}
+
+// ---- BLOQUE 7 · PROYECCIÓN. Tres campos se escriben, lo demás se calcula.
+// La inversión DIARIA es la salida que importa: es la única accionable mañana.
+// El % de cierre sale del negocio real, nunca de un número quemado.
+function metBloqueProyeccion(A){
+  const meta=Number(sessionStorage.getItem('met_meta')||15000);
+  const precio=Number(sessionStorage.getItem('met_precio')||1800);
+  const roiObj=Number(sessionStorage.getItem('met_roi')||3);
+  // El cierre real del negocio. Si todavía no hay historia, se dice y no se inventa.
+  const cierreReal=(A.ofertas>0)?(A.cierres/A.ofertas):null;
+  const showReal=(A.bookings>0)?(A.show_ups/A.bookings):null;
+  const ventas=precio>0?Math.ceil(meta/precio):null;
+  const qbNec=(ventas!=null&&cierreReal)?Math.ceil(ventas/cierreReal):null;
+  const inv=(roiObj>0)?(meta/roiObj):null;
+  const invDia=inv!=null?inv/30:null;
+  const campo=(id,lbl,val,suf)=>`<div class="finF"><label for="${id}">${lbl}</label>
+    <span class="finWrap"><input id="${id}" type="number" value="${val}" style="font-variant-numeric:tabular-nums" oninput="metProyGuardar()" /><span class="finSuf">${suf}</span></span></div>`;
+  const sal=(lbl,v,destacar,ayuda)=>`<div style="flex:1;min-width:170px;background:${destacar?'var(--card2)':'transparent'};border:1px solid ${destacar?'var(--line2)':'var(--line)'};border-radius:var(--r);padding:13px 15px">
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;font-weight:700">${esc(lbl)}</div>
+    <div style="font-weight:800;font-size:${destacar?'28px':'21px'};font-variant-numeric:tabular-nums;margin-top:3px">${v==null?'<span class="muted" style="font-size:13px;font-weight:400">—</span>':v}</div>
+    ${ayuda?`<div class="muted" style="font-size:10.5px;margin-top:4px">${esc(ayuda)}</div>`:''}</div>`;
+  return `<div class="card">
+    <h3 style="margin:0 0 3px">Proyección</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:12px">Escribe tres cosas y el resto sale solo.</div>
+    <div class="finGrid" style="max-width:620px">
+      ${campo('metMeta','Cuánto quiero facturar al mes',meta,'USD')}
+      ${campo('metPrecio','El precio',precio,'USD')}
+      ${campo('metRoi','ROI objetivo',roiObj,'x')}
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      ${sal('Ventas necesarias',ventas)}
+      ${sal('Llamadas calificadas',qbNec,false,cierreReal?('con tu cierre real de '+metPctTxt(cierreReal)):'falta tu % de cierre real')}
+      ${sal('Inversión total',inv==null?null:metUSD(inv))}
+      ${sal('Inversión DIARIA',invDia==null?null:metUSD(invDia),true,'lo único accionable mañana')}
+    </div>
+    ${!cierreReal?`<div class="muted" style="font-size:12px;margin-top:11px">Las llamadas necesarias no se pueden calcular todavía: hacen falta llamadas con oferta y resultado para saber tu % de cierre. No lo invento con un número de ejemplo.</div>`
+      :`<div class="muted" style="font-size:12px;margin-top:11px">Usa tu cierre real (${metPctTxt(cierreReal)})${showReal?' y tu asistencia real ('+metPctTxt(showReal)+')':''}, no un número de ejemplo.</div>`}
+  </div>`;
+}
+function metProyGuardar(){
+  const g=(id,k)=>{const e=$(id);if(e)sessionStorage.setItem(k,e.value||'0');};
+  g('metMeta','met_meta');g('metPrecio','met_precio');g('metRoi','met_roi');
+  metRender();
+}
+
+// ---- BLOQUE A · La inversión en pauta. Sin esto no hay un solo KPI.
+function metBloquePauta(){
+  const P=(MET&&MET.pauta)||[];
+  const total=P.reduce((a,x)=>a+(Number(x.inversion_usd)||0),0);
+  return `<div class="card" id="metBloquePauta">
+    <div class="cardHead"><h3 style="margin:0">Inversión en pauta <span class="muted" style="font-size:12.5px;font-weight:400">· ${P.length} ${P.length===1?'registro':'registros'}</span></h3>
+      <span class="acciones"><button style="min-height:44px" onclick="metPautaEditar('')">Cargar inversión</button></span></div>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Es el denominador de todo: ROI, CAC y cada costo por llamada salen de aquí.</div>
+    ${P.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:680px">
+      <tr class="muted" style="font-size:11px;text-align:left"><th style="padding:4px 0">Fecha</th><th>Plataforma</th><th>Campaña</th><th>Tipo</th>
+        <th style="text-align:right">Inversión</th><th style="text-align:right">Alcance</th><th style="text-align:right">Frecuencia</th><th></th></tr>
+      ${P.map(x=>`<tr style="border-top:1px solid var(--line)">
+        <td style="padding:7px 0;white-space:nowrap;font-variant-numeric:tabular-nums" class="muted">${esc(String(x.fecha||'').slice(0,10))}</td>
+        <td>${esc((MET_PLATAFORMAS.find(p=>p[0]===x.plataforma)||['','—'])[1])}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.campana||'—')}</td>
+        <td class="muted">${esc((MET_TIPOS_PAUTA.find(t=>t[0]===x.tipo)||['','—'])[1])}</td>
+        <td style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${metUSD(x.inversion_usd)}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">${x.alcance==null?'<span class="muted">—</span>':Number(x.alcance).toLocaleString('es-CO')}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">${x.frecuencia==null?'<span class="muted">—</span>':`<b style="color:${Number(x.frecuencia)>=2?'var(--rojo2)':'var(--txt)'}">${Number(x.frecuencia).toFixed(2)}</b>`}</td>
+        <td style="text-align:right;white-space:nowrap"><button class="sm ghost" style="min-height:40px;padding:4px 10px" onclick="metPautaEditar('${x.id}')">Abrir</button></td>
+      </tr>`).join('')}
+      <tr style="border-top:2px solid var(--line2)"><td colspan="4" style="padding:8px 0;font-weight:700">Total</td>
+        <td style="text-align:right;font-weight:800;font-variant-numeric:tabular-nums">${metUSD(total)}</td><td colspan="3"></td></tr>
+    </table></div>
+    <div class="muted" style="font-size:11.5px;margin-top:9px">La frecuencia en 2 es la señal de que la audiencia se quemó. Sale en rojo.</div>`
+    :`<div class="muted" style="font-size:12.5px;padding:10px 0">Todavía no hay inversión cargada. Mientras no la haya, ningún KPI de rentabilidad se puede calcular: no es que estén en cero, es que no se pueden saber.</div>`}
+  </div>`;
+}
+
+function metPautaEditar(id){
+  const x=id?((MET&&MET.pauta)||[]).find(p=>String(p.id)===String(id)):null;
+  MET_PAUTA_EDITA=x?Object.assign({},x):{fecha:new Date().toISOString().slice(0,10),plataforma:'meta',tipo:'broad'};
+  metRender();
+}
+function metPautaCampo(k,v){ if(MET_PAUTA_EDITA)MET_PAUTA_EDITA[k]=v; }
+function metPautaCerrar(){ MET_PAUTA_EDITA=null; metRender(); }
+
+function metPautaForm(){
+  const e=MET_PAUTA_EDITA;
+  const num=(k,lbl,suf,ayuda)=>`<div class="finF"><label for="mp_${k}">${lbl}</label>
+    <span class="finWrap"><input id="mp_${k}" type="number" step="any" value="${e[k]==null?'':esc(String(e[k]))}" style="${suf?'':'padding-right:12px;'}font-variant-numeric:tabular-nums" oninput="metPautaCampo('${k}',this.value)" />${suf?`<span class="finSuf">${suf}</span>`:''}</span>
+    ${ayuda?`<div class="finHint">${esc(ayuda)}</div>`:''}</div>`;
+  $("v-metricas").innerHTML=`<div class="card" style="max-width:820px;margin:0 auto">
+    <div class="cardHead"><h2 style="margin:0">${e.id?'Editar la inversión':'Cargar inversión'}</h2>
+      <span class="acciones"><button class="sm ghost" style="min-height:44px" onclick="metPautaCerrar()">Cerrar</button></span></div>
+    <div class="muted" style="font-size:12.5px;margin:4px 0 14px">Un registro por día y campaña. Lo demás son datos del administrador de anuncios y sirven de diagnóstico.</div>
+    <div class="finGrid">
+      <div class="finF"><label for="mp_fecha">Fecha</label>
+        <span class="finWrap"><input id="mp_fecha" type="date" value="${esc(String(e.fecha||'').slice(0,10))}" style="padding-right:12px" oninput="metPautaCampo('fecha',this.value)" /></span></div>
+      <div class="finF"><label for="mp_plataforma">Plataforma</label>
+        <span class="finWrap"><select id="mp_plataforma" style="padding-right:12px" onchange="metPautaCampo('plataforma',this.value)">
+          ${MET_PLATAFORMAS.map(p=>`<option value="${p[0]}"${e.plataforma===p[0]?' selected':''}>${p[1]}</option>`).join('')}</select></span></div>
+      <div class="finF"><label for="mp_tipo">Tipo</label>
+        <span class="finWrap"><select id="mp_tipo" style="padding-right:12px" onchange="metPautaCampo('tipo',this.value)">
+          ${MET_TIPOS_PAUTA.map(t=>`<option value="${t[0]}"${e.tipo===t[0]?' selected':''}>${t[1]}</option>`).join('')}</select></span></div>
+      <div class="finF" style="grid-column:1/-1"><label for="mp_campana">Campaña</label>
+        <span class="finWrap"><input id="mp_campana" value="${esc(String(e.campana||''))}" placeholder="Como se llama en el administrador de anuncios" style="padding-right:12px" oninput="metPautaCampo('campana',this.value)" /></span></div>
+      ${num('inversion_usd','Inversión','USD','Lo que gastaste ese día en esa campaña')}
+    </div>
+    <div class="finGrupo"><h4>Diagnóstico del administrador de anuncios</h4>
+      <div class="finGrid">
+        ${num('impresiones','Impresiones','')}
+        ${num('alcance','Cuentas alcanzadas','')}
+        ${num('frecuencia','Frecuencia','','En 2 se apaga: la audiencia se quemó')}
+        ${num('visitas_perfil','Visitas al perfil','')}
+        ${num('seguidores','Seguidores','')}
+        ${num('comentarios','Comentarios','')}
+        ${num('retencion_gancho','Retención del gancho','%')}
+      </div>
+    </div>
+    <div class="finF" style="margin-top:14px"><label for="mp_nota">Nota</label>
+      <span class="finWrap"><input id="mp_nota" value="${esc(String(e.nota||''))}" style="padding-right:12px" oninput="metPautaCampo('nota',this.value)" /></span></div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap">
+      <button style="min-height:44px" onclick="metPautaGuardar()">${e.id?'Guardar':'Cargar'}</button>
+      <button class="ghost" style="min-height:44px" onclick="metPautaCerrar()">Cancelar</button>
+      ${e.id?`<span style="flex:1"></span><button class="ghost" style="min-height:44px" onclick="metPautaBorrar('${e.id}')">Quitar</button>`:''}
+      <span id="mpMsg" class="muted" style="font-size:12.5px"></span>
+    </div>
+  </div>`;
+}
+
+async function metPautaGuardar(){
+  const e=MET_PAUTA_EDITA; if(!e)return;
+  const m=$("mpMsg");
+  if(!e.fecha){if(m){m.textContent='Falta la fecha.';m.style.color='var(--warn)';}return;}
+  if(!Number(e.inversion_usd)){if(m){m.textContent='Falta la inversión.';m.style.color='var(--warn)';}return;}
+  if(m){m.textContent='Guardando…';m.style.color='';}
+  const r=await metCall('pauta_guardar',{fila:e});
+  if(r.error){if(m){m.textContent='No se guardó: '+(r.error.message||r.error);m.style.color='var(--rojo2)';}return;}
+  MET_PAUTA_EDITA=null; MET=null; await verMetricas();
+}
+async function metPautaBorrar(id){
+  if(!confirm('¿Quitar este registro de inversión?'))return;
+  const r=await metCall('pauta_borrar',{id:id});
+  if(r.error){alert('No se pudo quitar: '+(r.error.message||r.error));return;}
+  MET_PAUTA_EDITA=null; MET=null; await verMetricas();
+}
+
+// ---- Lo que no cuadra se MUESTRA, no se esconde. Una venta sin llamada
+// registrada significa que alguien cobró sin dejar rastro.
+function metBloqueHuerfanos(){
+  const H=(MET&&MET.huerfanos)||{};
+  const sv=H.ventas_sin_llamada||[], sl=H.llamadas_sin_lead||[];
+  if(!sv.length&&!sl.length&&!H.llamadas_sin_origen&&!H.ventas_sin_origen)return '';
+  const fila=(t,n,d,c)=>n?`<div style="border-left:3px solid ${c};padding-left:12px;margin-bottom:11px">
+    <div style="font-size:13.5px;font-weight:700;color:${c}">${n} ${esc(t)}</div>
+    <div class="muted" style="font-size:12px;margin-top:2px;line-height:1.5">${esc(d)}</div></div>`:'';
+  return `<div class="card" style="border-color:var(--line2)">
+    <h3 style="margin:0 0 10px">La cadena que no cuadra</h3>
+    ${fila('ventas sin llamada registrada',sv.length,'Alguien cobró sin dejar rastro de la llamada. Sin eso no se sabe de dónde vino ni quién la cerró.','var(--rojo2)')}
+    ${fila('llamadas sin lead',sl.length,'La llamada existe pero no está ligada a nadie del CRM: no se puede saber por dónde entró.','var(--warn)')}
+    ${fila('llamadas sin origen marcado',H.llamadas_sin_origen,'Sin origen no entran ni en el costo de pauta ni en la comparación contra lo orgánico.','var(--warn)')}
+    ${fila('ventas sin origen marcado',H.ventas_sin_origen,'No se le pueden atribuir a la pauta ni al orgánico.','var(--warn)')}
+  </div>`;
+}
+
+// ---- INTERCONEXIÓN. Un número que no se puede abrir no sirve para revisar
+// nada. Cada KPI abre las filas que lo componen, y desde ahí se recorre la
+// cadena completa en los dos sentidos: lead → llamada → venta → comisión.
+const MET_VISTAS={
+  bookings:{t:'Llamadas agendadas',f:(l)=>true},
+  qb:{t:'Llamadas calificadas',f:(l)=>l.calificado===true},
+  qbsu:{t:'Calificadas que se presentaron',f:(l)=>l.calificado===true&&l.se_presento===true},
+  showups:{t:'Llamadas a las que asistieron',f:(l)=>l.se_presento===true},
+  ofertas:{t:'Llamadas donde se presentó el precio',f:(l)=>l.precio_ofrecido_usd!=null},
+  cierres:{t:'Llamadas ganadas',f:(l)=>String(l.resultado)==='ganado'},
+};
+
+function metAbrir(tipo){ MET_DETALLE=tipo; metRender(); }
+function metCerrarDetalle(){ MET_DETALLE=null; metRender(); }
+
+// Las filas del periodo que está seleccionado arriba, no de toda la historia.
+function metMesesSel(){ return metAgregado().meses.map(m=>m.mes); }
+
+function metDetalleFilas(){
+  const meses=metMesesSel();
+  const enPeriodo=(f)=>f&&meses.indexOf(String(f).slice(0,7))>=0;
+  if(MET_DETALLE==='ventas'){
+    return ((MET&&MET.ventas)||[]).filter(v=>enPeriodo(v.fecha_cierre));
+  }
+  const v=MET_VISTAS[MET_DETALLE];
+  if(!v)return [];
+  return ((MET&&MET.llamadas)||[]).filter(l=>enPeriodo(l.fecha_llamada)&&v.f(l));
+}
+
+function metDetalleRender(){
+  const esVenta=MET_DETALLE==='ventas';
+  const titulo=esVenta?'Ventas registradas':((MET_VISTAS[MET_DETALLE]||{}).t||'Detalle');
+  const filas=metDetalleFilas();
+  const pct=(MET&&MET.pct_rol)||{};
+  const ventasPorId={}; ((MET&&MET.ventas)||[]).forEach(v=>{ventasPorId[String(v.id)]=v;});
+  const llamPorVenta={}; ((MET&&MET.llamadas)||[]).forEach(l=>{if(l.venta_id)llamPorVenta[String(l.venta_id)]=l;});
+
+  const cab=esVenta
+    ? ['Fecha','Cliente','Valor','Primer pago','Cobrado','Origen','Closer','Comisión','Llamada']
+    : ['Fecha','Quién','Closer','Origen','Calificada','Asistió','Precio ofrecido','Resultado','Venta'];
+
+  const cuerpo=filas.map(x=>{
+    if(esVenta){
+      const c=Number(pct.closer||0), s=Number(pct.setter||0);
+      const base=Number(x.valor_mensual||x.valor_total||0);
+      const ll=llamPorVenta[String(x.id)];
+      return [
+        String(x.fecha_cierre||'').slice(0,10),
+        x.cliente_nombre||'—',
+        metUSD(x.valor_total)||'—',
+        metUSD(x.primer_pago_usd)||'<span class="muted">sin dato</span>',
+        metUSD(x.cobrado_usd)||'<span class="muted">sin dato</span>',
+        x.origen?esc(x.origen):'<span style="color:var(--warn)">sin marcar</span>',
+        esc(x.closer||'—'),
+        base?`closer ${c}% = ${metUSD(base*c/100)}${x.setter?` · setter ${s}% = ${metUSD(base*s/100)}`:''}`:'<span class="muted">—</span>',
+        ll?`<span style="color:var(--ok)">sí</span>`:'<span style="color:var(--rojo2)">sin llamada</span>',
+      ];
+    }
+    const vt=x.venta_id?ventasPorId[String(x.venta_id)]:null;
+    return [
+      String(x.fecha_llamada||'').slice(0,10),
+      esc(x.lead_nombre||'<span style="color:var(--warn)">sin lead ligado</span>'),
+      esc(x.closer||'—'),
+      x.origen?esc(x.origen):'<span style="color:var(--warn)">sin marcar</span>',
+      x.calificado===true?'<span style="color:var(--ok)">sí</span>':(x.calificado===false?'no':'<span class="muted">—</span>'),
+      x.se_presento===true?'<span style="color:var(--ok)">sí</span>':(x.se_presento===false?'no':'<span class="muted">—</span>'),
+      x.precio_ofrecido_usd!=null?metUSD(x.precio_ofrecido_usd):'<span class="muted">no se ofreció</span>',
+      esc(x.resultado||'—'),
+      vt?`${esc(vt.cliente_nombre||'')} · ${metUSD(vt.valor_total)}`:'<span class="muted">—</span>',
+    ];
+  });
+
+  window._MET_CSV={cab:cab,filas:cuerpo,nombre:MET_DETALLE};
+  $("v-metricas").innerHTML=`<div class="card">
+    <div class="cardHead"><h2 style="margin:0">${esc(titulo)} <span class="muted" style="font-size:13px;font-weight:400">· ${filas.length}</span></h2>
+      <span class="acciones">
+        <button class="sm ghost" style="min-height:44px" onclick="metCSV()">CSV</button>
+        <button class="sm ghost" style="min-height:44px" onclick="metCerrarDetalle()">Volver</button></span></div>
+    <div class="muted" style="font-size:12px;margin:4px 0 12px">${esc(MET_PERIODOS.find(p=>p[0]===MET_PERIODO)[1])} · estas son las filas que componen ese número.</div>
+    ${filas.length?`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:820px">
+      <tr class="muted" style="font-size:11px;text-align:left">${cab.map(c=>`<th style="padding:4px 8px 4px 0">${esc(c)}</th>`).join('')}</tr>
+      ${cuerpo.map(f=>`<tr style="border-top:1px solid var(--line)">${f.map(c=>`<td style="padding:7px 8px 7px 0;font-variant-numeric:tabular-nums">${c}</td>`).join('')}</tr>`).join('')}
+    </table></div>`
+    :`<div class="muted" style="font-size:12.5px;padding:10px 0">No hay filas en este periodo. ${esVenta?'Las ventas se registran desde Finanzas.':'Las llamadas entran desde el CRM de llamadas de venta.'}</div>`}
+  </div>`;
+}
+
+// ---- EXPORTACIÓN. CSV con el patrón de crmCSV (Blob + BOM), pero soltando la
+// URL al final: crmCSV no la suelta y deja el objeto colgando en memoria.
+function metCSV(){
+  const D=window._MET_CSV; if(!D)return;
+  const limpiar=(x)=>String(x==null?'':x).replace(/<[^>]*>/g,'').replace(/&[a-z]+;/g,' ').replace(/\n/g,' ');
+  const csv=[D.cab,...D.filas].map(r=>r.map(x=>`"${limpiar(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+  metBajar(new Blob(["﻿"+csv],{type:'text/csv;charset=utf-8'}),`metricas-${D.nombre}-${metMesArchivo()}.csv`);
+}
+function metBajar(blob,nombre){
+  const u=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=u;a.download=nombre;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),2000);
+}
+function metMesArchivo(){
+  const ms=metMesesSel();
+  return ms.length===1?ms[0]:(ms[ms.length-1]+'_a_'+ms[0]);
+}
+
+// Excel: una hoja por bloque. XLSX ya está cargado desde el CDN.
+function metExportarExcel(){
+  if(typeof XLSX==='undefined'){alert('No se pudo cargar la librería de Excel. Revisa tu conexión y recarga.');return;}
+  const {hoy:A}=metAgregado();
+  const wb=XLSX.utils.book_new();
+  const hoja=(nombre,filas)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(filas),nombre);
+  hoja('Rentabilidad',[['Métrica','Valor','Fórmula'],
+    ['ROI Revenue',A.roi_revenue,'facturación ÷ inversión'],
+    ['ROI Cash',A.roi_cash,'cobrado ÷ inversión'],
+    ['CAC',A.cac,'inversión ÷ cierres de pauta'],
+    ['AOV',A.aov,'primer pago promedio'],
+    ['% cobro adelantado',A.pct_upfront,'front end cash ÷ facturación']]);
+  hoja('Costos',[['Métrica','Solo pauta','Mezclado'],
+    ['CPQBSU',A.cpqbsu,''],['CPQB',A.cpqb,A.cpqb_mezcla],['CPB',A.cpb,A.cpb_mezcla]]);
+  hoja('Embudo',[['Paso','Cantidad','% al siguiente'],
+    ['Agendadas',A.bookings,''],['Calificadas',A.qb,A.pct_calificadas],
+    ['Asistieron',A.show_ups,A.pct_show_up],['Ofertas',A.ofertas,A.pct_ofertas],
+    ['Cierres',A.cierres,A.pct_cierre]]);
+  hoja('Organico vs pagado',[['Métrica','Pagado','Orgánico'],
+    ['Agendadas',A.bookings_pag,A.bookings_org],['Cierres',A.cierres_pag,A.cierres_org]]);
+  hoja('Cartera',[['Métrica','Valor'],
+    ['Front End Cash',A.front_end_cash],['Cartera (A/R)',A.ar],
+    ['Facturado',A.revenue],['Cobrado',A.cobrado],['% cuotas cobradas',A.pct_cobradas]]);
+  const P=(MET&&MET.pauta)||[];
+  hoja('Pauta',[['Fecha','Plataforma','Campaña','Tipo','Inversión USD','Impresiones','Alcance','Frecuencia'],
+    ...P.map(x=>[x.fecha,x.plataforma,x.campana,x.tipo,x.inversion_usd,x.impresiones,x.alcance,x.frecuencia])]);
+  XLSX.writeFile(wb,`metricas-mam-${metMesArchivo()}.xlsx`);
+}
+
+// PDF: hoja de impresión limpia, fondo blanco y texto oscuro, para mandarla a
+// un socio por correo. Mismo patrón de iframe + contentWindow.print() que ya
+// usan los informes del cliente.
+function metExportarPDF(){
+  const {hoy:A}=metAgregado();
+  const fila=(k,v,f)=>`<tr><td class="k">${k}${f?`<div class="f">${f}</div>`:''}</td><td class="v">${v==null?'sin datos':v}</td></tr>`;
+  const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>metricas-mam-${metMesArchivo()}</title>
+    <style>
+      @page{margin:18mm}
+      body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#17161b;background:#fff;margin:0;font-size:12px}
+      h1{font-size:21px;margin:0 0 2px}h2{font-size:14px;margin:22px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
+      .sub{color:#666;font-size:11px;margin-bottom:4px}
+      table{width:100%;border-collapse:collapse;margin-bottom:4px}
+      td{padding:6px 4px;border-bottom:1px solid #eee;vertical-align:top}
+      .k{color:#444}.f{color:#999;font-size:10px;font-style:italic}
+      .v{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .marca{font-weight:800;letter-spacing:1px;font-size:11px;color:#e23b3b}
+    </style></head><body>
+    <div class="marca">MUSCULO AL MAXIMO</div>
+    <h1>Métricas</h1>
+    <div class="sub">${esc(MET_PERIODOS.find(p=>p[0]===MET_PERIODO)[1])} · ${esc(metMesArchivo())}</div>
+    <div class="sub">Generado el ${new Date().toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'})}</div>
+    <h2>Rentabilidad</h2><table>
+      ${fila('ROI Revenue',metX(A.roi_revenue),'facturación ÷ inversión')}
+      ${fila('ROI Cash',metX(A.roi_cash),'cobrado ÷ inversión')}
+      ${fila('CAC',metUSD(A.cac),'inversión ÷ cierres de pauta')}
+      ${fila('AOV',metUSD(A.aov),'primer pago promedio')}
+      ${fila('Cobro por adelantado',metPctTxt(A.pct_upfront),'')}</table>
+    <h2>Qué cuesta llegar a una llamada</h2><table>
+      ${fila('CPQBSU · calificada que asiste',metUSD(A.cpqbsu),'solo pauta')}
+      ${fila('CPQB · calificada',metUSD(A.cpqb),'solo pauta')}
+      ${fila('CPB · llamada',metUSD(A.cpb),'solo pauta')}</table>
+    <h2>Embudo</h2><table>
+      ${fila('Agendadas',A.bookings,'')}${fila('Calificadas',A.qb,metPctTxt(A.pct_calificadas)||'')}
+      ${fila('Asistieron',A.show_ups,metPctTxt(A.pct_show_up)||'')}
+      ${fila('Ofertas',A.ofertas,metPctTxt(A.pct_ofertas)||'')}
+      ${fila('Cierres',A.cierres,metPctTxt(A.pct_cierre)||'')}</table>
+    <h2>Orgánico contra pagado</h2><table>
+      ${fila('Agendadas de pauta',A.bookings_pag,'')}${fila('Agendadas orgánicas',A.bookings_org,'')}
+      ${fila('Cierres de pauta',A.cierres_pag,'')}${fila('Cierres orgánicos',A.cierres_org,'')}</table>
+    <h2>La plata que falta por entrar</h2><table>
+      ${fila('Front End Cash',metUSD(A.front_end_cash),'')}${fila('Cartera (A/R)',metUSD(A.ar),'')}
+      ${fila('Cuotas cobradas',metPctTxt(A.pct_cobradas),'')}</table>
+    <h2>Inversión</h2><table>${fila('Total del periodo',metUSD(A.ad_spend),'')}</table>
+    </body></html>`;
+  let f=$("metPrintFrame");
+  if(!f){f=document.createElement('iframe');f.id='metPrintFrame';
+    f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0';
+    document.body.appendChild(f);}
+  f.srcdoc=html;
+  setTimeout(()=>imprimirIframe('metPrintFrame',html),500);
 }
 
 async function verEmbudo(){
