@@ -8949,7 +8949,9 @@ function contRender(){
     <div style="margin-top:4px">${cDelta(prev.a,prev.b,dec)}</div></div>`;
   h+=`<div class="card">
     <div class="cardHead"><h2>Contenido</h2>
-      <span class="acciones"><button class="sm ghost" style="min-height:44px" onclick="CONT=null;verContenido()">Actualizar</button></span></div>
+      <span class="acciones">
+        <button class="sm" style="min-height:44px" onclick="contSyncIG(this)">Traer de Instagram</button>
+        <button class="sm ghost" style="min-height:44px" onclick="CONT=null;verContenido()">Actualizar</button></span></div>
     <div class="muted" style="font-size:12.5px;margin-bottom:12px">Del mes en curso. Las métricas se escriben a mano desde Insights; las llamadas agendadas se cruzan solas con el calendario.</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       ${caja('Piezas publicadas',cNum(A.piezas),{a:A.piezas,b:B.piezas})}
@@ -9155,6 +9157,19 @@ function contFormRender(){
     </div>
   </div>`;
   $("v-contenido").innerHTML=h;
+}
+
+// Baja las publicaciones de Instagram. Solo refresca lo que viene de alla
+// (me gusta y comentarios): el alcance, los mensajes y lo demas que escribes a
+// mano NO se tocan, por muchas veces que lo pulses.
+async function contSyncIG(btn){
+  if(btn){btn.disabled=true;btn.textContent='Trayendo…';}
+  const r=await contCall('sync_ig',{tope:100});
+  if(btn){btn.disabled=false;btn.textContent='Traer de Instagram';}
+  if(r.error){alert('No se pudo: '+(r.error.message||r.error));return;}
+  const d=r.data||{};
+  CONT=null; await verContenido();
+  toast('Instagram: '+(d.nuevas||0)+' nuevas, '+(d.actualizadas||0)+' al día. El alcance sigue a mano.','ok');
 }
 
 async function contGuardar(){
