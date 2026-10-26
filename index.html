@@ -10131,7 +10131,9 @@ function setRender(){
   let h=embTabs();
   h+=`<div class="card">
     <div class="cardHead"><h2>Embudo del setter</h2>
-      <span class="acciones"><button class="sm ghost" style="min-height:40px" onclick="SET=null;embIrVista('setter')">Actualizar</button></span></div>
+      <span class="acciones">
+        <button class="sm" style="min-height:40px" onclick="setSyncIG(this)">Traer de Instagram</button>
+        <button class="sm ghost" style="min-height:40px" onclick="SET=null;embIrVista('setter')">Actualizar</button></span></div>
     <div class="muted" style="font-size:12.5px;margin-bottom:12px">${d.total} conversación(es) registradas. Se escriben a mano: Instagram todavía no está conectado.</div>
     <div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:100%">
       <tr><td style="position:sticky;left:0;background:var(--card);border-right:1px solid var(--line)"></td>
@@ -10246,6 +10248,18 @@ async function setAdoptar(){
   }
   SET=null; await cargarSetter(); setRender();
   if(fallo)alert('Quedaron '+ok+'. No se pudieron '+fallo+'.');
+}
+
+// Trae las conversaciones reales de la cuenta de Instagram. Lo que el setter ya
+// anoto a mano no se duplica: la llave es el usuario de IG y se actualiza.
+async function setSyncIG(btn){
+  if(btn){btn.disabled=true;btn.textContent='Trayendo…';}
+  const r=await embCall('conv_sync_ig',{tope:500});
+  if(btn){btn.disabled=false;btn.textContent='Traer de Instagram';}
+  if(r.error){alert('No se pudo: '+(r.error.message||r.error));return;}
+  const d=r.data||{};
+  SET=null; await cargarSetter(); setRender();
+  toast('Instagram: '+(d.guardadas||0)+' conversaciones al día.','ok');
 }
 
 async function setGuardar(){
