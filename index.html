@@ -1662,6 +1662,7 @@ async function cargarCitas(){
   try{
     const r=await invokeFn('embudo',{body:{action:'datos',meses:2,clave:finClave()}});
     const ll=(r&&r.data&&r.data.llamadas)||[];
+    window.CU_LLAMADAS=ll; // todas las llamadas (para el panel "Llamadas de hoy")
     const hoy=hace(0);
     const m={};
     ll.forEach(l=>{
@@ -1675,6 +1676,37 @@ async function cargarCitas(){
   }catch(e){/* sin citas la cola funciona igual */}
 }
 
+// Panel "Llamadas de hoy": quién tiene llamada agendada hoy, a qué hora y su contacto.
+// Cruza el correo de la llamada con los leads (window.CU_ALL) para traer teléfono/IG y
+// la ficha. Resuelve "hay una sesión y no sé quién es ni cómo contactarlo" (JC 2026-10-26).
+function llamadasHoyHTML(){
+  const ll=window.CU_LLAMADAS||[];
+  const hoy=hace(0);
+  const dehoy=ll.filter(l=>String(l.inicio||'').slice(0,10)===hoy).sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
+  if(!dehoy.length)return `<div class="card"><h2 style="margin-top:0">Llamadas de hoy</h2><div class="muted" style="font-size:12px">No hay llamadas agendadas para hoy.</div></div>`;
+  const byMail={};(window.CU_ALL||[]).forEach(i=>{const c=String(i.email||'').toLowerCase();if(c&&!byMail[c])byMail[c]=i;});
+  const hora=iso=>{try{return new Date(iso).toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+  const filas=dehoy.map(l=>{
+    const correo=String(l.invitado_correo||'').toLowerCase();
+    const lead=byMail[correo]||null;
+    const tel=lead&&lead.telefono?String(lead.telefono):'';
+    const ig=lead&&lead.instagram?String(lead.instagram).replace(/^@+/,''):'';
+    const meet=l.meet_code?`<a class="sm ghost" href="https://meet.google.com/${esc(l.meet_code)}" target="_blank" rel="noopener" style="border-radius:9px">Meet</a>`:'';
+    const wa=tel?`<a class="sm" href="${waLink(tel,'')}" target="_blank" rel="noopener" style="border-radius:9px;background:#25d366;color:#0a0a0e;font-weight:700">WhatsApp</a>`:'';
+    const igBtn=ig?`<a class="sm ghost" href="https://instagram.com/${encodeURIComponent(ig)}" target="_blank" rel="noopener" style="border-radius:9px">@${esc(ig)}</a>`:'';
+    const ficha=lead&&lead.user_id?`<button class="sm ghost" style="border-radius:9px" onclick="abrirFicha('${lead.user_id}')">Ficha</button>`:'';
+    const contacto=[correo||'sin correo',tel].filter(Boolean).join(' · ');
+    return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--line)">
+      <b style="min-width:62px">${hora(l.inicio)}</b>
+      <span style="min-width:150px;font-weight:700">${esc(l.invitado_nombre||'—')}</span>
+      <span class="muted" style="font-size:12px;user-select:text">${esc(contacto)}${lead?'':' · (no está en leads)'}</span>
+      <span style="flex:1"></span>${igBtn}${meet}${wa}${ficha}
+    </div>`;
+  }).join('');
+  return `<div class="card"><h2 style="margin-top:0">Llamadas de hoy (${dehoy.length})</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Quién tiene llamada hoy, a qué hora y su contacto. El IG y el teléfono salen si la persona ya está en los leads.</div>
+    ${filas}</div>`;
+}
 // Aplica los filtros/búsqueda EN EL NAVEGADOR (mismo criterio que tenía el servidor).
 // ───────── Cola de la encuesta propia (aplica.musculoalmaximo.com/captar) ─────────
 // El problema que resuelve: las vistas "Recién llegaron", "Para hoy" y "Nuevos 48h" filtran
@@ -2167,7 +2199,7 @@ function renderContactar(){
     <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')renderContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';renderContactar()">Limpiar</button>`:''}</div>
   </div>`;
   // La Tanda de hoy reemplaza la lista: una persona a la vez, sin nada que elegir.
-  if(CU_FILTRO==='tanda'){ h+=cuTandaHTML(ALL); el.innerHTML=h; cuFoco(); return; }
+  if(CU_FILTRO==='tanda'){ h+=cuTandaHTML(ALL); el.innerHTML=llamadasHoyHTML()+h; cuFoco(); return; }
   window._CU_VIS=items.map(cuKey); // claves visibles (para "seleccionar todos")
   if(!items.length){
     const vacios={
@@ -2181,7 +2213,7 @@ function renderContactar(){
       ${v?`<div class="muted" style="font-size:13px;margin-top:6px;max-width:420px;margin-left:auto;margin-right:auto">${esc(v[1])}</div>`:''}
       ${CU_Q?`<button class="sm ghost" style="margin-top:14px;min-height:44px" onclick="CU_Q='';renderContactar()">Limpiar la búsqueda</button>`:''}
     </div>`;
-    el.innerHTML=h;cuFoco();return;}
+    el.innerHTML=llamadasHoyHTML()+h;cuFoco();return;}
   const nSel=window.CU_SEL.size;
   const barra=nSel>0?`<div style="position:sticky;top:0;z-index:5;background:var(--card2);border:1px solid var(--rojo);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <b style="font-size:13px">${nSel} seleccionados</b>
@@ -2342,7 +2374,7 @@ function renderContactar(){
     </div>${panelAbierto}`;
   }
   h+='</div>';
-  el.innerHTML=h;
+  el.innerHTML=llamadasHoyHTML()+h;
   cuFoco();
   // El tablero de misión del modo comercial va de primeras. Se inyecta aquí
   // porque renderContactar reescribe todo el contenedor en cada pintada.
