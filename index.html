@@ -1252,8 +1252,12 @@ async function renderHoy(){
     }
   }catch(e){}
 
+  // Tareas de mentoría prometidas y sin tocar hace 15+ días (bucle de rendición de cuentas).
+  let nViejas=0;
+  try{ const rv=await acompCall('tareas_viejas',{dias:15}); if(rv&&rv.data&&rv.data.ok){ window.ACOMP_VIEJAS=rv.data.porCliente||{}; nViejas=rv.data.total||0; } }catch(e){}
   const misiones=[
     {orden:1,n:nPago,  color:'var(--rojo)', titulo:'Pagos vencidos por revisar', sub:'es plata que ya se está yendo', accion:"tab('pagos')", boton:'Ver pagos'},
+    {orden:2,n:nViejas,color:'var(--rojo)', titulo:'Tareas de mentoría sin tocar (15+ días)', sub:'prometidas en una sesión y nadie las revisó', accion:"tab('acompanamiento')", boton:'Acompañamiento'},
     {orden:2,n:nRisk,  color:'var(--rojo)', titulo:'Clientes en riesgo de baja', sub:'se van si nadie los llama', accion:"tab('riesgo')", boton:'Ver riesgo'},
     {orden:3,n:nAlert, color:'var(--rojo)', titulo:'Alertas sin responder', sub:'de los últimos 7 días, sin contar las que ya son otra misión', accion:'toggleCampana()', boton:'Abrir avisos'},
     {orden:4,n:nInact, color:'var(--warn)', titulo:'Inactivos de 14 días o más', sub:'dejaron de entrar a la app', accion:"tab('recordatorios')", boton:'Recordar'},
@@ -8923,9 +8927,11 @@ function verAcompanamiento(){
 }
 function acompPickerHTML(){
   const q=(ACOMP_Q||'').trim().toLowerCase();
+  const viejas=window.ACOMP_VIEJAS||{};
+  const nViej=c=>(viejas[c.user_id]&&viejas[c.user_id].n)||0;
   const cli=(CLIENTES||[]).filter(c=>!c.archivado&&(!q||String(c.nombre||'').toLowerCase().includes(q)));
-  cli.sort((a,b)=>((b._susT==='mentoria')-(a._susT==='mentoria'))||String(a.nombre||'').localeCompare(String(b.nombre||'')));
-  const filas=cli.slice(0,60).map(c=>`<button class="sm ghost" style="display:block;width:100%;text-align:left;margin:3px 0;border-radius:9px" onclick="acompSel('${c.user_id}')">${esc(c.nombre||c.user_id.slice(0,8))}${c._susT==='mentoria'?' · <span style="color:var(--ok)">mentoría</span>':''}</button>`).join('');
+  cli.sort((a,b)=>(nViej(b)-nViej(a))||((b._susT==='mentoria')-(a._susT==='mentoria'))||String(a.nombre||'').localeCompare(String(b.nombre||'')));
+  const filas=cli.slice(0,60).map(c=>`<button class="sm ghost" style="display:block;width:100%;text-align:left;margin:3px 0;border-radius:9px" onclick="acompSel('${c.user_id}')">${esc(c.nombre||c.user_id.slice(0,8))}${c._susT==='mentoria'?' · <span style="color:var(--ok)">mentoría</span>':''}${nViej(c)?` · <span style="color:var(--rojo2)">${nViej(c)} tarea${nViej(c)>1?'s':''} sin tocar</span>`:''}</button>`).join('');
   return `<div class="card"><h2 style="margin-top:0">Acompañamiento</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">El acta de cada sesión de mentoría, con las mismas 8 casillas siempre. Elige un cliente para ver o crear sus sesiones.</div>
     <input placeholder="Buscar cliente…" value="${esc(ACOMP_Q||'')}" oninput="ACOMP_Q=this.value;verAcompanamiento()" style="width:100%;max-width:320px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:8px;box-sizing:border-box">
@@ -8957,6 +8963,17 @@ function acompRender(){
   h+=acompSesionHTML(ses.find(x=>x.id===act)||ses[0],ses,tareas);
   return h;
 }
+// Tarea de la sesión ANTERIOR con 3 estados forzados (Hecha / En curso): obliga a
+// revisar el cumplimiento antes de cerrar el acta nueva (bucle de rendición de cuentas).
+function acompTareaPrevHTML(t){
+  const b=(est,lbl)=>`<button class="sm ${t.estado===est?'':'ghost'}" style="border-radius:7px" onclick="acompTarea('${t.id}','${est}')">${lbl}</button>`;
+  const pend=t.estado==='no_empezada';
+  return `<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)">
+    ${pend?'<span style="color:var(--rojo2);font-weight:800;min-width:10px">•</span>':''}
+    <span style="flex:1;${t.estado==='hecha'?'text-decoration:line-through;opacity:.6':''}">${esc(t.descripcion||'')}</span>
+    ${t.origen==='cliente'?'<span class="pill" style="background:var(--card2);font-size:10px">Cliente</span>':(t.origen==='entrenador'?'<span class="pill" style="background:var(--card2);font-size:10px">Nosotros</span>':'')}
+    ${b('hecha','Hecha')}${b('en_curso','En curso')}</div>`;
+}
 function acompTareaFilaHTML(t,soloLectura){
   const col=t.estado==='hecha'?'var(--ok)':(t.estado==='en_curso'?'var(--warn)':'var(--muted)');
   const chk=t.estado==='hecha';
@@ -8972,6 +8989,8 @@ function acompSesionHTML(s,ses,tareas){
   const tSes=(tareas||[]).filter(t=>t.reunion_id===s.id);
   const idx=ses.findIndex(x=>x.id===s.id); const prev=idx>=0&&idx<ses.length-1?ses[idx+1]:null;
   const tPrev=prev?(tareas||[]).filter(t=>t.reunion_id===prev.id):[];
+  const esActual=!!(ses[0]&&ses[0].id===s.id);
+  const pendientesPrevias=(esActual&&prev)?tPrev.filter(t=>t.estado==='no_empezada').length:0;
   const ta=(campo,val,ph)=>`<textarea id="ac_${campo}" placeholder="${esc(ph)}" style="width:100%;min-height:58px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:9px;font-family:inherit;font-size:13px;box-sizing:border-box">${esc(val||'')}</textarea>`;
   const sec=(n,titulo,contenido)=>`<div style="margin-top:14px"><div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--rojo2);margin-bottom:5px">${n}. ${esc(titulo)}</div>${contenido}</div>`;
   let h=`<div class="card">`;
@@ -9000,11 +9019,16 @@ function acompSesionHTML(s,ses,tareas){
         <div class="muted" style="font-size:12px;margin-top:3px">Revisa cada casilla y corrige lo que haga falta. Nada se guarda hasta que le des <b>Guardar acta</b>. Las tareas propuestas están en la sección 8 para aprobarlas.</div></div>`;
     }
   }
+  if(esActual&&pendientesPrevias){
+    h+=`<div style="margin-top:10px;background:rgba(226,59,59,.1);border:1px solid rgba(226,59,59,.45);border-radius:10px;padding:10px 12px">
+      <b style="font-size:12px;color:var(--rojo2)">Primero cierra lo anterior</b>
+      <div class="muted" style="font-size:12px;margin-top:3px">Hay ${pendientesPrevias} tarea(s) de la sesión anterior sin revisar. Márcalas en la <b>sección 5</b> (Hecha o En curso). No podrás guardar el acta hasta hacerlo.</div></div>`;
+  }
   h+=sec(1,'Contexto',ta('contexto',s.contexto,'¿Cómo llega el cliente a esta sesión?'));
   h+=sec(2,'Wins',ta('wins',s.wins,'Logros desde la última vez.'));
   h+=sec(3,'Expectativas',`<div class="muted" style="font-size:10px;margin-bottom:3px">Resultado</div>${ta('expectativas_resultado',s.expectativas_resultado,'Qué resultado espera lograr.')}<div class="muted" style="font-size:10px;margin:6px 0 3px">Servicio</div>${ta('expectativas_servicio',s.expectativas_servicio,'Qué espera de nosotros.')}`);
   h+=sec(4,'Cuellos de botella',ta('cuellos',s.cuellos,'Qué lo frena, incluida su propia resistencia.'));
-  h+=sec(5,'Tareas de la sesión anterior', prev?(tPrev.length?`<div>${tPrev.map(t=>acompTareaFilaHTML(t,true)).join('')}</div>`:'<div class="muted" style="font-size:12px">La sesión anterior no dejó tareas.</div>'):'<div class="muted" style="font-size:12px">Es la primera sesión: no hay tareas anteriores.</div>');
+  h+=sec(5,'Tareas de la sesión anterior', prev?(tPrev.length?`${esActual?'<div class="muted" style="font-size:11px;margin-bottom:5px">Marca cada una (Hecha o En curso) antes de guardar el acta.</div>':''}<div>${tPrev.map(t=>esActual?acompTareaPrevHTML(t):acompTareaFilaHTML(t,true)).join('')}</div>`:'<div class="muted" style="font-size:12px">La sesión anterior no dejó tareas.</div>'):'<div class="muted" style="font-size:12px">Es la primera sesión: no hay tareas anteriores.</div>');
   h+=sec(6,'KPIs', `${s.estado_kpis?'':'<div class="muted" style="font-size:12px;background:var(--card2);border:1px dashed var(--line);border-radius:9px;padding:9px;margin-bottom:6px">Aún no hay KPIs para este cliente. Para llenar esta casilla, acuerden 1 o 2 números que se midan cada sesión (peso, adherencia, ventas) y escríbanlos aquí.</div>'}${ta('estado_kpis',s.estado_kpis,'Estado de los KPIs acordados.')}`);
   h+=sec(7,'Insights',ta('insights',s.insights,'Ideas o aprendizajes de la sesión.'));
   const prop=(ACOMP_IA&&ACOMP_IA.reunion===s.id&&Array.isArray(ACOMP_IA.tareas))?ACOMP_IA.tareas:[];
@@ -9026,6 +9050,14 @@ async function acompCrear(){
   ACOMP_SES=data.sesion&&data.sesion.id; ACOMP=null; verAcompanamiento();
 }
 async function acompGuardar(id){
+  // Bucle de cuentas: no se cierra el acta de la sesión ACTUAL sin haber revisado las
+  // tareas de la sesión anterior (deben quedar Hecha o En curso, no "no empezada").
+  const _ses=(ACOMP&&ACOMP.reuniones)||[];
+  if(_ses[0]&&_ses[0].id===id){
+    const i=_ses.findIndex(x=>x.id===id); const _prev=i>=0&&i<_ses.length-1?_ses[i+1]:null;
+    if(_prev){ const pend=((ACOMP&&ACOMP.tareas)||[]).filter(t=>t.reunion_id===_prev.id&&t.estado==='no_empezada').length;
+      if(pend){ toast('Revisa las '+pend+' tarea(s) de la sesión anterior (sección 5) antes de guardar','warn'); return; } }
+  }
   const campos=['tipo','fecha','foco_periodo','contexto','wins','expectativas_resultado','expectativas_servicio','cuellos','estado_kpis','insights'];
   const body={id}; campos.forEach(c=>{const e=document.getElementById('ac_'+c); if(e)body[c]=e.value;});
   const {data,error}=await acompCall('guardar_sesion',body);
