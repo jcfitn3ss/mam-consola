@@ -225,6 +225,7 @@
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
       <button id="t-seguimiento" onclick="tab('seguimiento')">Fotos y medidas</button>
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
+      <button id="t-acompanamiento" onclick="tab('acompanamiento')">Acompañamiento</button>
       <button id="t-revision" onclick="tab('revision')">Revisión del día</button>
       <button id="t-riesgo" onclick="tab('riesgo')">Riesgo de baja</button>
       <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
@@ -276,6 +277,7 @@
     <div id="v-recordatorios" class="hide"></div>
     <div id="v-seguimiento" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
+    <div id="v-acompanamiento" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
     <div id="v-finanzas" class="hide"></div>
     <div id="v-embudo" class="hide"></div>
@@ -428,7 +430,7 @@ async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 // Las que viven dentro del desplegable: al abrir una, el botón toma su nombre.
 const TABS_SEC=["ejercicios","plantillas","alimentos","restaurantes","prospecto"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","pagos","finanzas","embudo","contenido","metricas","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","acompanamiento","pagos","finanzas","embudo","contenido","metricas","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="acompanamiento")verAcompanamiento();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Biblioteca ▾": si la pestaña activa es de la biblioteca, resáltalo y muestra
   // su nombre; si no, vuelve a decir "Biblioteca". Cierra el menú al final.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Biblioteca")+" ▾";}
@@ -653,7 +655,7 @@ const PESTANAS_POR_ROL={
   // Dueño: todo.
   dueno:'*',
   // Entrenador: entrenamiento y setteo. Sin finanzas, sin pagos, sin consola interna.
-  entrenador:['clientes','crm','recordatorios','seguimiento','llamadas','contactar','embudo',
+  entrenador:['clientes','crm','recordatorios','seguimiento','llamadas','acompanamiento','contactar','embudo',
               'resumen','revision','riesgo','salud','prospecto',
               'ejercicios','plantillas','alimentos','restaurantes','comunidad','sugerencias'],
   // Comercial (closer y setter): prospección, el CRM de clientes y el embudo sin plata.
@@ -711,7 +713,7 @@ const PESTANAS_POR_MODO={
   // cliente, a quién le toca renovar?" — y renovar es vender. Además el
   // servidor ya le recorta lo clínico al rol comercial, así que es la misma
   // pestaña con la profundidad que cada rol tiene permitida.
-  servicio:['clientes','crm','seguimiento','llamadas','revision','riesgo','recordatorios','comunidad','resumen','salud',
+  servicio:['clientes','crm','seguimiento','llamadas','acompanamiento','revision','riesgo','recordatorios','comunidad','resumen','salud',
             // Biblioteca (van dentro del desplegable)
             'ejercicios','plantillas','alimentos','restaurantes','prospecto'],
   comercial:['contactar','crm','embudo','contenido','pagos','finanzas','metricas'],
@@ -735,7 +737,7 @@ function puedeVer(pestana){
 
 // Deja a la vista solo las pestañas del rol y abre la primera que le toque.
 function aplicarPermisos(){
-  const todas=['clientes','crm','recordatorios','seguimiento','llamadas','pagos','finanzas','embudo','contenido','metricas','contactar',
+  const todas=['clientes','crm','recordatorios','seguimiento','llamadas','acompanamiento','pagos','finanzas','embudo','contenido','metricas','contactar',
     'resumen','revision','riesgo','ejercicios','plantillas','alimentos','restaurantes','salud','prospecto',
     'comunidad','sugerencias','interno'];
   let primera='';
@@ -8906,6 +8908,129 @@ async function contPrecargar(){
   try{ if(MI_MODO==='comercial'&&$("v-contactar")&&!$("v-contactar").classList.contains('hide'))renderContactar(); }catch(e){}
 }
 
+// ============ ACOMPAÑAMIENTO (ficha de sesión de mentoría) ============
+// Vive sobre `reuniones` + sus 8 casillas (migración 0066) y la edge `acompanamiento`.
+// Modo servicio, rol entrenador+dueño. Las 8 secciones aparecen SIEMPRE en el mismo orden
+// aunque estén vacías; el foco del período va arriba, grande y solo. Llenar con IA desde
+// las notas de Gemini es un paso posterior; por ahora se escribe a mano y se guarda.
+let ACOMP_CLI=null, ACOMP=null, ACOMP_SES=null, ACOMP_Q='';
+const acompCall=(action,extra)=>invokeFn('acompanamiento',{body:{action,...(extra||{})}});
+function verAcompanamiento(){
+  const el=$("v-acompanamiento"); if(!el)return;
+  if(!ACOMP_CLI){ el.innerHTML=acompPickerHTML(); return; }
+  if(!ACOMP){ el.innerHTML='<div class="card">Cargando acompañamiento…</div>'; acompCargar(ACOMP_CLI); return; }
+  el.innerHTML=acompRender();
+}
+function acompPickerHTML(){
+  const q=(ACOMP_Q||'').trim().toLowerCase();
+  const cli=(CLIENTES||[]).filter(c=>!c.archivado&&(!q||String(c.nombre||'').toLowerCase().includes(q)));
+  cli.sort((a,b)=>((b._susT==='mentoria')-(a._susT==='mentoria'))||String(a.nombre||'').localeCompare(String(b.nombre||'')));
+  const filas=cli.slice(0,60).map(c=>`<button class="sm ghost" style="display:block;width:100%;text-align:left;margin:3px 0;border-radius:9px" onclick="acompSel('${c.user_id}')">${esc(c.nombre||c.user_id.slice(0,8))}${c._susT==='mentoria'?' · <span style="color:var(--ok)">mentoría</span>':''}</button>`).join('');
+  return `<div class="card"><h2 style="margin-top:0">Acompañamiento</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">El acta de cada sesión de mentoría, con las mismas 8 casillas siempre. Elige un cliente para ver o crear sus sesiones.</div>
+    <input placeholder="Buscar cliente…" value="${esc(ACOMP_Q||'')}" oninput="ACOMP_Q=this.value;verAcompanamiento()" style="width:100%;max-width:320px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:8px;box-sizing:border-box">
+    <div>${filas||'<div class="muted" style="font-size:12px">Sin clientes.</div>'}</div></div>`;
+}
+function acompSel(id){ ACOMP_CLI=id; ACOMP=null; ACOMP_SES=null; verAcompanamiento(); }
+async function acompCargar(id){
+  const {data,error}=await acompCall('listar',{cliente:id});
+  if(error||(data&&data.error)){ $("v-acompanamiento").innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`; return; }
+  ACOMP=data; verAcompanamiento();
+}
+function acompRender(){
+  const d=ACOMP||{reuniones:[],tareas:[]};
+  const cli=(CLIENTES||[]).find(c=>c.user_id===ACOMP_CLI)||{};
+  const nom=cli.nombre||String(ACOMP_CLI).slice(0,8);
+  const ses=d.reuniones||[], tareas=d.tareas||[];
+  let h=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <button class="sm ghost" onclick="ACOMP_CLI=null;ACOMP=null;ACOMP_SES=null;verAcompanamiento()">← Clientes</button>
+    <b style="font-size:16px">${esc(nom)}</b><span style="flex:1"></span>
+    <button class="sm" onclick="acompCrear()">Nueva sesión</button></div>`;
+  if(!ses.length){
+    return h+`<div class="card"><h2 style="margin-top:0">Sin sesiones todavía</h2>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">Este cliente no tiene ninguna sesión de acompañamiento. Crea la primera para empezar el acta.</div>
+      <button class="sm" onclick="acompCrear()">Crear la primera sesión</button></div>`;
+  }
+  const act=ACOMP_SES||ses[0].id;
+  h+=`<div class="card"><div class="muted" style="font-size:11px;margin-bottom:6px">Sesiones (más reciente primero)</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">`+ses.map(s=>`<button class="sm ${s.id===act?'':'ghost'}" style="border-radius:9px" onclick="acompAbrir('${s.id}')">${esc((s.fecha||'').slice(0,10))}${s.tipo?' · '+esc(s.tipo):''}</button>`).join('')+`</div></div>`;
+  h+=acompSesionHTML(ses.find(x=>x.id===act)||ses[0],ses,tareas);
+  return h;
+}
+function acompTareaFilaHTML(t,soloLectura){
+  const col=t.estado==='hecha'?'var(--ok)':(t.estado==='en_curso'?'var(--warn)':'var(--muted)');
+  const chk=t.estado==='hecha';
+  const resp=t.origen==='cliente'?'Cliente':(t.origen==='entrenador'?'Nosotros':'');
+  return `<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)">
+    <button class="sm ghost" style="border-radius:7px;min-width:34px" title="Marcar hecha/pendiente" onclick="acompTarea('${t.id}','${chk?'no_empezada':'hecha'}')">${chk?'✓':'○'}</button>
+    <span style="flex:1;${chk?'text-decoration:line-through;opacity:.6':''}">${esc(t.descripcion||'')}</span>
+    ${resp?`<span class="pill" style="background:var(--card2);font-size:10px">${resp}</span>`:''}
+    <span style="font-size:10px;color:${col};font-weight:700">${esc(t.estado||'')}</span>
+    ${soloLectura?'':`<button class="sm ghost" style="border-radius:7px" onclick="acompBorrarTarea('${t.id}')">×</button>`}</div>`;
+}
+function acompSesionHTML(s,ses,tareas){
+  const tSes=(tareas||[]).filter(t=>t.reunion_id===s.id);
+  const idx=ses.findIndex(x=>x.id===s.id); const prev=idx>=0&&idx<ses.length-1?ses[idx+1]:null;
+  const tPrev=prev?(tareas||[]).filter(t=>t.reunion_id===prev.id):[];
+  const ta=(campo,val,ph)=>`<textarea id="ac_${campo}" placeholder="${esc(ph)}" style="width:100%;min-height:58px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:9px;font-family:inherit;font-size:13px;box-sizing:border-box">${esc(val||'')}</textarea>`;
+  const sec=(n,titulo,contenido)=>`<div style="margin-top:14px"><div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--rojo2);margin-bottom:5px">${n}. ${esc(titulo)}</div>${contenido}</div>`;
+  let h=`<div class="card">`;
+  h+=`<div style="background:linear-gradient(180deg,rgba(226,59,59,.1),transparent);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:6px">
+    <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--rojo2);font-weight:800;margin-bottom:4px">Foco del período</div>
+    ${ta('foco_periodo',s.foco_periodo,'La ÚNICA cosa en la que se enfoca el cliente este período.')}</div>`;
+  h+=`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px">
+    <select id="ac_tipo" style="background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 8px">
+      <option value="consultoria"${s.tipo!=='seguimiento'?' selected':''}>Consultoría</option>
+      <option value="seguimiento"${s.tipo==='seguimiento'?' selected':''}>Seguimiento</option></select>
+    <input id="ac_fecha" type="date" value="${esc((s.fecha||'').slice(0,10))}" style="background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 8px">
+    <span style="flex:1"></span>
+    <button class="sm" onclick="acompGuardar('${s.id}')">Guardar acta</button></div>`;
+  h+=sec(1,'Contexto',ta('contexto',s.contexto,'¿Cómo llega el cliente a esta sesión?'));
+  h+=sec(2,'Wins',ta('wins',s.wins,'Logros desde la última vez.'));
+  h+=sec(3,'Expectativas',`<div class="muted" style="font-size:10px;margin-bottom:3px">Resultado</div>${ta('expectativas_resultado',s.expectativas_resultado,'Qué resultado espera lograr.')}<div class="muted" style="font-size:10px;margin:6px 0 3px">Servicio</div>${ta('expectativas_servicio',s.expectativas_servicio,'Qué espera de nosotros.')}`);
+  h+=sec(4,'Cuellos de botella',ta('cuellos',s.cuellos,'Qué lo frena, incluida su propia resistencia.'));
+  h+=sec(5,'Tareas de la sesión anterior', prev?(tPrev.length?`<div>${tPrev.map(t=>acompTareaFilaHTML(t,true)).join('')}</div>`:'<div class="muted" style="font-size:12px">La sesión anterior no dejó tareas.</div>'):'<div class="muted" style="font-size:12px">Es la primera sesión: no hay tareas anteriores.</div>');
+  h+=sec(6,'KPIs', `${s.estado_kpis?'':'<div class="muted" style="font-size:12px;background:var(--card2);border:1px dashed var(--line);border-radius:9px;padding:9px;margin-bottom:6px">Aún no hay KPIs para este cliente. Para llenar esta casilla, acuerden 1 o 2 números que se midan cada sesión (peso, adherencia, ventas) y escríbanlos aquí.</div>'}${ta('estado_kpis',s.estado_kpis,'Estado de los KPIs acordados.')}`);
+  h+=sec(7,'Insights',ta('insights',s.insights,'Ideas o aprendizajes de la sesión.'));
+  h+=sec(8,'Tareas y foco de acción', `<div>${tSes.map(t=>acompTareaFilaHTML(t,false)).join('')||'<div class="muted" style="font-size:12px;margin-bottom:6px">Sin tareas todavía.</div>'}</div>
+    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+      <input id="ac_nuevatarea" placeholder="Nueva tarea…" style="flex:1;min-width:180px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px">
+      <select id="ac_nuevaresp" style="background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px"><option value="cliente">Cliente</option><option value="entrenador">Nosotros</option></select>
+      <button class="sm" onclick="acompAgregarTarea('${s.id}')">Agregar</button></div>`);
+  h+=`</div>`;
+  return h;
+}
+function acompAbrir(id){ ACOMP_SES=id; verAcompanamiento(); }
+async function acompCrear(){
+  const {data,error}=await acompCall('crear_sesion',{cliente:ACOMP_CLI});
+  if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo crear','warn'); return; }
+  ACOMP_SES=data.sesion&&data.sesion.id; ACOMP=null; verAcompanamiento();
+}
+async function acompGuardar(id){
+  const campos=['tipo','fecha','foco_periodo','contexto','wins','expectativas_resultado','expectativas_servicio','cuellos','estado_kpis','insights'];
+  const body={id}; campos.forEach(c=>{const e=document.getElementById('ac_'+c); if(e)body[c]=e.value;});
+  const {data,error}=await acompCall('guardar_sesion',body);
+  if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo guardar','warn'); return; }
+  toast('Acta guardada','ok'); ACOMP=null; verAcompanamiento();
+}
+async function acompAgregarTarea(reunionId){
+  const inp=document.getElementById('ac_nuevatarea'), resp=document.getElementById('ac_nuevaresp');
+  const desc=inp?inp.value.trim():''; if(!desc){ toast('Escribe la tarea','warn'); return; }
+  const {data,error}=await acompCall('guardar_tarea',{reunion_id:reunionId,cliente_id:ACOMP_CLI,descripcion:desc,origen:resp?resp.value:'entrenador'});
+  if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo','warn'); return; }
+  ACOMP=null; verAcompanamiento();
+}
+async function acompTarea(id,estado){
+  const {data,error}=await acompCall('tarea_estado',{id,estado});
+  if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo','warn'); return; }
+  ACOMP=null; verAcompanamiento();
+}
+async function acompBorrarTarea(id){
+  if(!confirm('¿Borrar esta tarea?'))return;
+  const {data,error}=await acompCall('borrar_tarea',{id});
+  if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo','warn'); return; }
+  ACOMP=null; verAcompanamiento();
+}
 async function verContenido(){
   const cont=$("v-contenido");if(!cont)return;
   if(!CONT)cont.innerHTML='<div class="card"><div class="muted">Cargando el contenido…</div></div>';
