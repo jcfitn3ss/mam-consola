@@ -8913,7 +8913,7 @@ async function contPrecargar(){
 // Modo servicio, rol entrenador+dueño. Las 8 secciones aparecen SIEMPRE en el mismo orden
 // aunque estén vacías; el foco del período va arriba, grande y solo. Llenar con IA desde
 // las notas de Gemini es un paso posterior; por ahora se escribe a mano y se guarda.
-let ACOMP_CLI=null, ACOMP=null, ACOMP_SES=null, ACOMP_Q='';
+let ACOMP_CLI=null, ACOMP=null, ACOMP_SES=null, ACOMP_Q='', ACOMP_IA=null;
 const acompCall=(action,extra)=>invokeFn('acompanamiento',{body:{action,...(extra||{})}});
 function verAcompanamiento(){
   const el=$("v-acompanamiento"); if(!el)return;
@@ -8931,7 +8931,7 @@ function acompPickerHTML(){
     <input placeholder="Buscar cliente…" value="${esc(ACOMP_Q||'')}" oninput="ACOMP_Q=this.value;verAcompanamiento()" style="width:100%;max-width:320px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:8px;box-sizing:border-box">
     <div>${filas||'<div class="muted" style="font-size:12px">Sin clientes.</div>'}</div></div>`;
 }
-function acompSel(id){ ACOMP_CLI=id; ACOMP=null; ACOMP_SES=null; verAcompanamiento(); }
+function acompSel(id){ ACOMP_CLI=id; ACOMP=null; ACOMP_SES=null; ACOMP_IA=null; verAcompanamiento(); }
 async function acompCargar(id){
   const {data,error}=await acompCall('listar',{cliente:id});
   if(error||(data&&data.error)){ $("v-acompanamiento").innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`; return; }
@@ -8943,7 +8943,7 @@ function acompRender(){
   const nom=cli.nombre||String(ACOMP_CLI).slice(0,8);
   const ses=d.reuniones||[], tareas=d.tareas||[];
   let h=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
-    <button class="sm ghost" onclick="ACOMP_CLI=null;ACOMP=null;ACOMP_SES=null;verAcompanamiento()">← Clientes</button>
+    <button class="sm ghost" onclick="ACOMP_CLI=null;ACOMP=null;ACOMP_SES=null;ACOMP_IA=null;verAcompanamiento()">← Clientes</button>
     <b style="font-size:16px">${esc(nom)}</b><span style="flex:1"></span>
     <button class="sm" onclick="acompCrear()">Nueva sesión</button></div>`;
   if(!ses.length){
@@ -8984,7 +8984,22 @@ function acompSesionHTML(s,ses,tareas){
       <option value="seguimiento"${s.tipo==='seguimiento'?' selected':''}>Seguimiento</option></select>
     <input id="ac_fecha" type="date" value="${esc((s.fecha||'').slice(0,10))}" style="background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 8px">
     <span style="flex:1"></span>
+    <button class="sm ghost" id="ac_iabtn" onclick="acompIA('${s.id}')">Rellenar con IA</button>
     <button class="sm" onclick="acompGuardar('${s.id}')">Guardar acta</button></div>`;
+  // Banner de la IA: cuando ya propuso, recuerda revisar y guardar; si no pudo sacar
+  // JSON, muestra el texto crudo de la nota para llenar a mano. (Bloque B)
+  if(ACOMP_IA&&ACOMP_IA.reunion===s.id){
+    if(ACOMP_IA.crudo){
+      h+=`<div style="margin-top:10px;background:rgba(224,184,74,.1);border:1px solid rgba(224,184,74,.4);border-radius:10px;padding:10px 12px">
+        <b style="font-size:12px;color:var(--warn)">La IA no pudo armar el acta sola</b>
+        <div class="muted" style="font-size:12px;margin:4px 0">${esc(ACOMP_IA.mensaje||'Llena las casillas a mano con esta nota.')}</div>
+        <textarea readonly style="width:100%;min-height:120px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:12px;box-sizing:border-box">${esc(ACOMP_IA.crudo)}</textarea></div>`;
+    } else {
+      h+=`<div style="margin-top:10px;background:rgba(55,208,127,.1);border:1px solid rgba(55,208,127,.4);border-radius:10px;padding:10px 12px">
+        <b style="font-size:12px;color:var(--ok)">La IA rellenó el acta desde la nota de Gemini</b>
+        <div class="muted" style="font-size:12px;margin-top:3px">Revisa cada casilla y corrige lo que haga falta. Nada se guarda hasta que le des <b>Guardar acta</b>. Las tareas propuestas están en la sección 8 para aprobarlas.</div></div>`;
+    }
+  }
   h+=sec(1,'Contexto',ta('contexto',s.contexto,'¿Cómo llega el cliente a esta sesión?'));
   h+=sec(2,'Wins',ta('wins',s.wins,'Logros desde la última vez.'));
   h+=sec(3,'Expectativas',`<div class="muted" style="font-size:10px;margin-bottom:3px">Resultado</div>${ta('expectativas_resultado',s.expectativas_resultado,'Qué resultado espera lograr.')}<div class="muted" style="font-size:10px;margin:6px 0 3px">Servicio</div>${ta('expectativas_servicio',s.expectativas_servicio,'Qué espera de nosotros.')}`);
@@ -8992,7 +9007,11 @@ function acompSesionHTML(s,ses,tareas){
   h+=sec(5,'Tareas de la sesión anterior', prev?(tPrev.length?`<div>${tPrev.map(t=>acompTareaFilaHTML(t,true)).join('')}</div>`:'<div class="muted" style="font-size:12px">La sesión anterior no dejó tareas.</div>'):'<div class="muted" style="font-size:12px">Es la primera sesión: no hay tareas anteriores.</div>');
   h+=sec(6,'KPIs', `${s.estado_kpis?'':'<div class="muted" style="font-size:12px;background:var(--card2);border:1px dashed var(--line);border-radius:9px;padding:9px;margin-bottom:6px">Aún no hay KPIs para este cliente. Para llenar esta casilla, acuerden 1 o 2 números que se midan cada sesión (peso, adherencia, ventas) y escríbanlos aquí.</div>'}${ta('estado_kpis',s.estado_kpis,'Estado de los KPIs acordados.')}`);
   h+=sec(7,'Insights',ta('insights',s.insights,'Ideas o aprendizajes de la sesión.'));
-  h+=sec(8,'Tareas y foco de acción', `<div>${tSes.map(t=>acompTareaFilaHTML(t,false)).join('')||'<div class="muted" style="font-size:12px;margin-bottom:6px">Sin tareas todavía.</div>'}</div>
+  const prop=(ACOMP_IA&&ACOMP_IA.reunion===s.id&&Array.isArray(ACOMP_IA.tareas))?ACOMP_IA.tareas:[];
+  const propHTML=prop.length?`<div style="margin:8px 0;padding:8px 10px;border:1px dashed rgba(55,208,127,.5);border-radius:9px">
+    <div style="font-size:11px;font-weight:700;color:var(--ok);margin-bottom:5px">Tareas propuestas por la IA (${prop.length}) <button class="sm" style="margin-left:6px" onclick="acompIAAgregarTodas('${s.id}')">Agregar todas</button></div>
+    ${prop.map((t,i)=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 0"><span style="flex:1">${esc(t.descripcion||'')}</span><span class="pill" style="background:var(--card2);font-size:10px">${t.responsable==='entrenador'?'Nosotros':'Cliente'}</span><button class="sm ghost" style="border-radius:7px" onclick="acompIAAgregar('${s.id}',${i})">Agregar</button></div>`).join('')}</div>`:'';
+  h+=sec(8,'Tareas y foco de acción', `<div>${tSes.map(t=>acompTareaFilaHTML(t,false)).join('')||'<div class="muted" style="font-size:12px;margin-bottom:6px">Sin tareas todavía.</div>'}</div>${propHTML}
     <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
       <input id="ac_nuevatarea" placeholder="Nueva tarea…" style="flex:1;min-width:180px;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px">
       <select id="ac_nuevaresp" style="background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px"><option value="cliente">Cliente</option><option value="entrenador">Nosotros</option></select>
@@ -9000,7 +9019,7 @@ function acompSesionHTML(s,ses,tareas){
   h+=`</div>`;
   return h;
 }
-function acompAbrir(id){ ACOMP_SES=id; verAcompanamiento(); }
+function acompAbrir(id){ ACOMP_SES=id; ACOMP_IA=null; verAcompanamiento(); }
 async function acompCrear(){
   const {data,error}=await acompCall('crear_sesion',{cliente:ACOMP_CLI});
   if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo crear','warn'); return; }
@@ -9013,23 +9032,58 @@ async function acompGuardar(id){
   if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo guardar','warn'); return; }
   toast('Acta guardada','ok'); ACOMP=null; verAcompanamiento();
 }
+// Las tareas se actualizan OPTIMISTA en memoria (sin recargar la ficha), para no borrar
+// lo que la IA haya rellenado en las casillas antes de "Guardar acta".
 async function acompAgregarTarea(reunionId){
   const inp=document.getElementById('ac_nuevatarea'), resp=document.getElementById('ac_nuevaresp');
   const desc=inp?inp.value.trim():''; if(!desc){ toast('Escribe la tarea','warn'); return; }
   const {data,error}=await acompCall('guardar_tarea',{reunion_id:reunionId,cliente_id:ACOMP_CLI,descripcion:desc,origen:resp?resp.value:'entrenador'});
   if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo','warn'); return; }
-  ACOMP=null; verAcompanamiento();
+  if(data&&data.tarea&&ACOMP&&ACOMP.tareas)ACOMP.tareas.push(data.tarea);
+  verAcompanamiento();
 }
 async function acompTarea(id,estado){
   const {data,error}=await acompCall('tarea_estado',{id,estado});
   if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo','warn'); return; }
-  ACOMP=null; verAcompanamiento();
+  const t=(ACOMP&&ACOMP.tareas||[]).find(x=>x.id===id); if(t)t.estado=estado;
+  verAcompanamiento();
 }
 async function acompBorrarTarea(id){
   if(!confirm('¿Borrar esta tarea?'))return;
   const {data,error}=await acompCall('borrar_tarea',{id});
   if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo','warn'); return; }
-  ACOMP=null; verAcompanamiento();
+  if(ACOMP&&ACOMP.tareas)ACOMP.tareas=ACOMP.tareas.filter(x=>x.id!==id);
+  verAcompanamiento();
+}
+// ---- Bloque B: rellenar el acta con la IA desde la nota de Gemini ----
+async function acompIA(id){
+  const btn=document.getElementById('ac_iabtn'); if(btn){btn.disabled=true;btn.textContent='Leyendo la nota…';}
+  const {data,error}=await acompCall('acta_ia',{reunion_id:id});
+  if(error){ if(btn){btn.disabled=false;btn.textContent='Rellenar con IA';} toast(error.message||'No se pudo','warn'); return; }
+  const p=data&&data.propuesta;
+  if(!p){ ACOMP_IA={reunion:id,crudo:(data&&data.crudo)||'',mensaje:(data&&data.mensaje)||'La IA no devolvió un acta válida.'}; verAcompanamiento(); return; }
+  // Vuelca la propuesta en las casillas (en memoria, SIN guardar): el humano revisa.
+  const s=(ACOMP.reuniones||[]).find(x=>x.id===id);
+  if(s)['contexto','wins','expectativas_resultado','expectativas_servicio','cuellos','estado_kpis','insights','foco_periodo'].forEach(k=>{ if(p[k])s[k]=p[k]; });
+  ACOMP_IA={reunion:id,tareas:Array.isArray(p.tareas)?p.tareas:[]};
+  verAcompanamiento();
+}
+async function acompIAAgregar(reunionId,idx){
+  const t=ACOMP_IA&&ACOMP_IA.tareas&&ACOMP_IA.tareas[idx]; if(!t)return;
+  const {data,error}=await acompCall('guardar_tarea',{reunion_id:reunionId,cliente_id:ACOMP_CLI,descripcion:t.descripcion,origen:t.responsable});
+  if(error||(data&&data.error)){ toast((data&&data.error)||error.message||'No se pudo','warn'); return; }
+  if(data&&data.tarea&&ACOMP&&ACOMP.tareas)ACOMP.tareas.push(data.tarea);
+  if(ACOMP_IA&&ACOMP_IA.tareas)ACOMP_IA.tareas.splice(idx,1);
+  verAcompanamiento();
+}
+async function acompIAAgregarTodas(reunionId){
+  const ts=(ACOMP_IA&&ACOMP_IA.tareas)?ACOMP_IA.tareas.slice():[];
+  for(const t of ts){
+    const {data,error}=await acompCall('guardar_tarea',{reunion_id:reunionId,cliente_id:ACOMP_CLI,descripcion:t.descripcion,origen:t.responsable});
+    if(!error&&data&&data.tarea&&ACOMP&&ACOMP.tareas)ACOMP.tareas.push(data.tarea);
+  }
+  if(ACOMP_IA)ACOMP_IA.tareas=[];
+  verAcompanamiento();
 }
 async function verContenido(){
   const cont=$("v-contenido");if(!cont)return;
