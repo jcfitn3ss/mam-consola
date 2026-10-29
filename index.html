@@ -1704,9 +1704,14 @@ function llamadasHoyHTML(){
     const igBtn=ig?`<a class="sm ghost" href="https://instagram.com/${encodeURIComponent(ig)}" target="_blank" rel="noopener" style="border-radius:9px">@${esc(ig)}</a>`:'';
     const ficha=lead&&lead.user_id?`<button class="sm ghost" style="border-radius:9px" onclick="abrirFicha('${lead.user_id}')">Ficha</button>`:'';
     const contacto=[correo||'sin correo',tel].filter(Boolean).join(' · ');
+    // Si la persona está en los leads, el nombre es un enlace que baja a su ficha de
+    // contacto (con sus respuestas y si califica). Si no, queda como texto plano.
+    const nomCell=lead
+      ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();irAContacto('${esc(correo)}')" title="Ver sus respuestas y si califica" style="min-width:150px;font-weight:700;color:var(--txt);text-decoration:underline;text-decoration-color:var(--rojo);text-underline-offset:3px;cursor:pointer">${esc(l.invitado_nombre||'—')}</a>`
+      : `<span style="min-width:150px;font-weight:700" title="No está en los leads">${esc(l.invitado_nombre||'—')}</span>`;
     return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--line)">
       <b style="min-width:62px">${hora(l.inicio)}</b>
-      <span style="min-width:150px;font-weight:700">${esc(l.invitado_nombre||'—')}</span>
+      ${nomCell}
       <span class="muted" style="font-size:12px;user-select:text">${esc(contacto)}${lead?'':' · (no está en leads)'}</span>
       <span style="flex:1"></span>${igBtn}${meet}${wa}${ficha}
     </div>`;
@@ -1714,6 +1719,26 @@ function llamadasHoyHTML(){
   return `<div class="card"><h2 style="margin-top:0">Llamadas de hoy (${dehoy.length})</h2>
     <div class="muted" style="font-size:12px;margin-bottom:6px">Quién tiene llamada hoy, a qué hora y su contacto. El IG y el teléfono salen si la persona ya está en los leads.</div>
     ${filas}</div>`;
+}
+// Clic en el nombre de una llamada de hoy: baja a su ficha en la cola de Contactar,
+// le abre las respuestas de la encuesta y la resalta, para revisar de una si califica.
+function irAContacto(correo){
+  correo=String(correo||'').toLowerCase();
+  const lead=(window.CU_ALL||[]).find(x=>String(x.email||'').toLowerCase()===correo);
+  if(!lead){ alert('Esta persona todavía no está en los leads, así que no tiene respuestas que revisar aquí.'); return; }
+  const k=cuKey(lead);
+  // Quita filtros/grupo que la podrían ocultar y deja su ficha a la vista.
+  CU_FILTRO=''; CU_GRUPO=''; CU_SINCLI=false; CU_Q=correo;
+  window.CU_OPEN=window.CU_OPEN||new Set(); window.CU_OPEN.add(k);
+  window.CU_RESP=window.CU_RESP||{}; if(String(lead.respuestas||'').trim()) window.CU_RESP[k]=true;
+  renderContactar();
+  setTimeout(()=>{
+    let n=null; try{ n=document.querySelector('[data-k="'+(window.CSS&&CSS.escape?CSS.escape(k):k)+'"]'); }catch(e){}
+    if(!n)return;
+    try{ n.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){ n.scrollIntoView(); }
+    n.style.transition='background .35s'; const old=n.style.background; n.style.background='rgba(226,59,59,.18)';
+    setTimeout(()=>{ n.style.background=old; },1500);
+  },60);
 }
 // Aplica los filtros/búsqueda EN EL NAVEGADOR (mismo criterio que tenía el servidor).
 // ───────── Cola de la encuesta propia (aplica.musculoalmaximo.com/captar) ─────────
