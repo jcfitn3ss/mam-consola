@@ -412,6 +412,17 @@ function copiarMsg(btn,txt){const ok=()=>{if(btn)btn.textContent='✓';};const f
 // coincide entre app y consola.
 const fechaLocalD=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dd}`};
 const hace=n=>{const d=new Date();d.setDate(d.getDate()-n);return fechaLocalD(d)};
+// ── Fechas para agendar: por defecto el AÑO EN CURSO, nunca el que viene ──────
+// Convierte una fecha a texto "YYYY-MM-DDTHH:MM" en hora local (lo que usa <input datetime-local>).
+const dtLocal=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,16)};
+// Ahora (mínimo: no se agenda en el pasado).
+const ahoraDT=()=>dtLocal(new Date());
+// Último minuto del año en curso (máximo: así el calendario NO deja saltar al año siguiente).
+const finAnioDT=()=>{const y=new Date().getFullYear();return `${y}-12-31T23:59`};
+// Valor por defecto: mañana 9:00; si eso cae en el año que viene, se queda en diciembre de este año.
+const defAgendaDT=()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(9,0,0,0);const y=new Date().getFullYear();if(d.getFullYear()>y){d.setFullYear(y,11,31);d.setHours(9,0,0,0);}return dtLocal(d)};
+// Atributos listos para pegar en un <input type="datetime-local">.
+const dtAttrs=()=>`value="${defAgendaDT()}" min="${ahoraDT()}" max="${finAnioDT()}"`;
 const weekId=()=>{const o=new Date();o.setDate(o.getDate()-((o.getDay()+6)%7));return fechaLocalD(o)};
 function mesos(n){n=n||12;const nb=Math.max(1,Math.ceil(n/6));const base=Math.floor(n/nb);const extra=n-base*nb;const out=[];let w=1;for(let i=0;i<nb;i++){const len=base+(i<extra?1:0);const fin=w+len-1;out.push({n:i+1,ini:w,fin,len,deload:len>=4?fin:0});w=fin+1;}return out;}
 function semanaActual(ini,sem){if(!ini)return 1;const diff=Math.floor((Date.now()-new Date(ini).getTime())/(7*864e5));return Math.min(sem||12,Math.max(1,diff+1));}
@@ -1709,11 +1720,23 @@ function llamadasHoyHTML(){
     const nomCell=lead
       ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();irAContacto('${esc(correo)}')" title="Ver sus respuestas y si califica" style="min-width:150px;font-weight:700;color:var(--txt);text-decoration:underline;text-decoration-color:var(--rojo);text-underline-offset:3px;cursor:pointer">${esc(l.invitado_nombre||'—')}</a>`
       : `<span style="min-width:150px;font-weight:700" title="No está en los leads">${esc(l.invitado_nombre||'—')}</span>`;
+    // Reprogramar: mueve el evento en Google Calendar y avisa por correo.
+    const evId=String(l.id||'');
+    const reproBtn=evId?`<button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')" title="Mover esta llamada a otra fecha/hora">Reprogramar</button>`:'';
+    const reproPanel=evId?`<div id="repro_${esc(evId)}" style="display:none;flex-basis:100%;padding:8px 0 2px;margin-top:4px;border-top:1px dashed var(--line)">
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div><label class="lbl" style="font-size:11px">Nueva fecha y hora</label><input type="datetime-local" id="reprodt_${esc(evId)}" ${dtAttrs()} style="margin:0"></div>
+        <button class="sm" style="border-radius:9px" onclick="reprogramarLlamada('${esc(evId)}','${esc(l.invitado_nombre||'')}')">Guardar cambio</button>
+        <button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')">Cancelar</button>
+        <span id="repromsg_${esc(evId)}" class="muted" style="font-size:12px"></span>
+      </div>
+    </div>`:'';
     return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--line)">
       <b style="min-width:62px">${hora(l.inicio)}</b>
       ${nomCell}
       <span class="muted" style="font-size:12px;user-select:text">${esc(contacto)}${lead?'':' · (no está en leads)'}</span>
-      <span style="flex:1"></span>${igBtn}${meet}${wa}${ficha}
+      <span style="flex:1"></span>${igBtn}${meet}${wa}${ficha}${reproBtn}
+      ${reproPanel}
     </div>`;
   }).join('');
   return `<div class="card"><h2 style="margin-top:0">Llamadas de hoy (${dehoy.length})</h2>
@@ -1739,6 +1762,22 @@ function irAContacto(correo){
     n.style.transition='background .35s'; const old=n.style.background; n.style.background='rgba(226,59,59,.18)';
     setTimeout(()=>{ n.style.background=old; },1500);
   },60);
+}
+// Reprogramar una llamada de hoy: abre/cierra el panel de nueva fecha.
+function reproToggle(id){ const p=document.getElementById('repro_'+id); if(p) p.style.display=(p.style.display==='none'||!p.style.display)?'block':'none'; }
+// Mueve el evento en Google Calendar (edge agendar-reunion con evento_id) y re-sincroniza.
+async function reprogramarLlamada(id,nombre){
+  const inp=document.getElementById('reprodt_'+id); const msg=document.getElementById('repromsg_'+id);
+  if(!inp||!inp.value){ if(msg){msg.style.color='';msg.innerHTML='<span class="alert">Elige la nueva fecha y hora.</span>';} return; }
+  const y=new Date().getFullYear();
+  if(parseInt(inp.value.slice(0,4),10)>y){ if(msg)msg.innerHTML='<span class="alert">No agendes para el año que viene. Usa una fecha de '+y+'.</span>'; return; }
+  if(msg){msg.style.color='';msg.textContent='Moviendo en Google Calendar…';}
+  const {data,error}=await invokeFn('agendar-reunion',{body:{evento_id:id,inicio:inp.value}});
+  if(error||!data||data.error){ if(msg)msg.innerHTML='<span class="alert">'+esc((error&&error.message)||(data&&data.error)||'No se pudo reprogramar')+'</span>'; return; }
+  if(msg)msg.innerHTML='✓ <b>Reprogramada</b> para '+esc(data.fecha||inp.value)+'. Se le avisó por correo.';
+  // Fuerza una re-sincronización de la agenda para que la tarjeta se actualice.
+  try{ sessionStorage.removeItem('agenda_sync'); }catch(e){}
+  setTimeout(()=>{ try{ autoSyncAgenda&&autoSyncAgenda(); }catch(e){} },1300);
 }
 // Aplica los filtros/búsqueda EN EL NAVEGADOR (mismo criterio que tenía el servidor).
 // ───────── Cola de la encuesta propia (aplica.musculoalmaximo.com/captar) ─────────
@@ -2547,7 +2586,7 @@ function cuPanelAgendaHTML(i,k){
   return `<div style="margin-top:10px;background:var(--card2);border:1px solid var(--rojo);border-radius:11px;padding:13px 15px">
     <div class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:9px">Agendar llamada inicial de consultoría</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-      <div><label class="lbl">Fecha y hora</label><input type="datetime-local" id="age_${k}" style="margin:0"></div>
+      <div><label class="lbl">Fecha y hora</label><input type="datetime-local" id="age_${k}" ${dtAttrs()} style="margin:0"></div>
       <div style="flex:0"><label class="lbl">Minutos</label><input type="number" id="agedur_${k}" value="45" min="15" max="120" style="width:78px;margin:0"></div>
       <button class="sm" onclick="cuAgendarLead('${k}','${esc(i.email||'')}','${esc(nom)}','${i.id||''}')">Confirmar y agendar</button>
     </div>
@@ -2561,6 +2600,8 @@ async function cuAgendarLead(k,email,nombre,leadId){
   const inp=document.getElementById('age_'+k);const dur=+(((document.getElementById('agedur_'+k))||{}).value)||45;
   const msg=document.getElementById('ageMsg_'+k);
   if(!inp||!inp.value){if(msg)msg.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
+  const yA=new Date().getFullYear();
+  if(parseInt(inp.value.slice(0,4),10)>yA){if(msg)msg.innerHTML='<span class="alert">No agendes para el año que viene. Usa una fecha de '+yA+'.</span>';return;}
   if(msg){msg.style.color='';msg.textContent='Agendando en tu Google Calendar…';}
   const {data,error}=await invokeFn("agendar-reunion",{body:{lead_email:email,lead_nombre:nombre,lead_id:leadId,inicio:inp.value,duracion_min:dur,titulo:`Consultoría inicial · ${nombre||'Lead'} (Músculo al Máximo)`}});
   if(error||!data||data.error){if(msg)msg.innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"No se pudo agendar")}</span>`;return;}
@@ -3252,6 +3293,8 @@ async function agendarReunion(id){
   const invitados=$("ag_inv")?$("ag_inv").value.trim():"";
   const m=$("agMsg");
   if(!dt){if(m)m.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
+  const yR=new Date().getFullYear();
+  if(parseInt(dt.slice(0,4),10)>yR){if(m)m.innerHTML='<span class="alert">No agendes para el año que viene. Usa una fecha de '+yR+'.</span>';return;}
   if(m){m.style.color='';m.textContent="Agendando en tu Google Calendar…";}
   const {data,error}=await invokeFn("agendar-reunion",{body:{cliente_id:id,inicio:dt,duracion_min:dur,invitados}});
   if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
@@ -3604,7 +3647,7 @@ async function verCliente(id){
     reuCard+=`<div style="border:1px solid var(--ok);border-radius:8px;padding:10px;margin-bottom:12px">
       <b style="font-size:13px">Agendar reunión</b>
       <div class="row" style="margin-top:6px;align-items:flex-end">
-        <div><label class="lbl">Fecha y hora</label><input id="ag_dt" type="datetime-local" style="margin:0"></div>
+        <div><label class="lbl">Fecha y hora</label><input id="ag_dt" type="datetime-local" ${dtAttrs()} style="margin:0"></div>
         <div><label class="lbl">Duración</label><select id="ag_dur" style="margin:0"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></div>
         <div><button class="sm" onclick="agendarReunion('${id}')">Confirmar y agendar</button></div>
       </div>
