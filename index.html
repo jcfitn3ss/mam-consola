@@ -412,17 +412,28 @@ function copiarMsg(btn,txt){const ok=()=>{if(btn)btn.textContent='✓';};const f
 // coincide entre app y consola.
 const fechaLocalD=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dd}`};
 const hace=n=>{const d=new Date();d.setDate(d.getDate()-n);return fechaLocalD(d)};
-// ── Fechas para agendar: por defecto el AÑO EN CURSO, nunca el que viene ──────
+// ── Fechas para agendar: por defecto el AÑO EN CURSO ─────────────────────────
 // Convierte una fecha a texto "YYYY-MM-DDTHH:MM" en hora local (lo que usa <input datetime-local>).
 const dtLocal=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,16)};
 // Ahora (mínimo: no se agenda en el pasado).
 const ahoraDT=()=>dtLocal(new Date());
-// Último minuto del año en curso (máximo: así el calendario NO deja saltar al año siguiente).
-const finAnioDT=()=>{const y=new Date().getFullYear();return `${y}-12-31T23:59`};
-// Valor por defecto: mañana 9:00; si eso cae en el año que viene, se queda en diciembre de este año.
-const defAgendaDT=()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(9,0,0,0);const y=new Date().getFullYear();if(d.getFullYear()>y){d.setFullYear(y,11,31);d.setHours(9,0,0,0);}return dtLocal(d)};
+// Ventana para poder agendar al AÑO QUE VIENE solo cuando ya estamos cerca de él.
+const VENTANA_AGENDA_DIAS=60;
+// Tope (máximo): normalmente el 31 de diciembre del año en curso, así no se salta al
+// año siguiente por error. Pero si ya falta poco para el otro año (<=60 días), el tope
+// se corre 60 días adelante, cruzando al otro año, para poder agendar enero del próximo.
+const finVentanaDT=()=>{
+  const y=new Date().getFullYear();
+  const finAnio=new Date(y,11,31,23,59,0,0);
+  const masVentana=new Date();masVentana.setDate(masVentana.getDate()+VENTANA_AGENDA_DIAS);masVentana.setHours(23,59,0,0);
+  return dtLocal(masVentana.getTime()>finAnio.getTime()?masVentana:finAnio);
+};
+// true si la fecha elegida se pasa de la ventana permitida.
+const agendaFueraDeVentana=v=>{try{return String(v).slice(0,16)>finVentanaDT();}catch(e){return false;}};
+// Valor por defecto: mañana 9:00 (siempre dentro de la ventana).
+const defAgendaDT=()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(9,0,0,0);return dtLocal(d)};
 // Atributos listos para pegar en un <input type="datetime-local">.
-const dtAttrs=()=>`value="${defAgendaDT()}" min="${ahoraDT()}" max="${finAnioDT()}"`;
+const dtAttrs=()=>`value="${defAgendaDT()}" min="${ahoraDT()}" max="${finVentanaDT()}"`;
 const weekId=()=>{const o=new Date();o.setDate(o.getDate()-((o.getDay()+6)%7));return fechaLocalD(o)};
 function mesos(n){n=n||12;const nb=Math.max(1,Math.ceil(n/6));const base=Math.floor(n/nb);const extra=n-base*nb;const out=[];let w=1;for(let i=0;i<nb;i++){const len=base+(i<extra?1:0);const fin=w+len-1;out.push({n:i+1,ini:w,fin,len,deload:len>=4?fin:0});w=fin+1;}return out;}
 function semanaActual(ini,sem){if(!ini)return 1;const diff=Math.floor((Date.now()-new Date(ini).getTime())/(7*864e5));return Math.min(sem||12,Math.max(1,diff+1));}
@@ -1769,8 +1780,7 @@ function reproToggle(id){ const p=document.getElementById('repro_'+id); if(p) p.
 async function reprogramarLlamada(id,nombre){
   const inp=document.getElementById('reprodt_'+id); const msg=document.getElementById('repromsg_'+id);
   if(!inp||!inp.value){ if(msg){msg.style.color='';msg.innerHTML='<span class="alert">Elige la nueva fecha y hora.</span>';} return; }
-  const y=new Date().getFullYear();
-  if(parseInt(inp.value.slice(0,4),10)>y){ if(msg)msg.innerHTML='<span class="alert">No agendes para el año que viene. Usa una fecha de '+y+'.</span>'; return; }
+  if(agendaFueraDeVentana(inp.value)){ if(msg)msg.innerHTML='<span class="alert">Esa fecha está muy lejos. Por ahora puedes mover hasta el '+finVentanaDT().slice(0,10)+'.</span>'; return; }
   if(msg){msg.style.color='';msg.textContent='Moviendo en Google Calendar…';}
   const {data,error}=await invokeFn('agendar-reunion',{body:{evento_id:id,inicio:inp.value}});
   if(error||!data||data.error){ if(msg)msg.innerHTML='<span class="alert">'+esc((error&&error.message)||(data&&data.error)||'No se pudo reprogramar')+'</span>'; return; }
@@ -2600,8 +2610,7 @@ async function cuAgendarLead(k,email,nombre,leadId){
   const inp=document.getElementById('age_'+k);const dur=+(((document.getElementById('agedur_'+k))||{}).value)||45;
   const msg=document.getElementById('ageMsg_'+k);
   if(!inp||!inp.value){if(msg)msg.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
-  const yA=new Date().getFullYear();
-  if(parseInt(inp.value.slice(0,4),10)>yA){if(msg)msg.innerHTML='<span class="alert">No agendes para el año que viene. Usa una fecha de '+yA+'.</span>';return;}
+  if(agendaFueraDeVentana(inp.value)){if(msg)msg.innerHTML='<span class="alert">Esa fecha está muy lejos. Por ahora puedes agendar hasta el '+finVentanaDT().slice(0,10)+'.</span>';return;}
   if(msg){msg.style.color='';msg.textContent='Agendando en tu Google Calendar…';}
   const {data,error}=await invokeFn("agendar-reunion",{body:{lead_email:email,lead_nombre:nombre,lead_id:leadId,inicio:inp.value,duracion_min:dur,titulo:`Consultoría inicial · ${nombre||'Lead'} (Músculo al Máximo)`}});
   if(error||!data||data.error){if(msg)msg.innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"No se pudo agendar")}</span>`;return;}
@@ -3293,8 +3302,7 @@ async function agendarReunion(id){
   const invitados=$("ag_inv")?$("ag_inv").value.trim():"";
   const m=$("agMsg");
   if(!dt){if(m)m.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
-  const yR=new Date().getFullYear();
-  if(parseInt(dt.slice(0,4),10)>yR){if(m)m.innerHTML='<span class="alert">No agendes para el año que viene. Usa una fecha de '+yR+'.</span>';return;}
+  if(agendaFueraDeVentana(dt)){if(m)m.innerHTML='<span class="alert">Esa fecha está muy lejos. Por ahora puedes agendar hasta el '+finVentanaDT().slice(0,10)+'.</span>';return;}
   if(m){m.style.color='';m.textContent="Agendando en tu Google Calendar…";}
   const {data,error}=await invokeFn("agendar-reunion",{body:{cliente_id:id,inicio:dt,duracion_min:dur,invitados}});
   if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
