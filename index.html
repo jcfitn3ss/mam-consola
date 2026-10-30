@@ -1527,6 +1527,19 @@ async function decBorrar(id,decId){if(!confirm('¿Borrar esta decisión de la bi
 // Dashboard (Fase 2): cambiar de pestaña interna desde un mosaico de señal.
 // `mostrar` vive dentro de hacerColapsables; aquí llegamos a su botón y lo pulsamos.
 function fichaTab(t){const b=document.querySelector('.fichaTabs .tabBtn[data-tab="'+t+'"]');if(b)b.click();const d=document.getElementById('detalle');if(d&&d.scrollIntoView)d.scrollIntoView({behavior:'smooth',block:'start'});}
+// Cajón Perfil (Fase 3): salta a la pestaña Y abre/baja a la tarjeta de configuración
+// concreta (por su título). Si no encuentra la tarjeta, al menos cambia de pestaña.
+function fichaCard(tab,re){
+  fichaTab(tab);
+  const rx=new RegExp(re,'i');
+  setTimeout(()=>{
+    const card=[...document.querySelectorAll('#detalle > .card')].find(c=>{const h=c.querySelector('h2');return h&&rx.test((h.textContent||''));});
+    if(!card)return;
+    const h2=card.querySelector('h2'),cont=card.lastElementChild;
+    if(cont&&cont!==h2&&cont.style&&cont.style.display==='none'&&h2)h2.click();
+    card.scrollIntoView({behavior:'smooth',block:'start'});
+  },60);
+}
 // "1 cambio" del dashboard: la sugerencia la propone el dashboard y el entrenador la
 // aprueba (y puede editarla antes). Al aprobar queda en la bitácora de decisiones.
 async function cambioAprobar(id){
@@ -3887,7 +3900,7 @@ async function verCliente(id){
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
       <h3 style="margin:0;font-size:16px">Dashboard · ${esc(nom)}</h3>
       <span style="font-size:12px;color:${_estCol};font-weight:700">${_estGrl}</span></div>
-    <div class="muted" style="font-size:11.5px;margin:3px 0 10px">5 señales de un vistazo. Toca una para ver su detalle.</div>
+    <div class="muted" style="font-size:11.5px;margin:3px 0 10px">5 señales de un vistazo. Toca una para ver su detalle. <span style="white-space:nowrap"><span style="color:var(--ok)">■</span> en orden</span> · <span style="white-space:nowrap"><span style="color:var(--warn)">■</span> ojo</span> · <span style="white-space:nowrap"><span style="color:var(--rojo)">■</span> atender</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
       ${dTile(s1,'Peso','progreso')}${dTile(s2,'Rendimiento','entreno')}${dTile(s3,'Fotos','progreso')}${dTile(s4,'Adherencia','resumen')}${dTile(s5,'Biofeedback','resumen')}</div>
     <div style="margin-top:12px;background:rgba(79,140,255,.07);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
@@ -3899,7 +3912,17 @@ async function verCliente(id){
         <button class="sm ghost" id="camIaBtn" onclick="cambioIA('${id}')">Afinar con IA</button>
         <span id="camMsg" class="muted" style="font-size:12px"></span></div>
       <div id="camIaAcc"></div>
-      <div class="muted" style="font-size:11px;margin-top:5px">La sugerencia inicial es automática; "Afinar con IA" la reescribe analizando las señales. Tú la editas y apruebas.</div></div></div>`;
+      <div class="muted" style="font-size:11px;margin-top:5px">La sugerencia inicial es automática; "Afinar con IA" la reescribe analizando las señales. Tú la editas y apruebas.</div></div>
+    <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:9px">
+      <div style="font-size:11px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:6px">Perfil · configuración</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="sm ghost" onclick="fichaCard('nutricion','objetivo, calor')">Objetivo y calorías</button>
+        <button class="sm ghost" onclick="fichaCard('entreno','editar rutina')">Rutina y volumen</button>
+        <button class="sm ghost" onclick="fichaCard('nutricion','plan de alimentaci')">Plan de comidas</button>
+        <button class="sm ghost" onclick="fichaCard('entreno','nivel y progresi')">Mesociclo</button>
+        <button class="sm ghost" onclick="fichaCard('gestion','m[oó]dulos')">Módulos</button>
+        <button class="sm ghost" onclick="fichaCard('gestion','acceso y suscrip')">Accesos</button>
+      </div></div></div>`;
   let h=avisoCarga+dashCard+rep+reuCard+bitCard+`<div class="card" id="progresoCard_${id}" data-tab="progreso"><div class="muted" style="font-size:12px">Cargando progreso…</div></div>`+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
   h+=`<div class="kv">`+fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—")+`</div>`;
 
