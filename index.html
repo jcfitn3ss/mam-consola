@@ -227,11 +227,10 @@
       <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
       <button id="t-acompanamiento" onclick="tab('acompanamiento')">Acompañamiento</button>
       <button id="t-cierre" onclick="tab('cierre')">Cierre de hoy</button>
-      <button id="t-revision" onclick="tab('revision')">Revisión del día</button>
-      <button id="t-riesgo" onclick="tab('riesgo')">Riesgo de baja</button>
-      <button id="t-recordatorios" onclick="tab('recordatorios')">Recordatorios</button>
+      <!-- Revisión del día / Riesgo de baja / Recordatorios / Resumen de gestión se
+           fusionaron en la ÚNICA cola de atención (lista de Clientes, filtro "Atención").
+           Sus botones se quitaron del nav; el código (tab(), ver*, v-*) queda intacto. -->
       <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
-      <button id="t-resumen" onclick="tab('resumen')">Resumen de gestión</button>
       <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
       <!-- MODO COMERCIAL: todavía no paga. -->
       <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
@@ -679,8 +678,8 @@ const PESTANAS_POR_ROL={
   // Dueño: todo.
   dueno:'*',
   // Entrenador: entrenamiento y setteo. Sin finanzas, sin pagos, sin consola interna.
-  entrenador:['clientes','crm','recordatorios','seguimiento','llamadas','acompanamiento','cierre','contactar','embudo',
-              'resumen','revision','riesgo','salud','prospecto',
+  entrenador:['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','contactar','embudo',
+              'salud','prospecto',
               'ejercicios','plantillas','alimentos','restaurantes','comunidad','sugerencias'],
   // Comercial (closer y setter): prospección, el CRM de clientes y el embudo sin plata.
   comercial:['contactar','crm','embudo','contenido'],
@@ -737,7 +736,7 @@ const PESTANAS_POR_MODO={
   // cliente, a quién le toca renovar?" — y renovar es vender. Además el
   // servidor ya le recorta lo clínico al rol comercial, así que es la misma
   // pestaña con la profundidad que cada rol tiene permitida.
-  servicio:['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','revision','riesgo','recordatorios','comunidad','resumen','salud',
+  servicio:['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','comunidad','salud',
             // Biblioteca (van dentro del desplegable)
             'ejercicios','plantillas','alimentos','restaurantes','prospecto'],
   comercial:['contactar','crm','embudo','contenido','pagos','finanzas','metricas'],
@@ -761,8 +760,8 @@ function puedeVer(pestana){
 
 // Deja a la vista solo las pestañas del rol y abre la primera que le toque.
 function aplicarPermisos(){
-  const todas=['clientes','crm','recordatorios','seguimiento','llamadas','acompanamiento','cierre','pagos','finanzas','embudo','contenido','metricas','contactar',
-    'resumen','revision','riesgo','ejercicios','plantillas','alimentos','restaurantes','salud','prospecto',
+  const todas=['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','pagos','finanzas','embudo','contenido','metricas','contactar',
+    'ejercicios','plantillas','alimentos','restaurantes','salud','prospecto',
     'comunidad','sugerencias','interno'];
   let primera='';
   todas.forEach(t=>{
@@ -1286,9 +1285,9 @@ async function renderHoy(){
   const misiones=[
     {orden:1,n:nPago,  color:'var(--rojo)', titulo:'Pagos vencidos por revisar', sub:'es plata que ya se está yendo', accion:"tab('pagos')", boton:'Ver pagos'},
     {orden:2,n:nViejas,color:'var(--rojo)', titulo:'Tareas de mentoría sin tocar (15+ días)', sub:'prometidas en una sesión y nadie las revisó', accion:"tab('acompanamiento')", boton:'Acompañamiento'},
-    {orden:2,n:nRisk,  color:'var(--rojo)', titulo:'Clientes en riesgo de baja', sub:'se van si nadie los llama', accion:"tab('riesgo')", boton:'Ver riesgo'},
+    {orden:2,n:nRisk,  color:'var(--rojo)', titulo:'Clientes en riesgo de baja', sub:'se van si nadie los llama', accion:"tab('clientes');setVerPago('atencion')", boton:'Ver en Atención'},
     {orden:3,n:nAlert, color:'var(--rojo)', titulo:'Alertas sin responder', sub:'de los últimos 7 días, sin contar las que ya son otra misión', accion:'toggleCampana()', boton:'Abrir avisos'},
-    {orden:4,n:nInact, color:'var(--warn)', titulo:'Inactivos de 14 días o más', sub:'dejaron de entrar a la app', accion:"tab('recordatorios')", boton:'Recordar'},
+    {orden:4,n:nInact, color:'var(--warn)', titulo:'Inactivos de 14 días o más', sub:'dejaron de entrar a la app', accion:"tab('clientes');setVerPago('atencion')", boton:'Ver en Atención'},
     {orden:5,n:nFM,    color:'var(--warn)', titulo:'Sin foto ni medidas este mes', sub:'sin eso no se puede medir el avance', accion:"tab('seguimiento')", boton:'Ver seguimiento'},
     {orden:6,n:nAltura,color:'var(--warn)', titulo:'Clientes sin altura', sub:'bloquea el plan de alimentación', accion:"tab('salud')", boton:'Completar'},
     {orden:7,n:nReu,   color:'var(--muted)',titulo:'Reuniones sin resumen', sub:'queda sin registro lo que se habló', accion:"tab('llamadas')", boton:'Ver llamadas'},
