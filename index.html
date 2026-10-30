@@ -1540,6 +1540,15 @@ function fichaCard(tab,re){
     card.scrollIntoView({behavior:'smooth',block:'start'});
   },60);
 }
+// Detalle de una señal del dashboard EN SITIO (Fase 2): muestra el panel pre-renderizado
+// de esa señal (gráfica/datos + conclusión) debajo de los mosaicos, sin saltar de pestaña.
+// Segundo toque en el mismo mosaico lo cierra. Los paneles ya vienen en el HTML (ocultos).
+function dashVer(k){
+  const keys=['peso','rend','fotos','adh','bio'];
+  const cur=document.getElementById('dd_'+k);
+  const abrir=!!cur&&cur.style.display==='none';
+  keys.forEach(x=>{const e=document.getElementById('dd_'+x);if(e)e.style.display=(x===k&&abrir)?'':'none';});
+}
 // "1 cambio" del dashboard: la sugerencia la propone el dashboard y el entrenador la
 // aprueba (y puede editarla antes). Al aprobar queda en la bitácora de decisiones.
 async function cambioAprobar(id){
@@ -3826,8 +3835,10 @@ async function verCliente(id){
     _ef.forEach(s=>{const t=Date.parse(s.fecha+'T00:00:00');if(isNaN(t))return;const k=String(s.ejercicio_id),e=epley1RM(s.peso,s.reps);
       if(t>=nowT-W21){if(e>(rec[k]||0))rec[k]=e;}
       else if(t>=nowT-2*W21){if(e>(pre[k]||0))pre[k]=e;}});
-    let up=0,dn=0,comp=0;
-    Object.keys(rec).forEach(k=>{if(pre[k]==null)return;comp++;const d=(rec[k]-pre[k])/pre[k]*100;if(d>=1.5)up++;else if(d<=-1.5)dn++;});
+    let up=0,dn=0,comp=0;const _mov=[];
+    Object.keys(rec).forEach(k=>{if(pre[k]==null)return;comp++;const d=(rec[k]-pre[k])/pre[k]*100;if(d>=1.5)up++;else if(d<=-1.5)dn++;_mov.push({k,pct:Math.round(d*10)/10});});
+    _mov.sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct));
+    s2.movers=_mov.slice(0,4).map(mv=>{const e=(typeof EJ!=='undefined'&&EJ)?EJ.find(x=>String(x.id)===String(mv.k)):null;return {name:e?cap(e.nombre||''):('#'+String(mv.k).slice(0,5)),pct:mv.pct};});
     if(comp){
       s2.v=`${up}↑ / ${dn}↓ de ${comp}`;
       if(up>dn){s2.e='ok';s2.f=`Sube la fuerza en ${up} de ${comp} ejercicios.`;}
@@ -3888,10 +3899,30 @@ async function verCliente(id){
     if(s3.e==='warn'||s3.e==='bad')return{tipo:'contacto',texto:'Pedir fotos nuevas en la misma pose y luz para comparar.'};
     return{tipo:'otro',texto:'Todo en rango: mantener el plan y confirmar en el próximo check-in.'};
   })();
-  const dTile=(sig,label,tab)=>`<button class="dashTile" onclick="fichaTab('${tab}')" style="text-align:left;background:var(--card2);border:1px solid var(--line);border-left:4px solid ${SEM[sig.e]};border-radius:10px;padding:10px 12px;cursor:pointer;min-width:0;display:flex;flex-direction:column;gap:3px">
+  const dTile=(sig,label,key)=>`<button class="dashTile" onclick="dashVer('${key}')" style="text-align:left;background:var(--card2);border:1px solid var(--line);border-left:4px solid ${SEM[sig.e]};border-radius:10px;padding:10px 12px;cursor:pointer;min-width:0;display:flex;flex-direction:column;gap:3px">
     <div style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:50%;background:${SEM[sig.e]};flex-shrink:0"></span><b style="font-size:12.5px;color:var(--txt)">${label}</b></div>
     <div style="font-size:13px;color:var(--txt);font-weight:700">${sig.v}</div>
     <div class="muted" style="font-size:11.5px;line-height:1.35">${esc(sig.f)}</div></button>`;
+  // Paneles de DETALLE en sitio (uno por señal, ocultos; `dashVer` los muestra).
+  const _wptsAsc=_wpts.slice().sort((a,b)=>a.t-b.t);
+  const _spark=(pts)=>{
+    if(!pts||pts.length<2)return '';
+    const uf=window.CLI_UF||1,up2=window.CLI_UP||'kg';
+    const ys=pts.map(p=>p.w*uf),t0=pts[0].t,t1=pts[pts.length-1].t,tsp=(t1-t0)||1;
+    const lo=Math.min(...ys),hi=Math.max(...ys),sp=(hi-lo)||1,W=260,H=66,pd=6;
+    const X=t=>pd+(t-t0)/tsp*(W-2*pd),Y=v=>pd+(H-2*pd)*(1-(v-lo)/sp);
+    const d=pts.map((p,i)=>`${i?'L':'M'}${X(p.t).toFixed(1)},${Y(p.w*uf).toFixed(1)}`).join(' ');
+    const lp=pts[pts.length-1];
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:${H}px"><path d="${d}" fill="none" stroke="var(--rojo2)" stroke-width="2"/><circle cx="${X(lp.t).toFixed(1)}" cy="${Y(lp.w*uf).toFixed(1)}" r="3.2" fill="var(--rojo2)"/></svg><div class="muted" style="font-size:10.5px">${Math.round(lo*10)/10}–${Math.round(hi*10)/10} ${up2}</div>`;
+  };
+  const _fvLast=_fv.slice().sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))).slice(-3);
+  const _dd=(key,titulo,sig,body,tab,tabLbl)=>`<div id="dd_${key}" style="display:none;background:var(--card2);border:1px solid var(--line);border-left:4px solid ${SEM[sig.e]};border-radius:10px;padding:11px 13px;margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:13px">${titulo}</b><span style="font-size:11px;color:${SEM[sig.e]};font-weight:700">${esc(sig.v)}</span></div><div style="margin-top:7px">${body}</div><div class="muted" style="font-size:12px;margin-top:7px">${esc(sig.f)}</div>${tab?`<button class="sm ghost" style="margin-top:8px" onclick="fichaTab('${tab}')">${tabLbl}</button>`:''}</div>`;
+  const _bodyPeso=_spark(_wptsAsc)||'<span class="muted" style="font-size:12px">Pocos pesos para la curva.</span>';
+  const _bodyRend=(s2.movers&&s2.movers.length)?s2.movers.map(mv=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:1px 0"><span>${esc(mv.name)}</span><span style="color:${mv.pct>=0?'var(--ok)':'var(--rojo)'};font-weight:700">${mv.pct>0?'+':''}${mv.pct}%</span></div>`).join(''):'<span class="muted" style="font-size:12px">Sin ejercicios comparables aún (faltan 2 bloques de 21 días con datos).</span>';
+  const _bodyFotos=_fvLast.length?`<div style="display:flex;gap:6px">${_fvLast.map(f=>`<div style="text-align:center"><img src="${esc(f.url)}" style="width:62px;height:82px;object-fit:cover;border-radius:6px"><div class="muted" style="font-size:9px">${esc(String(f.fecha||'').slice(5))}</div></div>`).join('')}</div>`:'<span class="muted" style="font-size:12px">Sin fotos.</span>';
+  const _bodyAdh=`<div style="font-size:12px;line-height:1.5">Sesiones últimos 7 días: <b>${ses7}</b><br>Días con comida registrada: <b>${_diasReg7}/7</b></div>`;
+  const _bodyBio=`<div style="font-size:12px;line-height:1.5">${_slp!=null?('Sueño <b>'+_slp.toFixed(1)+'h</b>'):'Sueño —'}${_fat!=null?(' · Fatiga <b>'+_fat+'/10</b>'):''}${_en!=null?(' · Energía <b>'+_en+'/10</b>'):''}${(_da>=6||_dm>=8)?'<br><span style="color:var(--rojo)">Dolor alto reportado</span>':''}</div>`;
+  const _dashDet=`${_dd('peso','Peso · tendencia',s1,_bodyPeso,'progreso','Ver gráfica completa')}${_dd('rend','Rendimiento',s2,_bodyRend,'entreno','Ver análisis de entreno')}${_dd('fotos','Fotos',s3,_bodyFotos,'progreso','Ver todas las fotos')}${_dd('adh','Adherencia',s4,_bodyAdh,'','')}${_dd('bio','Biofeedback',s5,_bodyBio,'','')}`;
   const _sem=[s1,s2,s3,s4,s5];
   const _nBad=_sem.filter(x=>x.e==='bad').length,_nWarn=_sem.filter(x=>x.e==='warn').length;
   const _estGrl=_nBad?`${_nBad} señal${_nBad===1?'':'es'} en rojo`:_nWarn?`${_nWarn} en ámbar`:'Todo en verde';
@@ -3902,7 +3933,8 @@ async function verCliente(id){
       <span style="font-size:12px;color:${_estCol};font-weight:700">${_estGrl}</span></div>
     <div class="muted" style="font-size:11.5px;margin:3px 0 10px">5 señales de un vistazo. Toca una para ver su detalle. <span style="white-space:nowrap"><span style="color:var(--ok)">■</span> en orden</span> · <span style="white-space:nowrap"><span style="color:var(--warn)">■</span> ojo</span> · <span style="white-space:nowrap"><span style="color:var(--rojo)">■</span> atender</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
-      ${dTile(s1,'Peso','progreso')}${dTile(s2,'Rendimiento','entreno')}${dTile(s3,'Fotos','progreso')}${dTile(s4,'Adherencia','resumen')}${dTile(s5,'Biofeedback','resumen')}</div>
+      ${dTile(s1,'Peso','peso')}${dTile(s2,'Rendimiento','rend')}${dTile(s3,'Fotos','fotos')}${dTile(s4,'Adherencia','adh')}${dTile(s5,'Biofeedback','bio')}</div>
+    ${_dashDet}
     <div style="margin-top:12px;background:rgba(79,140,255,.07);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="font-size:11px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;font-weight:700">Coach · 1 cambio</span><span class="muted" style="font-size:11px">sugerencia · tú la apruebas</span></div>
       <textarea id="cam_txt" rows="2" style="width:100%;margin:0;font-size:13px">${esc(_camSug.texto)}</textarea>
