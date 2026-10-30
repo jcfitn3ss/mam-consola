@@ -3031,7 +3031,7 @@ function volverLista(){SEL=null;$("detalle").innerHTML='';const _hs=$("hoyStrip"
 
 // ===== REVISIÓN tipo JUEGO: recorre cliente por cliente, marca revisados del día,
 // barra de avance y "siguiente". Los revisados viven en localStorage por fecha. (JC 2026-10-19)
-function revKey(){ return 'mam_rev_'+new Date().toISOString().slice(0,10); }
+function revKey(){ return 'mam_rev_'+hace(0); } // fecha LOCAL (Colombia), no UTC: antes reseteaba la revisión 5h antes (a las 7pm)
 function revSet(){ try{ return new Set(JSON.parse(localStorage.getItem(revKey())||'[]')); }catch(e){ return new Set(); } }
 function revSave(s){ try{ localStorage.setItem(revKey(), JSON.stringify([...s])); }catch(e){} }
 function marcarRevisado(id,ir){ const s=revSet(); s.add(id); revSave(s); if(ir){ siguienteCliente(id); } else { const b=document.getElementById('revBar'); if(b) b.outerHTML=revBarHTML(id); } }
