@@ -3151,9 +3151,31 @@ function fotosBloqueHTML(F,id,cat){
   h+=`</div>`;
   return h;
 }
+// Fotos agrupadas POR POSE (Fase 3): cada pose en su propio carril, de la más vieja a
+// la más nueva, para ver la progresión de la MISMA pose en el tiempo (misma luz/ángulo).
+// Las sin clasificar van al final. El orden de poses sigue POSES_ATLETA de la categoría.
+function fotosPorPoseHTML(F,cat){
+  F=F||[];if(!F.length)return '<div class="muted" style="font-size:12px">Sin fotos.</div>';
+  const orden=POSES_ATLETA[cat]||[];
+  const grupos={};
+  F.forEach((f,i)=>{const t=(f.tipo&&!/sin clasificar/i.test(String(f.tipo)))?String(f.tipo).trim():'Sin clasificar';(grupos[t]=grupos[t]||[]).push({f,i});});
+  const nombres=Object.keys(grupos).sort((a,b)=>{
+    if(a==='Sin clasificar')return 1;if(b==='Sin clasificar')return -1;
+    const ia=orden.indexOf(a),ib=orden.indexOf(b);
+    if(ia>=0&&ib>=0)return ia-ib;if(ia>=0)return -1;if(ib>=0)return 1;return a.localeCompare(b);
+  });
+  return nombres.map(t=>{
+    const arr=grupos[t].slice().sort((x,y)=>String(x.f.fecha||'').localeCompare(String(y.f.fecha||'')));
+    const tira=arr.map(({f,i})=>`<div style="flex:0 0 auto;width:78px;text-align:center"><img class="thumb" style="width:78px;height:104px;object-fit:cover;border-radius:7px;cursor:pointer" onclick="lbOpen(window.__cmpF,${i})" src="${esc(f.url)}"><div style="font-size:9.5px;color:var(--muted)">${esc(String(f.fecha||'').slice(5))}</div></div>`).join('');
+    const col=t==='Sin clasificar'?'var(--warn)':'var(--txt)';
+    return `<div style="margin-top:10px"><div style="font-size:12px;font-weight:700;color:${col};margin-bottom:4px">${esc(t)} <span class="muted" style="font-weight:400">· ${arr.length} foto${arr.length>1?'s':''}</span></div><div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px">${tira}</div></div>`;
+  }).join('');
+}
 function repintarFotos(){
   const c=document.getElementById('fotosBloque');
   if(c)c.innerHTML=fotosBloqueHTML(window.__cmpF||[], SEL, window.__cmpCat||'');
+  const p=document.getElementById('fotosPorPose');
+  if(p)p.innerHTML=fotosPorPoseHTML(window.__cmpF||[], window.__cmpCat||'');
   try{cmpFotosLlenar();}catch(e){}
 }
 async function clasificarPoses(id,auto){
@@ -4250,6 +4272,8 @@ async function verCliente(id){
       window.__cmpCat=(atl.data&&atl.data.categoria)||'';
       h+=`<div class="muted" style="font-size:11px;margin-top:10px">Todas las fotos (${F.length}) — clic para ampliar. La pose se identifica sola con IA; corrígela con el selector.</div>`;
       h+=`<div id="fotosBloque">${fotosBloqueHTML(F,id,window.__cmpCat)}</div>`;
+      // Progreso por pose (Fase 3): cada pose en el tiempo, viejo→nuevo.
+      h+=`<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px"><h3 style="margin:0 0 2px">Progreso por pose</h3><div class="muted" style="font-size:11px;margin-bottom:2px">Cada pose en el tiempo, de la más vieja a la más nueva. Misma pose y misma luz para comparar de verdad.</div><div id="fotosPorPose">${fotosPorPoseHTML(F,window.__cmpCat)}</div></div>`;
     } else h+=`<div class="muted" style="font-size:12px">Sin fotos.</div>`;
     // ---- MEDIDAS (comparar dos fechas a elección) ----
     h+=`<h3>Medidas — compara dos fechas</h3>`;
