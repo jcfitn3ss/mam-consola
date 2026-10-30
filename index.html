@@ -3186,14 +3186,8 @@ function cmpPlg(){
   const A=P[+((document.getElementById('cmpPa')||{}).value)],B=P[+((document.getElementById('cmpPb')||{}).value)];if(!A||!B){v.innerHTML='';return;}
   v.innerHTML=_cmpTabla(A,B,[['tricipital','Tricipital'],['subescapular','Subescapular'],['pectoral','Pectoral'],['abdominal','Abdominal'],['suprailiaco','Suprailíaco'],['muslo','Muslo'],['pantorrilla','Pantorrilla'],['grasa','% Grasa']],(k)=>k==='grasa'?' %':' mm');
 }
-// Fecha de inicio específica del mesociclo (planes.inicio). Recalcula semana/progresión.
-async function guardarInicioPlan(id){
-  const v=$("g_inicio")?$("g_inicio").value:"";
-  if(!v){$("iniMsg").textContent="Elige una fecha.";return;}
-  const e=errFilas(await sb.from("planes").update({inicio:v,updated_at:new Date().toISOString()}).eq("user_id",id).select("user_id"));
-  if($("iniMsg"))$("iniMsg").innerHTML=e?`<span class="alert">${esc(e)}</span>`:"✓ Fecha de inicio guardada.";
-  if(!e)setTimeout(()=>verCliente(id),400);
-}
+// (guardarInicioPlan se eliminó: su control g_inicio era duplicado de "Semana del
+//  mesociclo" → setInicioPlan, que es el único lugar para editar planes.inicio.)
 // ---- Vista general de LLAMADAS: próxima llamada por cliente, ordenada, resalta atrasadas ----
 async function verLlamadas(){
   $("v-llamadas").innerHTML='<div class="card">Cargando…</div>';
@@ -3897,10 +3891,9 @@ async function verCliente(id){
 
   // ===== SECCIÓN ÚNICA DE ENTRENAMIENTO (una sola, ordenada y fácil de editar) =====
   h+=`<div style="margin:20px 0 8px;border-top:2px solid var(--rojo);padding-top:12px"><h2 style="margin:0;color:var(--rojo)">ENTRENAMIENTO</h2><div class="muted" style="font-size:12px">Todo el entreno del cliente en un solo lugar. Para <b>editar la rutina y subir/bajar volumen por grupo</b> ve a la tarjeta <b>“Editar rutina y volumen”</b> más abajo. Lo avanzado (fuerza / especialización) queda plegado.</div></div>`;
-  // FECHA DE INICIO ESPECÍFICA del mesociclo (define desde cuándo cuenta la semana 1).
-  h+=`<div class="card" style="padding:10px 14px"><label class="lbl" style="margin-top:0">Fecha de inicio del mesociclo (semana 1)</label>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="date" id="g_inicio" value="${(plan.inicio||'').slice(0,10)}" style="margin:0;max-width:170px"><button class="sm" onclick="guardarInicioPlan('${id}')">Guardar fecha</button> <span id="iniMsg" class="muted" style="font-size:12px"></span></div>
-    <div class="muted" style="font-size:11px;margin-top:4px">Semana actual del cliente: <b>${sa}/${sem}</b>. Cambia esta fecha solo si el bloque arranca otro día (recalcula la semana y la progresión).</div></div>`;
+  // La fecha de inicio del mesociclo se edita (CON confirmación) arriba, en "Semana del
+  // mesociclo", junto al ajuste de progresión. Aquí se quitó el control duplicado (g_inicio).
+  h+=`<div class="card" style="padding:10px 14px"><div class="muted" style="font-size:12px;margin:0">La <b>fecha de inicio del mesociclo</b> y la semana se ajustan arriba, en <b>“Semana del mesociclo”</b> (un solo lugar, con confirmación). Semana actual del cliente: <b>${sa}/${sem}</b>.</div></div>`;
 
   // MESOCICLO DE FUERZA (powerlifting: RPT + progresión inversa). Solo compuestos marcados.
   h+=`<details style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:10px"><summary style="cursor:pointer;font-weight:700">Mesociclo de fuerza (powerlifting)${FZ&&FZ.activa?' · <span style="color:var(--ok)">activo</span>':''}</summary>`;
@@ -3982,7 +3975,9 @@ async function verCliente(id){
   if(sd.stripe_customer_id) h+=`<div style="margin:4px 0"><a href="https://dashboard.stripe.com/customers/${esc(sd.stripe_customer_id)}" target="_blank" style="color:var(--rojo)">Ver pago en Stripe →</a></div>`;
   h+=`<label class="lbl">Ticket</label><select id="g_ticket">${['','alto','medio','bajo'].map(t=>`<option value="${t}" ${(ctr.ticket||'')===t?'selected':''}>${t?t.toUpperCase():'(sin asignar)'}</option>`).join("")}</select>`;
   h+=`<div class="row"><div><label class="lbl">Pago confirmado</label><select id="g_pago"><option value="no" ${!ctr.pago_confirmado?'selected':''}>No</option><option value="si" ${ctr.pago_confirmado?'selected':''}>Sí</option></select></div><div><label class="lbl">Presupuesto adicional</label><select id="g_presu"><option value="no" ${!ctr.presupuesto_adicional?'selected':''}>No</option><option value="si" ${ctr.presupuesto_adicional?'selected':''}>Sí</option></select></div></div>`;
-  h+=`<div class="row"><div><label class="lbl">Frecuencia de llamada</label><select id="g_frec">${['','semanal','quincenal','mensual','ninguna'].map(f=>`<option value="${f}" ${(ctr.frecuencia_llamada||'')===f?'selected':''}>${f||'(sin definir)'}</option>`).join("")}</select></div><div><label class="lbl">Próxima llamada</label><input id="g_prox" type="date" value="${ctr.proxima_llamada||''}"></div></div>`;
+  // Frecuencia y próxima llamada se editan en UN solo lugar: la tarjeta "Reuniones y
+  // llamadas" (reuFrec/reuProx). Aquí se quitó el control duplicado del mismo campo.
+  h+=`<div class="muted" style="font-size:11.5px;margin:4px 0">La <b>frecuencia</b> y la <b>próxima llamada</b> se editan en la tarjeta <b>“Reuniones y llamadas”</b> (un solo lugar).</div>`;
   h+=`<label class="lbl">¿Puede agendar videollamada? (plan HT / alto ticket)</label><select id="g_agenda"><option value="no" ${!ctr.agenda_llamada?'selected':''}>No</option><option value="si" ${ctr.agenda_llamada?'selected':''}>Sí</option></select>`;
   const cliRol=(CLIENTES.find(c=>c.user_id===id)||{}).rol||'cliente';
   h+=`<label class="lbl">Rol en la plataforma (agregar al equipo de entrenadores)</label><select id="g_rol" data-orig="${cliRol==='entrenador'?'entrenador':'cliente'}"><option value="cliente" ${cliRol!=='entrenador'?'selected':''}>Cliente</option><option value="entrenador" ${cliRol==='entrenador'?'selected':''}>Entrenador (ve/gestiona a todos)</option></select>`;
@@ -6217,7 +6212,9 @@ async function guardarObj(id){
 async function guardarGestion(id){
   $("gMsg").textContent="Guardando…";
   const nuevoEntren=$("g_entren")?$("g_entren").value:MIID;
-  const upd={ticket:$("g_ticket").value||null,pago_confirmado:$("g_pago").value==="si",presupuesto_adicional:$("g_presu").value==="si",frecuencia_llamada:$("g_frec").value||null,proxima_llamada:$("g_prox").value||null,notas_seguimiento:$("g_notas").value.trim()||null,agenda_llamada:$("g_agenda").value==="si",entrenador_id:nuevoEntren};
+  // frecuencia_llamada/proxima_llamada ya NO se guardan aquí: su único control vive en
+  // la tarjeta "Reuniones y llamadas" (guardarFrecLlamada). Se quitaron para no duplicar.
+  const upd={ticket:$("g_ticket").value||null,pago_confirmado:$("g_pago").value==="si",presupuesto_adicional:$("g_presu").value==="si",notas_seguimiento:$("g_notas").value.trim()||null,agenda_llamada:$("g_agenda").value==="si",entrenador_id:nuevoEntren};
   const g_rolEl=$("g_rol");
   if(g_rolEl){upd.rol=g_rolEl.value;
     // Promover a ENTRENADOR = acceso a TODOS los clientes: confirmación explícita.
