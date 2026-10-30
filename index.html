@@ -1120,13 +1120,17 @@ async function cargarPrioridad(){
       if(!lc[u]){ch+=8;chr.push('sin check-in 14d');}
     }
     c._churn=Math.min(100,ch);c._churnR=chr;
+    // Urgencia ÚNICA (0–100) para la cola de atención: el mayor entre el riesgo de baja
+    // (_churn) y la prioridad de coaching (_sc escalado). Un solo número que ordena TODO,
+    // así deja de haber varios contadores que no cuadran entre sí.
+    c._urg=Math.min(100,Math.max(c._churn||0,(sc||0)*8));
   });
   ALERTAS=al.data||[];
  }catch(e){console.error('cargarPrioridad falló:',e);if(!(PRIO_FALLO&&PRIO_FALLO.length))PRIO_FALLO=['datos de prioridad'];}
  // GARANTÍA (JC urgente 2026-08-14): renderizar SIEMPRE la lista, aunque el
  // enriquecimiento (prioridad/churn/acción) falle, para que los clientes NUNCA
  // desaparezcan por un error de cálculo. Cada render va protegido.
- try{CLIENTES.sort((a,b)=>(b._sc||0)-(a._sc||0));}catch(_){}
+ try{CLIENTES.sort((a,b)=>(b._urg||0)-(a._urg||0)||(b._sc||0)-(a._sc||0));}catch(_){}
  try{renderClientes();}catch(e){console.error('renderClientes:',e);const _c=$("clientes");if(_c)_c.innerHTML='<div class="alert" style="padding:12px">Error pintando la lista: '+esc(String(e&&e.message||e))+'. <button class="sm" onclick="cargarPrioridad()">Reintentar</button></div>';}
  try{renderCampana();}catch(_){}
  try{renderHoy();}catch(_){}
@@ -3360,7 +3364,7 @@ function renderClientes(){
     : VER_PAGO==='sinpagar' ? CLIENTES.filter(c=>!pagoInfo(c).pagando && !enPruebaCli(c))
     : VER_PAGO==='sinaltura' ? CLIENTES.filter(c=>!(Number(c.altura)>0) && !enPruebaCli(c))
     : VER_PAGO==='todos' ? CLIENTES.slice() // todos = todos, incluye prueba
-    : CLIENTES.filter(c=>(c._sc>=2 || c._inact || c._mes) && !RES.has(c.user_id) && !enPruebaCli(c));
+    : CLIENTES.filter(c=>(c._sc>=2 || c._inact || c._mes || c._churn>=45) && !RES.has(c.user_id) && !enPruebaCli(c)); // cola ÚNICA: coaching + riesgo de baja juntos
   // Resumen de pago + filtros (siempre visible, incluso al buscar).
   const chip=(v,txt)=>`<button class="sm ${VER_PAGO===v&&!q?'':'ghost'}" style="padding:5px 10px" onclick="setVerPago('${v}')">${txt}</button>`;
   let head=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
@@ -3374,10 +3378,10 @@ function renderClientes(){
   // Diagnóstico claro si NO se cargó ningún cliente (casi siempre = sesión vencida).
   if(!CLIENTES.length)head=`<div class="alert" style="margin-bottom:8px;padding:12px"><b>No se cargó ningún cliente.</b> ${window._cliErr?('Motivo: <b>'+esc(window._cliErr)+'</b>'):'Casi siempre es la <b>sesión vencida</b>.'} <div style="margin-top:6px;display:flex;gap:6px"><button class="sm" onclick="logout()">Cerrar sesión y reingresar</button><button class="sm ghost" onclick="trasLogin()">Reintentar carga</button></div></div>`+head;
   if(!q && VER_PAGO==='atencion'){
-    const nRes=[...RES].filter(uid=>CLIENTES.some(c=>c.user_id===uid&&(c._sc>=2||c._inact||c._mes))).length;
+    const nRes=[...RES].filter(uid=>CLIENTES.some(c=>c.user_id===uid&&(c._sc>=2||c._inact||c._mes||c._churn>=45))).length;
     head += `<div class="muted" style="font-size:12px;margin-bottom:8px">${list.length?`<b style="color:var(--txt)">${list.length}</b> cliente(s) por resolver hoy.`:'✓ Todo resuelto por hoy.'} Marca <b>“✓ Resuelto hoy”</b> al atender a alguien: se oculta hoy y reaparece mañana si sigue la alerta.${nRes?` <button class="sm ghost" style="padding:2px 8px" onclick="reabrirResueltos()">Reabrir ${nRes} resuelto(s)</button>`:''}</div>`;
   }
-  list.sort((a,b)=> (pagoInfo(a).pagando?1:0)-(pagoInfo(b).pagando?1:0) || (b._sc||0)-(a._sc||0)); // sin pagar arriba
+  list.sort((a,b)=> (pagoInfo(a).pagando?1:0)-(pagoInfo(b).pagando?1:0) || (b._urg||0)-(a._urg||0) || (b._sc||0)-(a._sc||0)); // sin pagar arriba, luego por urgencia única
   LISTA_VIS=list; // para "Copiar correos"
   // VISTA POR GRUPOS: Pagando / Equipo interno (cortesía, no pagan) / Sin pagar y demás.
   if(VER_PAGO==='grupos' && !q){
@@ -3404,6 +3408,9 @@ function grupoDe(c){
 function cardClienteHTML(c,enAtencion){
   const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
   const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
+  // Riesgo de baja (churn): se muestra en la misma tarjeta para que la cola de atención
+  // sea UNA sola (coaching + retención juntos), sin pestaña aparte.
+  const risk=(c._churn>=45)?`<div style="font-size:12px;margin-top:3px;color:#ff8a8a;font-weight:600">Riesgo de baja ${c._churn}%${(c._churnR&&c._churnR.length)?' · '+esc(c._churnR.join(' · ')):''}</div>`:"";
   const ms=c._mes?`<div style="font-size:12px;margin-top:3px;color:var(--rojo)">Informe mes ${c._mes} listo</div>`:"";
   const sinAlt=!(Number(c.altura)>0)?`<div style="font-size:12px;margin-top:3px;color:var(--warn);font-weight:600">Falta altura — el plan la necesita</div>`:"";
   const tcol={alto:"var(--rojo)",medio:"var(--warn)",bajo:"#5f7dd0"};
@@ -3417,7 +3424,7 @@ function cardClienteHTML(c,enAtencion){
   const _nc=(c.nombre_completo||'').trim();
   const fullL=(_nc && _nc.toLowerCase()!==(c.nombre||'').trim().toLowerCase())?`<div class="muted" style="font-size:11px;margin-top:1px;user-select:text">${esc(_nc)}</div>`:"";
   const acc=(c._accion&&c._accion!=='En orden')?`<div style="margin-top:4px;font-size:12.5px;font-weight:700;color:${c._accionCol||'var(--warn)'}">→ ${esc(c._accion)}</div>`:"";
-  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${acc}${inact}${sinAlt}${rs}${ms}</button>`;
+  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${acc}${inact}${risk}${sinAlt}${rs}${ms}</button>`;
   return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${cardBtn}<button class="sm ghost" onclick="resolverHoy('${c.user_id}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:cardBtn;
 }
 
