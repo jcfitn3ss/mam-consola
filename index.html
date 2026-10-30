@@ -4979,7 +4979,10 @@ function hacerColapsables(){
   // Barra de PESTAÑAS internas (encima de todo): agrupa las cards por área y
   // muestra solo las de la pestaña activa. Recuerda la pestaña entre re-renders.
   if(det&&!det.querySelector(".fichaTabs")){
-    const TABS=[['resumen','Resumen'],['entreno','Entreno'],['nutricion','Nutrición'],['progreso','Progreso'],['reuniones','Reuniones'],['gestion','Gestión']];
+    // 'gestion' conserva el id (clasTab/launcher siguen apuntando ahí); solo cambia el
+    // rótulo a "Perfil": es el cajón de configuración (accesos, módulos, contrato, atleta,
+    // bitácora). Objetivo/Plan/Rutina se quedan en Nutrición/Entreno (uso diario de JC).
+    const TABS=[['resumen','Resumen'],['entreno','Entreno'],['nutricion','Nutrición'],['progreso','Progreso'],['reuniones','Reuniones'],['gestion','Perfil']];
     const tabsEl=document.createElement("div");tabsEl.className="fichaTabs";
     const mostrar=(id)=>{window.FICHA_TAB=id;cards.forEach(c=>{c.style.display=((c.dataset.tab||'resumen')===id)?"":"none";});[...tabsEl.children].forEach(b=>b.classList.toggle("on",b.dataset.tab===id));};
     TABS.forEach(([id,label])=>{const b=document.createElement("button");b.className="tabBtn";b.dataset.tab=id;b.textContent=label;b.onclick=()=>mostrar(id);tabsEl.appendChild(b);});
