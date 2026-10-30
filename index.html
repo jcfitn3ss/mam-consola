@@ -3355,7 +3355,7 @@ function renderClientes(){
   const RES=atSet();
   const enAtencion=!q && VER_PAGO==='atencion';
   const list = q
-    ? CLIENTES.filter(c=>(c.nombre||"").toLowerCase().includes(q)) // búsqueda: en todos (para hallar a cualquiera)
+    ? CLIENTES.filter(c=>[c.nombre,c.nombre_completo,c._email,c.correo,c.telefono].some(v=>(v||'').toString().toLowerCase().includes(q))) // búsqueda: nombre, nombre completo, correo y teléfono (como lo muestra la tarjeta)
     : VER_PAGO==='prueba' ? CLIENTES.filter(enPruebaCli)
     : VER_PAGO==='sinpagar' ? CLIENTES.filter(c=>!pagoInfo(c).pagando && !enPruebaCli(c))
     : VER_PAGO==='sinaltura' ? CLIENTES.filter(c=>!(Number(c.altura)>0) && !enPruebaCli(c))
@@ -6266,13 +6266,6 @@ async function quitarMacrosDia(id){
   if(error){$("mdMsg").innerHTML=`<span class="alert">${esc(error.message)}</span>`;return;}
   await verCliente(id);
 }
-async function addReceta(id){
-  const nom=$("r_nom").value.trim();if(!nom){$("recMsg").textContent="Falta el nombre.";return;}
-  $("recMsg").textContent="Guardando…";
-  const {error}=await sb.from("recetas").insert({owner:MIID,nombre:nom,ingredientes:$("r_ing").value.trim(),tipo:"Almuerzo",kcal:+$("r_k").value||0,prot:+$("r_p").value||0,carb:+$("r_c").value||0,fat:+$("r_f").value||0,comunidad:false});
-  $("recMsg").innerHTML=error?`<span class="alert">${esc(error.message)}</span>`:"✓ Receta guardada.";
-  if(!error){$("r_nom").value=$("r_ing").value=$("r_k").value=$("r_p").value=$("r_c").value=$("r_f").value="";}
-}
 
 // PARTE 4: Ejercicios
 function verEjercicios(){
@@ -6818,12 +6811,6 @@ function progCardHTML(){
 
 // ===== Asistente IA de la consola =====
 let IA_CTX={},IA_ACC=[];
-function iaCardHTML(){return `<div class="card"><h2 style="margin-top:0">Asistente IA (ajustes rápidos)</h2>
-  <div class="muted" style="font-size:12px;margin-bottom:6px">Escribe en lenguaje natural qué quieres cambiarle a este cliente (calorías, macros, fase/enfoque, refeed, especialización, nivel). La IA propone los cambios y TÚ los aplicas.</div>
-  <textarea id="ia_inp" rows="2" style="width:100%;box-sizing:border-box" placeholder="Ej: súbele 200 kcal y ponle un refeed el domingo · actívale especialización de espalda · bájalo a definición"></textarea>
-  <div style="margin-top:6px"><button onclick="iaInterpretar()" id="ia_btn">Interpretar</button> <span id="ia_msg" class="muted"></span></div>
-  <div id="ia_out" style="margin-top:8px"></div>
-</div>`;}
 function iaAccionTxt(a){
   if(a.tipo==='kcal')return `Calorías → ${a.kcal} kcal · P${a.prot}/C${a.carb}/G${a.fat}`;
   if(a.tipo==='objetivo')return `Objetivo → ${a.objetivo_tipo||'—'}${a.fase?(' · fase '+a.fase):''}${a.enfoque&&a.enfoque.length?(' · enfoque '+a.enfoque.join(', ')):''}`;
