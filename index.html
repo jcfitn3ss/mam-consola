@@ -1539,6 +1539,26 @@ async function cambioAprobar(id){
   if(m){m.style.color='var(--ok)';m.textContent='✓ Registrado en la bitácora.';}
   verCliente(id);
 }
+// "Afinar con IA" el 1 cambio: la IA (consola-ia) lee las señales del contexto y
+// propone UN cambio. Rellena el texto para que el entrenador lo edite/apruebe. Si la
+// IA devuelve una acción aplicable (kcal, descarga, series…), ofrece aplicarla con el
+// flujo ya probado (iaAplicar). Si la IA falla (p.ej. créditos), queda la automática.
+async function cambioIA(id){
+  const m=$("camMsg"),btn=$("camIaBtn");
+  if(m){m.style.color='var(--muted)';m.textContent='Consultando a la IA…';}
+  if(btn)btn.disabled=true;
+  try{
+    const instruccion='Revisa las señales de este cliente (contexto.senales: peso/tendencia, rendimiento de fuerza, adherencia, descanso/biofeedback y fotos) y su sugerencia_automatica. Propón UN SOLO cambio de coaching, el más importante ahora, en 1-2 frases accionables en español. Si encaja en una acción aplicable (kcal, descarga, series, etc.) devuélvela; si no, usa "nota". Nunca propongas más de un cambio.';
+    const {data,error}=await invokeFn("consola-ia",{body:{instruccion,contexto:IA_CTX}});
+    if(error||(data&&data.error)){if(m){m.style.color='var(--warn)';m.textContent=((data&&data.error)||'IA no disponible')+' — queda la sugerencia automática.';}return;}
+    const ta=$("cam_txt");if(ta&&data.resumen)ta.value=data.resumen;
+    IA_ACC=(data.acciones||[]).filter(a=>a.tipo!=='nota');
+    const box=$("camIaAcc");
+    if(box)box.innerHTML=IA_ACC.length?`<div class="muted" style="font-size:11.5px;margin-top:6px">La IA puede aplicarlo en el plan: ${IA_ACC.map(a=>iaAccionTxt(a)).join(' · ')}</div><button class="sm" style="margin-top:5px" onclick="iaAplicar()">Aplicar en el plan (${IA_ACC.length})</button>`:'';
+    if(m){m.style.color='var(--ok)';m.textContent=data.resumen?'✓ Lista. Revisa, edita y aprueba.':'La IA no vio un cambio claro.';}
+  }catch(e){if(m){m.style.color='var(--warn)';m.textContent='IA no disponible ahora — queda la sugerencia automática.';}}
+  finally{if(btn)btn.disabled=false;}
+}
 // Registra la recomendación de peso actual en la bitácora, en un clic (cierra el bucle).
 async function segRegistrarDecision(){
   const s=window.SEGP||{};
@@ -3854,8 +3874,10 @@ async function verCliente(id){
       <input type="hidden" id="cam_tipo" value="${esc(_camSug.tipo)}">
       <div style="display:flex;gap:8px;margin-top:7px;align-items:center;flex-wrap:wrap">
         <button onclick="cambioAprobar('${id}')">Aprobar y registrar</button>
-        <span class="muted" style="font-size:11px">Edítalo antes de aprobar si quieres.</span>
-        <span id="camMsg" class="muted" style="font-size:12px"></span></div></div></div>`;
+        <button class="sm ghost" id="camIaBtn" onclick="cambioIA('${id}')">Afinar con IA</button>
+        <span id="camMsg" class="muted" style="font-size:12px"></span></div>
+      <div id="camIaAcc"></div>
+      <div class="muted" style="font-size:11px;margin-top:5px">La sugerencia inicial es automática; "Afinar con IA" la reescribe analizando las señales. Tú la editas y apruebas.</div></div></div>`;
   let h=avisoCarga+dashCard+rep+reuCard+bitCard+`<div class="card" id="progresoCard_${id}" data-tab="progreso"><div class="muted" style="font-size:12px">Cargando progreso…</div></div>`+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
   h+=`<div class="kv">`+fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—")+`</div>`;
 
@@ -4514,7 +4536,16 @@ async function verCliente(id){
     rutina:((RUT&&RUT.dias)||[]).map((d,di)=>({sesion:di+1,dia:d.nombre,ejercicios:(d.orden||[]).map(it=>{const e=EJ.find(x=>String(x.id)===String(it.id))||{};return {nombre:cap(e.nombre||''),series:it.s||null,tecnica:(RUT.tecnicas||{})[(di+"|"+it.id)]||'normal'};})})),
     // Biblioteca de ejercicios disponibles (para cambiar/agregar ejercicios): nombre + grupo.
     biblioteca:((typeof EJ!=='undefined'&&EJ)||[]).map(e=>({n:cap(e.nombre||''),g:e.grupo||''})),
-    plan_descarga_hasta:(plan.descarga_hasta||null)};
+    plan_descarga_hasta:(plan.descarga_hasta||null),
+    // Señales del dashboard (Fase 2) para que la IA proponga el "1 cambio" sobre datos reales.
+    senales:{
+      peso:{estado:s1.e,valor:s1.v,detalle:s1.f,objetivo:OBJT2},
+      rendimiento:{estado:s2.e,valor:s2.v,detalle:s2.f},
+      fotos:{estado:s3.e,valor:s3.v,detalle:s3.f},
+      adherencia:{estado:s4.e,valor:s4.v,detalle:s4.f,ses7:ses7,dias_registro_7d:_diasReg7},
+      biofeedback:{estado:s5.e,valor:s5.v,detalle:s5.f,sueno_h:sprom,fatiga:fatAvg!=null?+fatAvg:null,energia:enAvg!=null?+enAvg:null}
+    },
+    sugerencia_automatica:_camSug.texto};
   h+=anCardHTML();
 
   // ===== Programación por bloques y semanas =====
