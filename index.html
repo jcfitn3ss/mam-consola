@@ -3159,8 +3159,10 @@ function cmpFotos(){
   const cel=(f,idx,lbl)=>`<div style="flex:1;min-width:150px;text-align:center"><div class="muted" style="font-size:11px;margin-bottom:3px">${lbl} · ${esc(f.fecha||'')}${f.tipo?' · '+esc(f.tipo):''}</div><img src="${esc(f.url)}" style="width:100%;max-height:560px;object-fit:contain;border-radius:8px;background:#000;cursor:pointer" onclick="lbOpen(window.__cmpF,${idx})"></div>`;
   v.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap">${cel(fa,a,'A (antes)')}${cel(fb,b,'B (después)')}</div>${mm}${extra}`;
 }
-function _cmpTabla(A,B,keys,unitFn){
-  const rows=keys.map(([k,l])=>{const va=A?A[k]:null,vb=B?B[k]:null;if(va==null&&vb==null)return '';const u=unitFn(k);const d=(va!=null&&vb!=null)?Math.round((vb-va)*10)/10:null;const col=d==null?'var(--muted)':(d<0?'var(--ok)':d>0?'var(--warn)':'var(--muted)');return `<tr><td>${l}</td><td>${va!=null?va+u:'—'}</td><td>${vb!=null?vb+u:'—'}</td><td style="color:${col};font-weight:600">${d==null?'—':(d>0?'+':'')+d+u}</td></tr>`;}).join('');
+function _cmpTabla(A,B,keys,unitFn,dirFn){
+  // dirFn(k): dirección DESEADA de la medida. +1 subir es bueno, −1 bajar es bueno, 0 neutro.
+  // Sin dirFn, por defecto −1 (bajar = bueno), que aplica a pliegues y % de grasa.
+  const rows=keys.map(([k,l])=>{const va=A?A[k]:null,vb=B?B[k]:null;if(va==null&&vb==null)return '';const u=unitFn(k);const d=(va!=null&&vb!=null)?Math.round((vb-va)*10)/10:null;const des=dirFn?dirFn(k):-1;const col=(d==null||d===0||des===0)?'var(--muted)':(Math.sign(d)===des?'var(--ok)':'var(--warn)');return `<tr><td>${l}</td><td>${va!=null?va+u:'—'}</td><td>${vb!=null?vb+u:'—'}</td><td style="color:${col};font-weight:600">${d==null?'—':(d>0?'+':'')+d+u}</td></tr>`;}).join('');
   // La cabecera lleva las FECHAS, no "A" y "B": leyendo la tabla sola no se sabía
   // qué era cada columna y tocaba subir a mirar los selectores.
   const fA=A&&A.fecha?String(A.fecha).slice(0,10):'A';
@@ -3170,7 +3172,11 @@ function _cmpTabla(A,B,keys,unitFn){
 function cmpMed(){
   const M=window.__cmpM||[];const v=document.getElementById('cmpMedView');if(!v)return;
   const A=M[+((document.getElementById('cmpMa')||{}).value)],B=M[+((document.getElementById('cmpMb')||{}).value)];if(!A||!B){v.innerHTML='';return;}
-  v.innerHTML=_cmpTabla(A,B,[['cintura','Cintura'],['cadera','Cadera'],['pecho','Pecho'],['brazo','Brazo'],['muslo','Muslo']],()=>' cm');
+  // Dirección deseada por medida y objetivo: cintura/cadera bajar = bueno (grasa); brazo/muslo
+  // subir = bueno (músculo), nunca pintar de verde perderlos; pecho neutro salvo en volumen.
+  const _ob=(window.CLI_OBJ||'').toLowerCase();
+  const dir=(k)=>(k==='cintura'||k==='cadera')?-1:(k==='brazo'||k==='muslo')?1:(k==='pecho'?(_ob==='vol'?1:0):0);
+  v.innerHTML=_cmpTabla(A,B,[['cintura','Cintura'],['cadera','Cadera'],['pecho','Pecho'],['brazo','Brazo'],['muslo','Muslo']],()=>' cm',dir);
 }
 function cmpPlg(){
   const P=window.__cmpP||[];const v=document.getElementById('cmpPlgView');if(!v)return;
@@ -3495,6 +3501,10 @@ async function verCliente(id){
   const U_PESO=(per&&per.unidad_peso==='lb')?'lb':'kg';const _LBK=2.2046226218;
   const pU=(kg)=>kg==null||kg===''||isNaN(+kg)?null:Math.round((U_PESO==='lb'?+kg*_LBK:+kg)*10)/10; // kg → nº en su unidad
   const dU=(dkg)=>dkg==null||isNaN(+dkg)?null:(Math.round((U_PESO==='lb'?+dkg*_LBK:+dkg)*10)/10); // delta en su unidad
+  // Unidad y objetivo del cliente en globals, para las gráficas GLOBALES (renderProgreso,
+  // renderObjetivoMes, calSeguimiento) que no ven el scope de verCliente. El peso se guarda
+  // en kg; estas globals solo convierten para MOSTRAR y colorear según el objetivo.
+  window.CLI_UP=U_PESO; window.CLI_UF=(U_PESO==='lb'?_LBK:1); window.CLI_OBJ=(o&&o.tipo)||'';
   const md=meds.data||[];const cint=md[0]?md[0].cintura:null;
   // Promedio de sueño = SOLO sobre las noches REGISTRADas (÷ nº de registros, no ÷ días).
   const suRec=(sue.data||[]).filter(s=>s.horas!=null);const sNoches=suRec.length;const sprom=sNoches?(suRec.reduce((a,x)=>a+(+x.horas||0),0)/sNoches):null;
@@ -3699,7 +3709,7 @@ async function verCliente(id){
     <div style="margin-top:8px"><button onclick="decGuardar('${id}')">Registrar decisión</button> <span id="decMsg" class="muted" style="font-size:12px"></span></div>
     <div style="margin-top:10px">${_decItems}</div>
   </div>`;
-  let h=avisoCarga+rep+reuCard+bitCard+`<div class="card" id="progresoCard_${id}"><div class="muted" style="font-size:12px">Cargando progreso…</div></div>`+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
+  let h=avisoCarga+rep+reuCard+bitCard+`<div class="card" id="progresoCard_${id}" data-tab="progreso"><div class="muted" style="font-size:12px">Cargando progreso…</div></div>`+`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(nom)}</h2><button class="sm ghost" onclick="archivarCliente('${id}')">Archivar</button></div>`;
   h+=`<div class="kv">`+fila("Membresía",susc.data?`${susc.data.estado||''} · ${susc.data.tier||''}`:"—")+`</div>`;
 
   // ---- Atleta (culturismo): SOLO el entrenador decide ----
@@ -4504,6 +4514,11 @@ function progRango(id,r){ PROG_RANGO[id]=r; const c=document.getElementById('pro
 function mediaMovil(pts,dias){ const ms=dias*864e5; return pts.map((p,i)=>{ let s=0,n=0; for(let j=i;j>=0;j--){ if(p.t-pts[j].t>ms)break; s+=pts[j].w; n++; } return {t:p.t,w:s/n}; }); }
 function renderProgreso(id,D){
   const R=v=>Math.round(v*10)/10;
+  // Unidad del cliente (kg/lb) y color según su OBJETIVO: en volumen subir de peso es bueno,
+  // en definición bajar es bueno; en recomp/mantenimiento/bienestar no se juzga la dirección.
+  const UP=window.CLI_UP||'kg', UF=window.CLI_UF||1, cv=kg=>Math.round(kg*UF*10)/10;
+  const OBJT=(window.CLI_OBJ||'').toLowerCase();
+  const colPeso=(tkg)=>OBJT==='vol'?(tkg>=-0.001?'var(--ok)':'var(--warn)'):OBJT==='def'?(tkg<=0.001?'var(--ok)':'var(--warn)'):'var(--muted)';
   const todos=(D.pesos||[]).filter(p=>p&&p.fecha&&isFinite(+p.peso)&&+p.peso>20&&+p.peso<400).map(p=>({t:new Date(String(p.fecha).slice(0,10)+'T00:00:00').getTime(),w:+p.peso})).sort((a,b)=>a.t-b.t);
   const rango=PROG_RANGO[id]||'1m';
   const diasR={'2s':14,'1m':31,'3m':92}[rango]||31;
@@ -4529,7 +4544,10 @@ function renderProgreso(id,D){
     const serie=ma.concat(pts); const lo0=Math.min(...serie.map(p=>p.w)), hi0=Math.max(...serie.map(p=>p.w));
     const pad=Math.max((hi0-lo0)*0.15,0.5), lo=lo0-pad, hi=hi0+pad, rng=(hi-lo)||1;
     const W=680,H=210,ml=40,mr=14,mt=14,mb=24, pw=W-ml-mr, ph=H-mt-mb;
-    const X=i=>ml+(pts.length===1?pw/2:i*pw/(pts.length-1));
+    // Eje X por FECHA real (no por índice): un pesaje tras un hueco de 3 semanas queda lejos,
+    // no pegado al de ayer. Así la pendiente que se ve es la pendiente real. ma[i].t===pts[i].t.
+    const t0=pts[0].t, t1=pts[pts.length-1].t, tspan=(t1-t0)||1;
+    const X=i=>ml+(pts.length===1?pw/2:(pts[i].t-t0)/tspan*pw);
     const Y=w=>mt+ph-((w-lo)/rng)*ph;
     const rawPts=pts.map((p,i)=>`${R(X(i))},${R(Y(p.w))}`).join(' ');
     const maPoly=ma.map((p,i)=>`${R(X(i))},${R(Y(p.w))}`).join(' ');
@@ -4537,9 +4555,9 @@ function renderProgreso(id,D){
     const meta=(D.metas||[]).find(m=>m.mes===D.mes); const metaKg=meta&&meta.meta_kg!=null?+meta.meta_kg:null;
     const metaY=metaKg!=null&&metaKg>=lo&&metaKg<=hi?R(Y(metaKg)):null;
     D._fin=fin.w; D._ritmo=ritmo;
-    const tile=(lbl,val,sub,col,bg)=>`<div style="background:${bg};border-radius:12px;padding:9px 12px;min-width:94px"><div style="font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:${col};font-weight:800">${lbl}</div><div style="font-weight:800;font-size:19px;color:${col}">${R(val)} <span style="font-size:11px;font-weight:700">kg</span></div><div class="muted" style="font-size:9.5px">${sub}</div></div>`;
-    const dot=pts.map((p,i)=>`<circle cx="${R(X(i))}" cy="${R(Y(p.w))}" r="2.2" fill="#9c98a6"><title>${esc(fFechaCorta(new Date(p.t).toISOString().slice(0,10)))} · ${R(p.w)} kg</title></circle>`).join('');
-    const flecha=tasaKg<=0?'▼':'▲'; const tcol=tasaKg<=0?'var(--ok)':'var(--warn)';
+    const tile=(lbl,val,sub,col,bg)=>`<div style="background:${bg};border-radius:12px;padding:9px 12px;min-width:94px"><div style="font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:${col};font-weight:800">${lbl}</div><div style="font-weight:800;font-size:19px;color:${col}">${cv(val)} <span style="font-size:11px;font-weight:700">${UP}</span></div><div class="muted" style="font-size:9.5px">${sub}</div></div>`;
+    const dot=pts.map((p,i)=>`<circle cx="${R(X(i))}" cy="${R(Y(p.w))}" r="2.2" fill="#9c98a6"><title>${esc(fFechaCorta(new Date(p.t).toISOString().slice(0,10)))} · ${cv(p.w)} ${UP}</title></circle>`).join('');
+    const flecha=tasaKg<=0?'▼':'▲'; const tcol=colPeso(tasaKg);
     pesoCard=`
       <div style="display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap">${pills}</div>
       <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">
@@ -4547,17 +4565,17 @@ function renderProgreso(id,D){
           <svg viewBox="0 0 ${W} ${H}" style="width:100%">
             <defs><linearGradient id="pg${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a855f7" stop-opacity=".35"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></linearGradient></defs>
             <polygon points="${area}" fill="url(#pg${id})"/>
-            ${metaY!=null?`<line x1="${ml}" y1="${metaY}" x2="${W-mr}" y2="${metaY}" stroke="#e0b84a" stroke-width="1.5" stroke-dasharray="5 5" opacity=".9"/><text x="${ml+4}" y="${metaY-5}" fill="#e0b84a" font-size="10" font-weight="800">meta ${R(metaKg)} kg</text>`:''}
+            ${metaY!=null?`<line x1="${ml}" y1="${metaY}" x2="${W-mr}" y2="${metaY}" stroke="#e0b84a" stroke-width="1.5" stroke-dasharray="5 5" opacity=".9"/><text x="${ml+4}" y="${metaY-5}" fill="#e0b84a" font-size="10" font-weight="800">meta ${cv(metaKg)} ${UP}</text>`:''}
             <polyline points="${rawPts}" fill="none" stroke="#5a5560" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>
             ${dot}
             <polyline points="${maPoly}" fill="none" stroke="#a855f7" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
             <circle cx="${R(X(pts.length-1))}" cy="${R(Y(ma[ma.length-1].w))}" r="5" fill="#a855f7" stroke="#0a0a0e" stroke-width="2"/>
-            <text x="6" y="${mt+6}" fill="#6b6b74" font-size="10">${R(hi)}</text>
-            <text x="6" y="${mt+ph}" fill="#6b6b74" font-size="10">${R(lo)}</text>
+            <text x="6" y="${mt+6}" fill="#6b6b74" font-size="10">${cv(hi)}</text>
+            <text x="6" y="${mt+ph}" fill="#6b6b74" font-size="10">${cv(lo)}</text>
           </svg>
           <div style="display:flex;align-items:center;gap:10px;font-size:12px;margin-top:4px;flex-wrap:wrap">
             <span class="muted">tasa semanal</span>
-            <span style="font-weight:800;color:${tcol}">${flecha} ${R(Math.abs(tasaKg))} kg</span>
+            <span style="font-weight:800;color:${tcol}">${flecha} ${cv(Math.abs(tasaKg))} ${UP}</span>
             <span style="font-weight:800;color:${tcol}">${flecha} ${Math.abs(R(tasaPct))}%</span>
             <span class="muted">media móvil hoy vs. hace 7 días</span>
           </div>
@@ -4578,29 +4596,34 @@ function renderProgreso(id,D){
 function renderObjetivoMes(id,D){
   const R=v=>Math.round(v*10)/10; const actual=D._fin;
   if(actual==null)return '';
+  // Unidad del cliente para MOSTRAR; la meta se guarda en kg (dato solo del entrenador).
+  const UP=window.CLI_UP||'kg', UF=window.CLI_UF||1, cv=kg=>Math.round(kg*UF*10)/10;
+  // Dirección deseada según objetivo: volumen = SUBIR (+1); lo demás = BAJAR (−1).
+  const OBJT=(window.CLI_OBJ||'').toLowerCase(); const dir=OBJT==='vol'?1:-1;
   const meta=(D.metas||[]).find(m=>m.mes===D.mes);
   const mesActualStr=(new Date()).toISOString().slice(0,7); let wleft=4;
   if(D.mes===mesActualStr){const y=+D.mes.slice(0,4),m=+D.mes.slice(5,7),finD=new Date(y,m,0).getDate();wleft=Math.max(0.5,(finD-(new Date()).getDate())/7);}
-  const suger=R(actual-2.0);
+  const suger=R(actual+dir*2.0);
   const metaKg=meta&&meta.meta_kg!=null?+meta.meta_kg:null; const val=metaKg!=null?metaKg:suger;
-  const req=metaKg!=null?R((actual-metaKg)/Math.max(wleft,0.5)):0.5;
-  const real=D._ritmo!=null?D._ritmo:0;
+  const perWk=metaKg!=null?(metaKg-actual)/Math.max(wleft,0.5):dir*0.5; // ritmo requerido, con signo
+  const real=D._ritmo!=null?D._ritmo:0;                                 // ritmo real, con signo
   let estado,col;
-  if(metaKg!=null&&actual<=metaKg){estado='META ALCANZADA ✓';col='var(--ok)';}
-  else if(metaKg==null){estado='SIN META (sugerida)';col='var(--muted)';}
-  else if(-real>=req-0.1){estado='EN RITMO ✓';col='var(--ok)';}
+  if(metaKg==null){estado='SIN META (sugerida)';col='var(--muted)';}
+  else if((dir<0&&actual<=metaKg)||(dir>0&&actual>=metaKg)){estado='META ALCANZADA ✓';col='var(--ok)';}
+  else if(dir<0?(real<=perWk+0.1):(real>=perWk-0.1)){estado='EN RITMO ✓';col='var(--ok)';}
   else{estado='ATRASADO';col='#e0b84a';}
   const bg=col==='var(--ok)'?'rgba(55,224,166,.16)':(col==='#e0b84a'?'rgba(224,184,74,.16)':'var(--card2)');
+  const reqTxt=(dir<0?'−':'+')+cv(Math.abs(perWk)); const realOk=(dir<0?real<=0:real>=0);
   return `<div style="margin-top:14px;background:linear-gradient(180deg,rgba(224,184,74,.08),rgba(224,184,74,.02));border:1px solid rgba(224,184,74,.4);border-radius:12px;padding:13px 15px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:13px">Objetivo de peso · ${esc(nombreMes(D.mes))}</b><span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#e0b84a;font-weight:800;border:1px solid rgba(224,184,74,.5);border-radius:999px;padding:3px 9px">Solo entrenador</span></div>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
       <div style="flex:1;min-width:110px"><label class="lbl">Peso meta (kg)${metaKg==null?' · <span style="color:#e0b84a">sugerido</span>':''}</label><input id="metaPeso_${id}" type="number" step="0.1" value="${val}" style="margin:0"></div>
-      <div><div class="muted" style="font-size:10px">Requiere</div><div style="font-weight:800">−${R(req)}/sem</div></div>
-      <div><div class="muted" style="font-size:10px">Va a</div><div style="font-weight:800;color:${real<=0?'var(--ok)':'#e0b84a'}">${real>0?'+':''}${R(real)}/sem</div></div>
+      <div><div class="muted" style="font-size:10px">Requiere</div><div style="font-weight:800">${reqTxt} ${UP}/sem</div></div>
+      <div><div class="muted" style="font-size:10px">Va a</div><div style="font-weight:800;color:${realOk?'var(--ok)':'#e0b84a'}">${real>0?'+':''}${cv(real)} ${UP}/sem</div></div>
       <button class="sm" onclick="saveMetaPeso('${id}')">Guardar meta</button>
     </div>
     <div style="margin-top:9px;display:flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap"><span style="font-weight:800;font-size:11px;padding:4px 10px;border-radius:999px;background:${bg};color:${col}">${estado}</span><span id="metaMsg_${id}" class="muted"></span></div>
-    <div class="muted" style="font-size:10px;margin-top:6px">La meta la sugiere el sistema (−0.5 kg/sem); puedes editarla. El cliente NO ve este objetivo.</div>
+    <div class="muted" style="font-size:10px;margin-top:6px">La meta la sugiere el sistema (${dir<0?'−':'+'}2 kg sobre el peso actual); puedes editarla. El cliente NO ve este objetivo.</div>
   </div>`;
 }
 async function saveMetaPeso(id){
