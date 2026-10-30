@@ -234,7 +234,7 @@
       <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
       <!-- MODO COMERCIAL: todavía no paga. -->
       <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
-      <button id="t-crm" onclick="tab('crm')">Clientes (CRM)</button>
+      <button id="t-crm" onclick="tab('crm')">Planilla CRM</button>
       <button id="t-embudo" class="hide" onclick="tab('embudo')">Embudo</button>
       <button id="t-contenido" class="hide" onclick="tab('contenido')">Contenido</button>
       <button id="t-metricas" class="hide" onclick="tab('metricas')">Métricas</button>
@@ -2754,8 +2754,8 @@ async function verCRM(){
       <td><input value="${esc(cm.observaciones||'')}" placeholder="notas…" onchange="crmGuardar('${c.user_id}',{observaciones:this.value})" style="margin:0;font-size:12px;min-width:180px"></td>
       <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" class="sm" style="background:#25d366;color:#000;text-decoration:none;padding:5px 8px;border-radius:7px;font-weight:700;font-size:11px">WhatsApp</a>`:''}</td>
     </tr>`;};
-  let h=`<div class="card"><h2 style="margin-top:0">Clientes (CRM)</h2>
-    <div class="muted" style="font-size:12px;margin-bottom:10px">Todos tus clientes activos, con lo que la app sabe sola (inicio, fotos, medidas, pago) + tus campos editables (producto, objetivo, observaciones, renovación, fin de plan). <b>Toca el nombre</b> para abrir su ficha. Se guarda al salir de cada campo.</div>
+  let h=`<div class="card"><h2 style="margin-top:0">Planilla de clientes (CRM) · seguimiento y renovaciones</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">Planilla de todos tus clientes activos: lo que la app sabe sola (inicio, fotos, medidas, pago) + tus campos editables (producto, objetivo, observaciones, renovación, fin de plan). Distinta de la pestaña <b>Clientes</b> (esa es la cola de atención del día). <b>Toca el nombre</b> para abrir su ficha. Se guarda al salir de cada campo.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${kpi(nTot,'Clientes')}${kpi(nAct,'Activos','var(--ok)')}${kpi(nFotoV,'Fotos vencidas','var(--rojo2)')}${kpi(nRen,'Renov. ≤7 días','var(--warn)')}
       <span style="flex:1"></span>
       <input id="crm_q" placeholder="Buscar…" value="${esc((($("crm_q")&&$("crm_q").value)||''))}" oninput="clearTimeout(window._crmT);window._crmT=setTimeout(verCRM,300)" style="margin:0;width:160px">
