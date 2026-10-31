@@ -10791,6 +10791,11 @@ function oriRender(){
           <option value="organico">Orgánico</option>
           <option value="pauta">Pauta</option>
         </select></span></div>
+      <div class="finF" style="grid-column:1/-1"><label for="opMeta">¿Es pauta de Meta (Instagram/Facebook)?</label>
+        <span class="finWrap" style="display:flex;align-items:center;gap:9px;padding:9px 12px">
+          <input type="checkbox" id="opMeta" onchange="oriMetaToggle()" style="width:18px;height:18px;margin:0;flex:0 0 auto">
+          <span class="muted" style="font-size:12px">Al activarlo, el enlace lleva los macros de Meta (campaña, anuncio y ad_id). Meta los rellena solos por anuncio, así cada creativo queda etiquetado sin trabajo. Pega este enlace en el campo "URL del sitio web" del anuncio.</span>
+        </span></div>
       <div class="finF"><label for="opRed">Dónde se publica</label>
         <span class="finWrap"><input id="opRed" placeholder="Instagram · bio" style="padding-right:12px" /></span></div>
       <div class="finF" style="grid-column:1/-1"><label for="opUrl">Enlace de la publicación (opcional)</label>
@@ -10810,13 +10815,21 @@ function oriRender(){
   $("v-embudo").innerHTML=h;
 }
 
+// Macros de Meta: los rellena Meta por anuncio. Van LITERALES (sin codificar) en la URL.
+// ad_id + utm_medium=paid_social hacen que captar.py marque el lead como es_pauta solo.
+const META_MACROS='&utm_source=ig&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&ad_id={{ad.id}}';
+function oriEsMeta(){ const e=$("opMeta"); return !!(e&&e.checked); }
 function oriEnlace(){
   const c=($("opCodigo")||{}).value||'';
   const limpio=c.trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');
-  return limpio?URL_FORM+'?a='+limpio:URL_FORM;
+  const meta=oriEsMeta();
+  const base=limpio?('?a='+limpio):(meta?'?a=meta':'');
+  return URL_FORM+base+(meta?META_MACROS:'');
 }
 function oriPreview(){ const e=$("opPreview"); if(e)e.textContent=oriEnlace(); }
-function oriLimpiar(){ ['opCodigo','opNombre','opRed','opUrl'].forEach(i=>{const e=$(i);if(e)e.value='';}); oriPreview(); const m=$("opMsg"); if(m)m.textContent=''; }
+// Al marcar pauta de Meta, el tráfico es pauta sí o sí.
+function oriMetaToggle(){ if(oriEsMeta()){ const t=$("opTipo"); if(t)t.value='pauta'; } oriPreview(); }
+function oriLimpiar(){ ['opCodigo','opNombre','opRed','opUrl'].forEach(i=>{const e=$(i);if(e)e.value='';}); const mt=$("opMeta"); if(mt)mt.checked=false; oriPreview(); const m=$("opMsg"); if(m)m.textContent=''; }
 
 // Rellena el formulario con una pieza que ya existe, para renombrarla o reclasificarla.
 function oriEditar(codigo){
@@ -10839,8 +10852,9 @@ async function oriGuardar(){
   if(!codigo){if(m){m.textContent='Falta el código del enlace.';m.style.color='var(--warn)';}return;}
   if(!v('opNombre')){if(m){m.textContent='Ponle un nombre a la publicación.';m.style.color='var(--warn)';}return;}
   if(m){m.textContent='Guardando…';m.style.color='';}
-  const enlace=URL_FORM+'?a='+codigo;
-  const r=await embCall('pieza_guardar',{fila:{codigo:codigo,nombre:v('opNombre'),tipo:v('opTipo')||'organico',red:v('opRed'),url:v('opUrl')}});
+  const enlace=oriEnlace();
+  const tipo=oriEsMeta()?'pauta':(v('opTipo')||'organico');
+  const r=await embCall('pieza_guardar',{fila:{codigo:codigo,nombre:v('opNombre'),tipo:tipo,red:oriEsMeta()?(v('opRed')||'Meta Ads'):v('opRed'),url:v('opUrl')}});
   if(r.error){if(m){m.textContent='No se guardó: '+r.error.message;m.style.color='var(--rojo2)';}return;}
   try{ await navigator.clipboard.writeText(enlace); }catch(e){}
   ORI=null;await cargarOrigen();oriRender();
