@@ -21,12 +21,12 @@
   input,select,button,textarea{font-size:14px;font-family:inherit}
   input,select,textarea{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--txt);border-radius:var(--rsm);padding:9px 11px;margin:4px 0;transition:border-color .15s,box-shadow .15s}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rojo);box-shadow:0 0 0 3px var(--rojoSoft)}
-  button{background:var(--rojo);color:#fff;border:0;border-radius:var(--rsm);padding:10px 14px;min-height:40px;cursor:pointer;font-weight:700;letter-spacing:.1px;transition:filter .15s,transform .05s}
+  button{background:var(--rojo);color:#fff;border:0;border-radius:var(--rsm);padding:11px 15px;min-height:44px;cursor:pointer;font-weight:700;letter-spacing:.1px;transition:filter .15s,transform .05s}
   button:hover{filter:brightness(1.08)}button:active{transform:translateY(1px)}
   button.ghost{background:transparent;border:1px solid var(--line2);color:var(--txt);font-weight:600}
   button.ghost:hover{background:rgba(255,255,255,.04);border-color:var(--muted);filter:none}
-  button.sm{padding:8px 11px;font-size:12px;min-height:36px}
-  a.ghost,a.sm{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;background:transparent;border:1px solid var(--line2);color:var(--txt);font-weight:600;border-radius:var(--rsm);padding:8px 11px;font-size:12px;min-height:36px;cursor:pointer;transition:background .15s,border-color .15s}
+  button.sm{padding:9px 12px;font-size:12px;min-height:40px}
+  a.ghost,a.sm{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;background:transparent;border:1px solid var(--line2);color:var(--txt);font-weight:600;border-radius:var(--rsm);padding:9px 12px;font-size:12px;min-height:40px;cursor:pointer;transition:background .15s,border-color .15s}
   a.ghost:hover,a.sm:hover{background:rgba(255,255,255,.04);border-color:var(--muted)}
   .row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:110px}
   .fila{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)}
@@ -573,7 +573,7 @@ async function verPagos(){
   const pe=t.por_estado||{},pt=t.por_tier||{};
   const pill=(txt,col)=>`<span class="pill" style="background:${col||'var(--card2)'};font-weight:700">${txt}</span>`;
   const salud=(m.se_renuevan>0&&(m.contradicen||0)===0&&(r.store_cobro_vencido||0)===0);
-  let h=`<div class="card" style="border:1px solid ${salud?'var(--ok)':'var(--warn)'}">
+  let h=`<div class="card" data-pg="resumen" style="border:1px solid ${salud?'var(--ok)':'var(--warn)'}">
     <h2 style="margin-top:0">Pagos y suscripciones ${salud?'<span style="color:var(--ok);font-size:13px">· funcionando</span>':'<span style="color:var(--warn);font-size:13px">· revisar</span>'}</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Cruce en vivo con RevenueCat (verificador de los pagos de Apple/Google). Generado ${esc((data.generado||'').replace('T',' ').slice(0,16))}. <button class="sm ghost" onclick="verPagos()">Volver a verificar</button></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${pill('Total '+(t.total||0))}${pill('Activas '+(pe.activa||0),'rgba(95,208,127,.16)')}${pill('Vencidas '+(pe.vencido||0),'rgba(226,59,59,.12)')}</div>
@@ -582,7 +582,7 @@ async function verPagos(){
   // Salud de accesos: nadie que pagó debe quedar en el paywall. Vista persistente del
   // reconciliador (RevenueCat→DB). Corre solo al abrir la consola + cron cada 3 h; aquí se
   // fuerza y se ve a quién reactivó (caso "pagué y no me deja entrar", ej. Valentina).
-  h+=`<div class="card"><h2 style="margin-top:0">Salud de accesos</h2>
+  h+=`<div class="card" data-pg="resumen"><h2 style="margin-top:0">Salud de accesos</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Reconcilia RevenueCat con la base y <b>activa a quien pagó y quedó atascado en el paywall</b>. Corre solo al abrir la consola y cada 3 h automáticamente. Fuérzalo aquí cuando alguien diga "pagué y no me deja entrar".</div>
     <button class="sm" onclick="reconciliarAhora(this)">Reconciliar ahora</button> <span id="reconMsg" class="muted" style="font-size:12px"></span>
     <div id="reconLista" style="margin-top:8px"></div></div>`;
@@ -593,7 +593,7 @@ async function verPagos(){
   const segChip=(k)=>`<span class="pill" style="background:var(--card2);font-weight:700">${SM[k].e} ${SM[k].t}: ${seg.conteo[k]||0}</span>`;
   const segOpts=(cur)=>['','mentoria','app','prueba','cortesia','vencido'].map(v=>`<option value="${v}"${v===cur?' selected':''}>${v?SM[v].e+' '+SM[v].t:'(auto)'}</option>`).join('');
   const filaSeg=(x)=>`<tr${x.revisar?' style="background:rgba(226,59,59,.06)"':''}><td><b>${esc(x.nombre)}</b>${x.revisar?' <span title="Mentoría sin Stripe o sin clasificar" style="color:var(--rojo)">revisar</span>':''}${x.override?' <span title="Fijado a mano" class="muted">fijado</span>':''}</td><td class="muted" style="font-size:11px">${esc(x.tier||'—')}${x.seg==='mentoria'?(x.stripe?(' · Stripe: '+esc(x.stripe_estado||'✓')):' · <span style="color:var(--rojo)">sin Stripe</span>'):''}</td><td class="muted" style="font-size:11px">${esc(x.prox_cobro||'—')}</td><td><select class="sm" onchange="guardarSegmento('${x.user_id}',this.value)">${segOpts(x.override||'')}</select></td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`;
-  let segH=`<div class="card"><h2 style="margin-top:0">Segmentos de servicio</h2>
+  let segH=`<div class="card" data-pg="segmentos"><h2 style="margin-top:0">Segmentos de servicio</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Quién paga <b>Mentoría</b> (reuniones + acompañamiento) vs <b>App</b> (soporte por WhatsApp). La etiqueta se deduce sola de la suscripción; puedes <b>fijarla a mano</b> con el selector para casos raros (ej. mentoría pagada por fuera sin Stripe). "revisar" = requiere revisión · "fijado" = etiqueta puesta a mano.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${gruposSeg.map(segChip).join('')}</div>`;
   const mrr=seg.mrr||{};
@@ -610,14 +610,14 @@ async function verPagos(){
   const pruebas=(seg.lista||[]).filter(x=>x.seg==='prueba');
   const diasRest=(tf)=>{if(!tf)return null;const d=Math.ceil((new Date(tf)-new Date())/864e5);return d;};
   const guionVenta=(nom)=>`Hola ${nom}, ¿cómo vas con la prueba de Músculo al Máximo? Cuéntame qué te ha parecido. Si quieres seguir con tu plan, rutina y seguimiento sin interrupción, actívala aquí y no pierdes tu progreso`;
-  let prH=`<div class="card" style="border:1px solid ${pruebas.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Prueba 7 días — a convertir ${pruebas.length?`<span class="pill" style="background:rgba(224,184,74,.18);color:var(--warn);font-weight:700">${pruebas.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ninguno</span>'}</h2>`;
+  let prH=`<div class="card" data-pg="cobrar" style="border:1px solid ${pruebas.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Prueba 7 días — a convertir ${pruebas.length?`<span class="pill" style="background:rgba(224,184,74,.18);color:var(--warn);font-weight:700">${pruebas.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ninguno</span>'}</h2>`;
   if(pruebas.length){
     prH+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Estas personas están en prueba. La idea es <b>venderles la app</b> antes de que venza. Ordenadas por menos días restantes.</div>`;
     const conD=pruebas.map(x=>({...x,_d:diasRest(x.trial_fin)})).sort((a,b)=>(a._d==null?999:a._d)-(b._d==null?999:b._d));
     prH+=`<table><tr><th>Cliente</th><th>Días restantes</th><th></th></tr>`+conD.map(x=>{const nom=(x.nombre||'').split(' ')[0]||'';const wl=x.telefono?waLink(x.telefono,guionVenta(nom)):null;const dtxt=x._d==null?'—':(x._d<0?`<span style="color:var(--rojo)">vencida hace ${-x._d}d</span>`:`<b style="color:${x._d<=2?'var(--rojo)':'var(--warn)'}">${x._d}d</b>`);return `<tr><td><b>${esc(x.nombre)}</b></td><td>${dtxt}</td><td style="display:flex;gap:6px">${wl?`<a href="${wl}" target="_blank" class="btnLink" style="background:#25d366;color:#000">WhatsApp</a>`:'<span class="muted" style="font-size:11px">sin tel.</span>'}<button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`;}).join('')+`</table>`;
   } else prH+=`<div class="muted" style="font-size:12px">No hay nadie en prueba ahora.</div>`;
   prH+=`</div>`;h+=prH;
-  h+=`<div class="card"><h2 style="margin-top:0">Recurrentes (tiers de tienda)</h2>
+  h+=`<div class="card" data-pg="recurrencia"><h2 style="margin-top:0">Recurrentes (tiers de tienda)</h2>
     <table class="kv"><tbody>
       <tr><th>Activas de tienda (pagan por Apple/Google)</th><td><b>${r.activas_de_tienda||0}</b></td></tr>
       <tr><th>Con próximo cobro agendado</th><td>${r.con_proximo_cobro||0}</td></tr>
@@ -629,7 +629,7 @@ async function verPagos(){
   // Roster completo: quién tiene recurrencia activa y quién no (todos los clientes).
   const ros=data.roster||{},rr=data.resumen_roster||{};
   const listaR=(titulo,arr,col)=>{if(!arr||!arr.length)return '';return `<details style="margin-bottom:6px"><summary style="cursor:pointer;font-weight:700;color:${col||'var(--txt)'}">${titulo} (${arr.length})</summary><table style="margin-top:4px"><tr><th>Cliente</th><th>Tier</th><th>Próx. cobro / motivo</th></tr>${arr.map(x=>`<tr><td>${esc(x.nombre||'')}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted" style="font-size:11px">${esc(x.motivo||x.prox_cobro||'—')}</td></tr>`).join('')}</table></details>`;};
-  h+=`<div class="card"><h2 style="margin-top:0">Recurrencia por cliente (${rr.total_clientes||0} clientes)</h2>
+  h+=`<div class="card" data-pg="recurrencia"><h2 style="margin-top:0">Recurrencia por cliente (${rr.total_clientes||0} clientes)</h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Quién tiene suscripción recurrente activa (Apple/Google les cobra solo) y quién no.</div>
     ${listaR('Recurrente automática (Apple/Google les cobra solo)',ros.recurrente_activa,'var(--ok)')}
     ${listaR('Activa pero NO se auto-renueva (se va a caer)',ros.activa_no_recurrente,'var(--warn)')}
@@ -639,24 +639,34 @@ async function verPagos(){
     ${listaR('Sin fila de suscripción',ros.sin_suscripcion,'var(--rojo)')}
   </div>`;
   const at=data.atencion||[];
-  h+=`<div class="card" style="border:1px solid ${at.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Requieren atención (pagos no al día) ${at.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${at.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ninguno</span>'}</h2>`;
+  h+=`<div class="card" data-pg="cobrar" style="border:1px solid ${at.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Requieren atención (pagos no al día) ${at.length?`<span class="pill" style="background:rgba(202,161,74,.18);color:var(--warn);font-weight:700">${at.length}</span>`:'<span style="color:var(--ok);font-size:13px">· ninguno</span>'}</h2>`;
   if(at.length){
     h+=`<div class="muted" style="font-size:12px;margin-bottom:8px">Clientes de tienda con suscripción vencida o cobro pendiente. Contáctalos para regularizar. (Fundador/gratis/mentoría no salen: no pagan por Apple.)</div>`;
     h+=`<table><tr><th>Cliente</th><th>Motivo</th><th>Tier</th><th>Próx. cobro</th><th></th></tr>`+at.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td style="color:var(--warn)">${esc(x.motivo)}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted">${esc(x.prox_cobro||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`).join('')+`</table>`;
   } else h+=`<div class="muted" style="font-size:12px">Todos los pagos de tienda están al día. ✓</div>`;
   h+=`</div>`;
   const nr=m.no_renuevan||[];
-  h+=`<div class="card" style="border:1px solid ${nr.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Recurrencia verificada 100% con RevenueCat</h2>
+  h+=`<div class="card" data-pg="recurrencia" style="border:1px solid ${nr.length?'var(--warn)':'var(--ok)'}"><h2 style="margin-top:0">Recurrencia verificada 100% con RevenueCat</h2>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pill('Verificadas '+(m.verificados||0))}${pill('Se renuevan '+(m.se_renuevan||0),'rgba(95,208,127,.16)')}${pill('Problema de cobro '+(m.con_problema_de_cobro||0),(m.con_problema_de_cobro||0)?'rgba(226,59,59,.12)':'var(--card2)')}${pill('Contradicen '+(m.contradicen||0),(m.contradicen||0)?'rgba(226,59,59,.12)':'var(--card2)')}</div>`;
   if(nr.length){
     h+=`<div class="muted" style="font-size:12px;margin-bottom:6px"><b style="color:var(--warn)">Estas NO se van a cobrar el próximo mes</b> (auto-renovación apagada por el cliente, o problema de cobro). Contáctalos para que la reactiven en su tienda — <b>ni la app ni nosotros podemos forzar la auto-renovación de Apple/Google</b>, solo el cliente.</div>`;
     h+=`<table><tr><th>Cliente</th><th>Motivo</th><th>Tier</th><th>Caduca</th><th></th></tr>`+nr.map(x=>`<tr><td><b>${esc(x.nombre)}</b></td><td style="color:var(--warn)">${esc(x.motivo)}</td><td class="muted">${esc(x.tier||'—')}</td><td class="muted">${esc(x.expira||'—')}</td><td><button class="sm ghost" onclick="tab('clientes');verCliente('${x.user_id}')">Abrir →</button></td></tr>`).join('')+`</table>`;
   } else h+=`<div style="color:var(--ok);font-size:12px">Todas las suscripciones activas de tienda se auto-renuevan sin fallas.</div>`;
   h+=`</div>`;
-  h+=`<div class="card"><h2 style="margin-top:0">Detalle de verificación</h2>
+  h+=`<div class="card" data-pg="recurrencia"><h2 style="margin-top:0">Detalle de verificación</h2>
     <div class="muted" style="font-size:11px;margin-bottom:6px">Cada suscripción activa de tienda contra RevenueCat.</div>
     <div style="border-top:1px solid var(--line);padding-top:8px"><b style="font-size:13px">Diagnóstico</b><ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;line-height:1.6">${(data.diagnostico||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
-  $("v-pagos").innerHTML=h;
+  // Sub-pestañas: agrupan las ~9 tarjetas para no scrollear todo. Cada tarjeta trae
+  // data-pg; el nav las muestra/oculta. PAG_SUB recuerda la elegida tras re-render.
+  const pgSecs=[['resumen','Resumen'],['segmentos','Segmentos'],['cobrar','Por cobrar'],['recurrencia','Recurrencia']];
+  const nav=`<div id="pagNav" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0">${pgSecs.map(s=>`<button class="sm ghost" data-pgtab="${s[0]}" onclick="pagSub('${s[0]}')">${s[1]}</button>`).join('')}</div>`;
+  $("v-pagos").innerHTML=nav+'<div id="pagBody">'+h+'</div>';
+  pagSub(PAG_SUB||'resumen');
+}
+let PAG_SUB='resumen';
+function pagSub(k){PAG_SUB=k;
+  document.querySelectorAll('#pagBody [data-pg]').forEach(el=>{el.style.display=(el.getAttribute('data-pg')===k)?'':'none';});
+  document.querySelectorAll('#pagNav [data-pgtab]').forEach(b=>{b.classList.toggle('ghost',b.getAttribute('data-pgtab')!==k);});
 }
 // Fija (o quita, con '') el segmento de servicio de un cliente a mano. Manda sobre el derivado.
 async function guardarSegmento(uid,segv){
@@ -1593,7 +1603,12 @@ async function segRegistrarDecision(){
 // calculado en CLIENTES + 2 consultas livianas). Cada número lleva a su pestaña.
 async function verResumen(){
   const cont=$("v-resumen");if(!cont)return;
-  if(!CLIENTES||!CLIENTES.length){cont.innerHTML='<div class="card muted" style="padding:14px">Cargando…</div>';return;}
+  // Auto-reintento: si CLIENTES aún no cargó, reintenta solo (hasta 12s) mientras la
+  // pestaña siga visible, en vez de quedarse pegado en "Cargando…" para siempre.
+  if(!CLIENTES||!CLIENTES.length){cont.innerHTML='<div class="card muted" style="padding:14px">Cargando…</div>';
+    if((verResumen._try=(verResumen._try||0)+1)<=20) setTimeout(()=>{const v=$("v-resumen");if(v&&!v.classList.contains("hide"))verResumen();},600);
+    return;}
+  verResumen._try=0;
   const STORE=new Set(['publico','publico_anual','programa']);
   const total=CLIENTES.length;
   const pagando=CLIENTES.filter(c=>pagoInfo(c).pagando).length;
@@ -3040,7 +3055,7 @@ async function verRecordatorios(){
     const badge=r.nota.length?`<span class="pill" style="background:var(--rojo);color:#fff;font-weight:700;font-size:10px;padding:1px 6px;margin-left:6px">${r.nota.length}</span>`:'';
     h+=`<tr style="${at?'opacity:.45':''}">
       <td style="white-space:nowrap"><a href="#" onclick="tab('clientes');verCliente('${r.c.user_id}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:700;text-decoration:none">${esc(r.c.nombre||'—')}</a>${r.pr.sexo==='F'?' <span class="muted" style="font-size:10px">mujer</span>':''}${badge}</td>
-      <td style="font-size:12px">${r.sen.map(s=>esc(s)).join(' · ')||'—'}</td>
+      <td>${r.sen.length?r.sen.map(s=>`<span class="pill" style="background:var(--card2);font-size:11px;font-weight:600;margin:2px 4px 2px 0;display:inline-block">${esc(s)}</span>`).join(''):'<span class="muted" style="font-size:12px">—</span>'}</td>
       <td style="font-size:12px">${r.nota.length?`<span style="color:var(--warn)">${r.nota.map(esc).join('; ')}</span>`:'<span class="muted">Sin novedades. Check-in general.</span>'}</td>
       <td style="white-space:nowrap">${wl?`<a href="${wl}" target="_blank" style="color:#25d366;font-weight:700;text-decoration:none">WhatsApp →</a>`:'<span class="muted" style="font-size:11px">Sin teléfono</span>'} <button class="sm ghost" onclick="copiarMsg(this,${JSON.stringify(r.wa).replace(/"/g,'&quot;')})" title="Copiar mensaje" style="margin:0;padding:3px 7px">Copiar</button></td>
       <td style="white-space:nowrap;text-align:center"><button class="sm ${at?'':'ghost'}" onclick="atToggle('${r.c.user_id}')" style="margin:0;padding:3px 8px" title="${at?'Marcar como pendiente':'Marcar como atendido hoy'}">${at?'✓ Atendido':'Atendido'}</button></td>
@@ -6665,10 +6680,12 @@ async function borrarEjercicio(id){
   if(!data||!data.borrados){alert('No se encontró el ejercicio para borrar.');return;}
   EJ=EJ.filter(x=>String(x.id)!==String(id));buildEjUnicos();renderEj();
 }
-async function editVid(id){
-  const e=EJ.find(x=>String(x.id)===String(id));const url=prompt("Enlace de YouTube para "+cap(e.nombre),e.video_url||"");if(url===null)return;
-  const {data,error}=await invokeFn("consola-rutina",{body:{action:'editar_ejercicio',id:id,campos:{video_url:url.trim()||null}}});
-  if(error||(data&&data.error)){alert((data&&data.error)||error.message);return;}e.video_url=url.trim()||null;buildEjUnicos();verEjercicios();
+// Antes abría un prompt() nativo para el link. Ahora abre el editor en línea del
+// ejercicio y lleva el foco al campo de video (mismo formulario que "Editar", con
+// opción de pegar enlace o subir archivo). Sin prompt ni alert.
+function editVid(id){
+  EJ_EDIT=String(id); renderEj();
+  setTimeout(()=>{const v=$("ee_vid"); if(v){v.focus(); if(v.scrollIntoView)v.scrollIntoView({behavior:'smooth',block:'center'});}},60);
 }
 
 // PARTE 4b: Alimentos base (catálogo oficial MAM · guía de alimentación)
@@ -6950,13 +6967,17 @@ async function verComunidad(){
     sb.from("intentos").select("user_id,puntos"),
   ]);
   if(rec.error||pts.error||intt.error){$("v-comunidad").innerHTML='<div class="alert" style="margin:14px">No se pudo cargar la comunidad. Revisa tu conexión o vuelve a entrar.</div>';return;}
-  const perfiles={};(await sb.from("perfiles").select("user_id,nombre")).data?.forEach(p=>perfiles[p.user_id]=p.nombre);
+  // Traemos también el teléfono para felicitar por WhatsApp directo desde aquí.
+  const perf={};(await sb.from("perfiles").select("user_id,nombre,telefono")).data?.forEach(p=>perf[p.user_id]={n:p.nombre,t:p.telefono});
+  const nomDe=u=>(perf[u]&&perf[u].n)||u.slice(0,8);
   const rc={};(rec.data||[]).forEach(r=>rc[r.owner]=(rc[r.owner]||0)+1);
   const topRec=Object.entries(rc).sort((a,b)=>b[1]-a[1]).slice(0,10);
   const pp={};(intt.data||[]).forEach(i=>pp[i.user_id]=(pp[i.user_id]||0)+(i.puntos||0));(pts.data||[]).forEach(p=>pp[p.user_id]=Math.max(pp[p.user_id]||0,p.total||0));
   const topPts=Object.entries(pp).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  const tabla=(arr,unidad)=>arr.length?`<table>${arr.map(([u,n],i)=>`<tr><td>${i+1}. <a href="#" onclick="tab('clientes');verCliente('${u}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:600;text-decoration:none">${esc(perfiles[u]||u.slice(0,8))}</a></td><td><b>${n}</b> ${unidad}</td></tr>`).join("")}</table>`:'<div class="muted">Sin datos aún.</div>';
-  $("v-comunidad").innerHTML=`<div class="card"><h2 style="margin-top:0">Top recetas subidas</h2>${tabla(topRec,"recetas")}</div><div class="card"><h2 style="margin-top:0">Top puntos (juego de adivinar)</h2>${tabla(topPts,"pts")}</div><div class="card muted">Toca el nombre de quien más aporta para abrir su ficha y reconocerlo (mensaje por WhatsApp desde Recordatorios/Acceso).</div>`;
+  // Botón "Felicitar": abre WhatsApp con un mensaje de reconocimiento ya escrito.
+  const felicitar=(u)=>{const tel=perf[u]&&perf[u].t;if(!tel)return'<span class="muted" style="font-size:11px">sin tel.</span>';const nom=((perf[u]&&perf[u].n)||'').split(' ')[0]||'';const msg=`Hola ${nom}, eres de los que más aporta en la comunidad de Músculo al Máximo. Gracias de verdad, eso le suma a todos. Sigue así.`;return `<a href="${waLink(tel,msg)}" target="_blank" rel="noopener" class="sm" style="background:#25d366;color:#0a0a0e;font-weight:700;text-decoration:none">Felicitar</a>`;};
+  const tabla=(arr,unidad)=>arr.length?`<table>${arr.map(([u,n],i)=>`<tr><td>${i+1}. <a href="#" onclick="tab('clientes');verCliente('${u}');window.scrollTo(0,0);return false" style="color:var(--txt);font-weight:600;text-decoration:none">${esc(nomDe(u))}</a></td><td><b>${n}</b> ${unidad}</td><td style="text-align:right">${felicitar(u)}</td></tr>`).join("")}</table>`:'<div class="muted">Sin datos aún.</div>';
+  $("v-comunidad").innerHTML=`<div class="card"><h2 style="margin-top:0">Top recetas subidas</h2>${tabla(topRec,"recetas")}</div><div class="card"><h2 style="margin-top:0">Top puntos (juego de adivinar)</h2>${tabla(topPts,"pts")}</div><div class="card muted">Toca el nombre para abrir su ficha, o "Felicitar" para reconocerlo por WhatsApp al instante.</div>`;
 }
 
 // PARTE 8: Sugerencias agrupadas
