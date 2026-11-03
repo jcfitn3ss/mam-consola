@@ -383,7 +383,7 @@ const TECNICAS=[["normal","Normal"],["biserie","Biserie"],["triserie","Triserie"
 const GRUPOS=["Cuádriceps","Femoral/Glúteo","Pecho","Espalda","Hombro","Bíceps","Tríceps","Core","Pantorrilla","Cuello","Dorsal","Aductores","Abductores"];
 const EQUIPOS=["Barra","Mancuernas","Máquina","Polea","Banda","Kettlebell","Peso corporal"];
 const VOL={"Cuádriceps":[8,16,20],"Femoral/Glúteo":[6,14,18],"Pecho":[8,16,22],"Espalda":[10,18,22],"Hombro":[8,16,22],"Bíceps":[6,14,20],"Tríceps":[6,14,18],"Core":[0,12,16],"Pantorrilla":[8,12,18],"Cuello":[4,6,10],"Dorsal":[2,3,4],"Aductores":[2,3,4],"Abductores":[2,3,4]};
-let MIID=null,MI_PRINCIPAL=false,MI_SETTER=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],EJU=[],CANON={},RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null;
+let MIID=null,MI_PRINCIPAL=false,MI_SETTER=false,CLIENTES=[],TODOS=[],SEL=null,EJ=[],EJU=[],CANON={},RUT=null,REGALIM=[],RECETA=[],RECUID=null,IMPORT_DIAS=null,IMPORT_UNIQ=[],IMPORT_EXIST=[];
 let CONTACTAR_TODOS=false; // false = solo pendientes de esta semana; true = incluye ya contactados
 let CU_GRUPO=''; // filtro de grupo del CRM unificado (Contactar)
 let CU_SINCLI=true; // Contactar: ocultar clientes (Miguel contacta prospectos, no clientes)
@@ -6038,7 +6038,9 @@ async function procesarImport(cli,texto){
   const {data,error}=await invokeFn("rutina-import",{body:{texto}});
   if(error||(data&&data.error)){$("impMsg").textContent="Error: "+((data&&data.error)||error.message);return;}
   IMPORT_DIAS=data.dias||[];
-  $("impMsg").textContent=(data.nota?esc(data.nota)+" · ":"")+IMPORT_DIAS.length+" día(s) detectado(s). Revisa la vista previa y guarda.";
+  $("impMsg").textContent="Emparejando ejercicios con tu catálogo…";
+  await prepararImportUnicos();
+  $("impMsg").textContent=(data.nota?esc(data.nota)+" · ":"")+IMPORT_DIAS.length+" día(s). Revisa el emparejado (reusar vs crear) y guarda.";
   renderImportPrev(cli);
 }
 async function importarRutina(cli){
@@ -6071,6 +6073,33 @@ async function importarLink(cli){
     await procesarImport(cli,texto);
   }catch(e){$("impMsg").innerHTML=`No pude leer el enlace (${esc(e.message)}). Si es de Google Drive, ábrelo, <b>descárgalo</b> y súbelo con "Elegir archivo" (o pega el texto). Muchos enlaces bloquean la descarga directa desde el navegador.`;}
 }
+// ===== Emparejado de ejercicios al importar (evita duplicados; crear nuevo = último recurso) =====
+// Antes el import creaba un ejercicio por cualquier variante mínima (acento, plural, "de/con",
+// orden de palabras) porque emparejaba por nombre exacto. Ahora: normaliza fuerte + similitud
+// difusa contra el catálogo del entrenador (propios + base) y PROPONE reusar; crear es la
+// última opción y el entrenador lo confirma en la vista previa. Así no entran ejercicios de más.
+const _ejNorm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+const _EJ_STOP=new Set(['de','del','con','la','el','los','las','en','para','a','y','o','por','un','una','al','sobre']);
+const _ejToks=s=>_ejNorm(s).split(' ').filter(w=>w&&!_EJ_STOP.has(w)).map(w=>(w.length>3&&w.endsWith('s'))?w.slice(0,-1):w);
+const _ejCanon=s=>_ejToks(s).slice().sort().join(' ');
+function _ejLev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;const dp=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let prev=dp[0];dp[0]=i;for(let j=1;j<=n;j++){const t=dp[j];dp[j]=Math.min(dp[j]+1,dp[j-1]+1,prev+(a.charCodeAt(i-1)===b.charCodeAt(j-1)?0:1));prev=t;}}return dp[n];}
+function _ejSim(a,b){const ca=_ejCanon(a),cb=_ejCanon(b);if(ca&&ca===cb)return 1;const ta=_ejToks(a),tb=new Set(_ejToks(b));let inter=0;ta.forEach(x=>{if(tb.has(x))inter++;});const uni=new Set([..._ejToks(a),..._ejToks(b)]).size||1;const jac=inter/uni;const na=_ejNorm(a),nb=_ejNorm(b);const lr=1-_ejLev(na,nb)/Math.max(na.length,nb.length,1);return Math.max(jac,0.55*jac+0.45*lr);}
+async function prepararImportUnicos(){
+  IMPORT_UNIQ=[];IMPORT_EXIST=[];
+  // Catálogo visible para reusar: los del entrenador + los base (entrenador_id nulo). No los de otros.
+  const {data:ex}=await sb.from("ejercicios").select("id,nombre,grupo").or('entrenador_id.is.null,entrenador_id.eq.'+MIID);
+  IMPORT_EXIST=ex||[];
+  const seen={};
+  (IMPORT_DIAS||[]).forEach(d=>(d.ejercicios||[]).forEach(e=>{
+    const key=_ejNorm(e.nombre);if(!key||seen[key])return;seen[key]=1;
+    const todos=IMPORT_EXIST.map(x=>({id:x.id,nombre:x.nombre,grupo:x.grupo,sim:_ejSim(e.nombre,x.nombre)})).sort((a,b)=>b.sim-a.sim);
+    let cand=todos.filter(c=>c.sim>=0.30).slice(0,8); if(!cand.length)cand=todos.slice(0,5);
+    const top=cand[0];
+    // Reusar por defecto si hay un match sólido (>=0.45). Si no, queda "crear nuevo" (último recurso),
+    // pero igual mostramos existentes para que el entrenador prefiera reusar.
+    IMPORT_UNIQ.push({key,nombre:(e.nombre||'').trim(),grupo:e.grupo,rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir,cand,sel:(top&&top.sim>=0.45)?top.id:'__new__'});
+  }));
+}
 function renderImportPrev(cli){
   if(!IMPORT_DIAS||!IMPORT_DIAS.length){$("impPrev").innerHTML="";return;}
   let h="";
@@ -6079,40 +6108,53 @@ function renderImportPrev(cli){
     (d.ejercicios||[]).forEach(e=>{ h+=`<div class="fila"><span>${esc(e.nombre)}</span><span class="muted">${e.series}x ${e.rep_min}-${e.rep_max} · RIR ${e.rir}${e.tecnica&&e.tecnica!=='normal'?' · '+esc(e.tecnica):''}</span></div>`; });
     h+=`</div>`;
   });
-  h+=`<button onclick="guardarRutinaImport('${cli}')">Guardar esta rutina para el cliente</button> <span id="impSave" class="muted"></span>
-     <div class="muted" style="font-size:11px;margin-top:6px">Al guardar se crean los ejercicios y se reemplaza la rutina actual del cliente. Podrás afinar todo abajo en "Editar rutina".</div>`;
+  const nNew=IMPORT_UNIQ.filter(u=>u.sel==='__new__').length;
+  const nReuse=IMPORT_UNIQ.length-nNew;
+  h+=`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:10px">
+    <b style="font-size:14px">Emparejar ejercicios con tu catálogo</b>
+    <div class="muted" style="font-size:11.5px;margin:4px 0 8px">Primero intenta <b>reusar</b> el que ya tienes. <b>Crear nuevo es el último recurso</b> (queda de última en cada lista). Revisa antes de guardar.</div>
+    <div style="font-size:12px;margin-bottom:8px">Reusarán existente: <b style="color:var(--ok)">${nReuse}</b> · Se crearán nuevos: <b style="color:${nNew?'var(--warn)':'var(--ok)'}">${nNew}</b></div>`;
+  IMPORT_UNIQ.forEach((u,i)=>{
+    const opts=u.cand.map(c=>`<option value="${c.id}"${u.sel===c.id?' selected':''}>${esc(cap(c.nombre))} · ${esc(c.grupo||'')} (${Math.round(c.sim*100)}%)</option>`).join('')
+      +`<option value="__new__"${u.sel==='__new__'?' selected':''}>Crear nuevo: "${esc(u.nombre)}"</option>`;
+    const esNew=u.sel==='__new__';
+    h+=`<div class="fila" style="gap:8px;align-items:center">
+      <span style="flex:0 0 42%">${esc(u.nombre)}</span>
+      <select id="imp_sel_${i}" onchange="IMPORT_UNIQ[${i}].sel=this.value;renderImportPrev('${cli}')" style="flex:1;margin:0${esNew?';border-color:var(--warn)':''}">${opts}</select>
+    </div>`;
+  });
+  h+=`</div>`;
+  h+=`<button onclick="guardarRutinaImport('${cli}')" style="margin-top:10px">Guardar esta rutina para el cliente</button> <span id="impSave" class="muted"></span>
+     <div class="muted" style="font-size:11px;margin-top:6px">Se reemplaza la rutina actual del cliente. Solo se crean los marcados como "Crear nuevo". Podrás afinar todo abajo en "Editar rutina".</div>`;
   $("impPrev").innerHTML=h;
 }
 async function guardarRutinaImport(cli){
   if(!IMPORT_DIAS||!IMPORT_DIAS.length)return;
+  // Releer la decisión de cada ejercicio (reusar existente o crear nuevo).
+  IMPORT_UNIQ.forEach((u,i)=>{const s=$("imp_sel_"+i);if(s)u.sel=s.value;});
   $("impSave").textContent="Guardando…";
-  // 1) Ejercicios únicos por nombre.
-  const norm=s=>(s||"").trim().toLowerCase().replace(/\s+/g,' ');
-  const uniq={};
-  IMPORT_DIAS.forEach(d=>(d.ejercicios||[]).forEach(e=>{const k=norm(e.nombre);if(k&&!uniq[k])uniq[k]={nombre:e.nombre.trim(),grupo:e.grupo,rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir};}));
-  // REUTILIZAR los que ya existen en MI catálogo (fresco) → NO duplicar el catálogo.
-  const {data:exist}=await sb.from("ejercicios").select("id,nombre").eq("entrenador_id",MIID);
-  const idmap={}; (exist||[]).forEach(x=>{const k=norm(x.nombre); if(!(k in idmap)) idmap[k]=x.id;});
-  // Solo se INSERTAN los que de verdad no existen.
-  const nuevos=Object.values(uniq).filter(e=>!(norm(e.nombre) in idmap));
-  if(nuevos.length){
-    const filas=nuevos.map(e=>({nombre:e.nombre,grupo:e.grupo,equipo:"Máquina",rep_min:e.rep_min,rep_max:e.rep_max,rir:e.rir,fatiga:"media",estiramiento:false,entrenador_id:MIID}));
+  const idmap={};
+  IMPORT_UNIQ.forEach(u=>{if(u.sel&&u.sel!=='__new__')idmap[u.key]=u.sel;});
+  // Crear SOLO los que el entrenador marcó como "Crear nuevo" (último recurso).
+  const crear=IMPORT_UNIQ.filter(u=>u.sel==='__new__');
+  if(crear.length){
+    const filas=crear.map(u=>({nombre:u.nombre,grupo:u.grupo,equipo:"Máquina",rep_min:u.rep_min,rep_max:u.rep_max,rir:u.rir,fatiga:"media",estiramiento:false,entrenador_id:MIID}));
     const ins=await sb.from("ejercicios").insert(filas).select("id,nombre");
     if(ins.error){ $("impSave").textContent="Error creando ejercicios: "+ins.error.message; return; }
-    ins.data.forEach(r=>idmap[norm(r.nombre)]=r.id);
+    (ins.data||[]).forEach(r=>{const k=_ejNorm(r.nombre);const u=crear.find(c=>c.key===k);if(u)idmap[u.key]=r.id;});
   }
-  // 2) Construir días + técnicas.
+  // Construir días + técnicas usando el id emparejado de cada ejercicio.
   const dias=[],tecnicas={};
   IMPORT_DIAS.forEach((d,di)=>{
     const orden=[];
-    (d.ejercicios||[]).forEach(e=>{const eid=idmap[norm(e.nombre)];if(!eid)return;orden.push({id:eid,g:e.grupo,s:e.series});if(e.tecnica&&e.tecnica!=="normal")tecnicas[di+"|"+eid]=e.tecnica;});
+    (d.ejercicios||[]).forEach(e=>{const eid=idmap[_ejNorm(e.nombre)];if(!eid)return;orden.push({id:eid,g:e.grupo,s:e.series});if(e.tecnica&&e.tecnica!=="normal")tecnicas[di+"|"+eid]=e.tecnica;});
     dias.push({nombre:d.nombre,grupos:d.grupos||[],orden});
   });
-  // 3) Guardar rutina + ajustar días del plan.
   const r1=await invokeFn("consola-rutina",{body:{action:'guardar',cliente:cli,dias,tecnicas}});
   if(r1.error){ $("impSave").textContent="Error guardando la rutina: "+r1.error.message; return; }
-  $("impSave").textContent="✓ Rutina guardada. El cliente ya puede registrarla.";
-  IMPORT_DIAS=null; setTimeout(()=>verCliente(cli),1000);
+  const nNew=crear.length;
+  $("impSave").textContent="✓ Rutina guardada"+(nNew?` · ${nNew} ejercicio${nNew===1?'':'s'} nuevo${nNew===1?'':'s'}`:" · 0 de más")+". El cliente ya puede registrarla.";
+  IMPORT_DIAS=null;IMPORT_UNIQ=[];setTimeout(()=>verCliente(cli),1200);
 }
 
 // Sincroniza lo escrito en el editor a memoria (RUT) antes de re-renderizar.
