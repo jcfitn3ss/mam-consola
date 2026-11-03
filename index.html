@@ -3588,6 +3588,8 @@ async function verCliente(id){
   const vol={};const serEj={};(ser.data||[]).forEach(s=>{const g=gmap[String(s.ejercicio_id)]||"Otros";vol[g]=(vol[g]||0)+1;const k=String(s.ejercicio_id);serEj[k]=(serEj[k]||0)+1;});
   const dias={};(cm.data||[]).forEach(m=>{const k=m.fecha;dias[k]=dias[k]||{k:0,p:0,c:0,f:0};dias[k].k+=+m.kcal||0;dias[k].p+=+m.prot||0;dias[k].c+=+m.carb||0;dias[k].f+=+m.fat||0});
   const dv=Object.values(dias);const prom=dv.length?{k:Math.round(dv.reduce((a,x)=>a+x.k,0)/dv.length),p:Math.round(dv.reduce((a,x)=>a+x.p,0)/dv.length),c:Math.round(dv.reduce((a,x)=>a+x.c,0)/dv.length),f:Math.round(dv.reduce((a,x)=>a+x.f,0)/dv.length)}:null;
+  // Calorías REALES de hoy (lo que lleva registrado hoy) para mostrar en el panel. Dato, sin bandera.
+  const _hoyISO=hace(0);const _kcalHoy=dias[_hoyISO]?Math.round(dias[_hoyISO].k):null;
   const C=(ck.data||[])[0];const J=jr.data||[];
   const pesos=pes.data||[];const peso=pesos[0]?pesos[0].peso:null;const peso0=pesos[pesos.length-1]?pesos[pesos.length-1].peso:null;const dp=(peso!=null&&peso0!=null)?(peso-peso0).toFixed(1):null;
   // Unidad de peso del CLIENTE (kg/lb): el peso se guarda en kg; aquí solo se MUESTRA
@@ -3935,7 +3937,7 @@ async function verCliente(id){
   const _bodyPeso=_spark(_wptsAsc)||'<span class="muted" style="font-size:12px">Pocos pesos para la curva.</span>';
   const _bodyRend=(s2.movers&&s2.movers.length)?s2.movers.map(mv=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:1px 0"><span>${esc(mv.name)}</span><span style="color:${mv.pct>=0?'var(--ok)':'var(--rojo)'};font-weight:700">${mv.pct>0?'+':''}${mv.pct}%</span></div>`).join(''):'<span class="muted" style="font-size:12px">Sin ejercicios comparables aún (faltan 2 bloques de 21 días con datos).</span>';
   const _bodyFotos=_fvLast.length?`<div style="display:flex;gap:6px">${_fvLast.map(f=>`<div style="text-align:center"><img src="${esc(f.url)}" style="width:62px;height:82px;object-fit:cover;border-radius:6px"><div class="muted" style="font-size:9px">${esc(String(f.fecha||'').slice(5))}</div></div>`).join('')}</div>`:'<span class="muted" style="font-size:12px">Sin fotos.</span>';
-  const _bodyAdh=`<div style="font-size:12px;line-height:1.5">Sesiones últimos 7 días: <b>${ses7}</b><br>Días con comida registrada: <b>${_diasReg7}/7</b></div>`;
+  const _bodyAdh=`<div style="font-size:12px;line-height:1.5">Sesiones últimos 7 días: <b>${ses7}</b><br>Días con comida registrada: <b>${_diasReg7}/7</b><br>Comida de hoy: <b>${_kcalHoy!=null?_kcalHoy+' kcal':'sin registrar'}</b> · Promedio/día: <b>${prom?prom.k+' kcal':'—'}</b>${o.kcal?' · Plan '+o.kcal:''}</div>`;
   const _bodyBio=`<div style="font-size:12px;line-height:1.5">${_slp!=null?('Sueño <b>'+_slp.toFixed(1)+'h</b>'):'Sueño —'}${_fat!=null?(' · Fatiga <b>'+_fat+'/10</b>'):''}${_en!=null?(' · Energía <b>'+_en+'/10</b>'):''}${(_da>=6||_dm>=8)?'<br><span style="color:var(--rojo)">Dolor alto reportado</span>':''}</div>`;
   const _dashDet=`${_dd('peso','Peso · tendencia',s1,_bodyPeso,'progreso','Ver gráfica completa')}${_dd('rend','Rendimiento',s2,_bodyRend,'entreno','Ver análisis de entreno')}${_dd('fotos','Fotos',s3,_bodyFotos,'progreso','Ver todas las fotos')}${_dd('adh','Adherencia',s4,_bodyAdh,'','')}${_dd('bio','Biofeedback',s5,_bodyBio,'','')}`;
   const _sem=[s1,s2,s3,s4,s5];
@@ -3949,6 +3951,14 @@ async function verCliente(id){
     <div class="muted" style="font-size:11.5px;margin:3px 0 10px">5 señales de un vistazo. Toca una para ver su detalle. <span style="white-space:nowrap"><span style="color:var(--ok)">■</span> en orden</span> · <span style="white-space:nowrap"><span style="color:var(--warn)">■</span> ojo</span> · <span style="white-space:nowrap"><span style="color:var(--rojo)">■</span> atender</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
       ${dTile(s1,'Peso','peso')}${dTile(s2,'Rendimiento','rend')}${dTile(s3,'Fotos','fotos')}${dTile(s4,'Adherencia','adh')}${dTile(s5,'Biofeedback','bio')}</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:130px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:9px 11px">
+        <div style="font-size:19px;font-weight:800">${_kcalHoy!=null?_kcalHoy:'—'}<span class="muted" style="font-size:11px;font-weight:400"> kcal</span></div>
+        <div class="muted" style="font-size:11px">Comida de hoy</div></div>
+      <div style="flex:1;min-width:130px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:9px 11px">
+        <div style="font-size:19px;font-weight:800">${prom?prom.k:'—'}<span class="muted" style="font-size:11px;font-weight:400"> kcal</span></div>
+        <div class="muted" style="font-size:11px">Promedio/día (7d)${o.kcal?' · plan '+o.kcal:''}</div></div>
+    </div>
     ${_dashDet}
     <div style="margin-top:12px;background:rgba(79,140,255,.07);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="font-size:11px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;font-weight:700">Coach · 1 cambio</span><span class="muted" style="font-size:11px">sugerencia · tú la apruebas</span></div>
