@@ -6054,9 +6054,26 @@ function ejChange(sel){
   // Reencaja la técnica del espacio al nuevo id.
   if(RUT.tecnicas){const ok=di+"|"+oldId,nk=di+"|"+it.id;if(ok!==nk&&RUT.tecnicas[ok]!=null){RUT.tecnicas[nk]=RUT.tecnicas[ok];delete RUT.tecnicas[ok];}}
 }
+// Buscador de ejercicio por texto: la entrenadora ESCRIBE el nombre en vez de rodar el
+// desplegable. Resuelve el texto al ejercicio del catálogo único (EJU) y lo aplica al
+// <select> oculto de la misma fila (así todo el guardado/sync sigue IGUAL) pasando por
+// ejChange para conservar el volumen (series/reps/RIR) y reencajar la técnica.
+function ejInput(inp){
+  const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const row=inp.closest('tr');if(!row)return;
+  const sel=row.querySelector('.rutSel');if(!sel)return;
+  const q=norm(inp.value);
+  if(!q){inp.value=cap((EJ.find(e=>String(e.id)===String(sel.value))||{}).nombre||'');inp.style.borderColor='';inp.title='';return;}
+  // Exacto, luego "empieza por", luego "contiene".
+  const hit=EJU.find(e=>norm(e.nombre)===q)||EJU.find(e=>norm(e.nombre).startsWith(q))||EJU.find(e=>norm(e.nombre).includes(q));
+  if(!hit){inp.style.borderColor='var(--rojo)';inp.title='No encontré ese ejercicio. Elígelo de la lista o fusiona el duplicado en la pestaña Ejercicios.';return;}
+  inp.style.borderColor='';inp.title='';inp.value=cap(hit.nombre);
+  sel.value=String(hit.id);ejChange(sel);
+}
 function editorRutinaHTML(){
   if(!RUT||!RUT.dias||!RUT.dias.length)return '<div class="muted">Este cliente no tiene rutina con orden de ejercicios.</div>';
-  let h="";
+  // Lista única para el buscador por texto del campo Ejercicio (datalist compartido).
+  let h=`<datalist id="ejDL">${EJU.map(e=>`<option value="${esc(cap(e.nombre))}"></option>`).join('')}</datalist>`;
   RUT.dias.forEach((d,di)=>{
     const items=d.orden||[];
     h+=`<div style="margin:14px 0;border-top:1px solid var(--line);padding-top:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="muted" style="font-size:11px">Día ${di+1}</span><input class="rutDiaNom" data-d="${di}" value="${esc(d.nombre||('Día '+(di+1)))}" placeholder="Nombre (ej: Superior)" style="font-weight:700;flex:1;max-width:280px;margin:0"><button class="sm ghost" onclick="rutMoverDia(${di},-1)" title="Subir día" style="padding:3px 8px;margin:0"${di===0?' disabled':''}>▲</button><button class="sm ghost" onclick="rutMoverDia(${di},1)" title="Bajar día" style="padding:3px 8px;margin:0"${di===RUT.dias.length-1?' disabled':''}>▼</button><button class="sm ghost" onclick="rutQuitarDia(${di})" title="Quitar este día" style="padding:3px 8px;margin:0;color:var(--rojo)">Borrar</button></div>`;
@@ -6067,7 +6084,7 @@ function editorRutinaHTML(){
         const tk=(RUT.tecnicas||{})[di+"|"+it.id]||"normal";
         const ex=EJ.find(e=>String(e.id)===String(it.id))||{};
         rows+=`<tr>
-          <td><select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="margin:0;text-overflow:ellipsis">${opcionesEj(it.id,it.g)}</select></td>
+          <td><input class="rutEjIn" list="ejDL" data-d="${di}" data-i="${ii}" value="${esc(cap(ex.nombre||''))}" onchange="ejInput(this)" placeholder="Escribe para buscar…" title="Escribe el nombre y elige de la lista" style="margin:0;width:100%;text-overflow:ellipsis"><select data-d="${di}" data-i="${ii}" class="rutSel" onchange="ejChange(this)" style="display:none">${opcionesEj(it.id,it.g)}</select></td>
           <td><input data-d="${di}" data-i="${ii}" class="rutSer" type="number" placeholder="auto" value="${it.s||''}" title="Series (vacío = automático)" style="text-align:center;margin:0"></td>
           <td><div style="display:flex;align-items:center;justify-content:center;gap:5px"><input class="rutRmin" type="number" placeholder="mín" value="${it.rep_min!=null?it.rep_min:(ex.rep_min!=null?ex.rep_min:'')}" title="Reps mínimas (por cliente)" style="width:52px;text-align:center;margin:0"><span style="color:var(--muted)">–</span><input class="rutRmax" type="number" placeholder="máx" value="${it.rep_max!=null?it.rep_max:(ex.rep_max!=null?ex.rep_max:'')}" title="Reps máximas (por cliente)" style="width:52px;text-align:center;margin:0"></div></td>
           <td><input class="rutRir" type="number" placeholder="—" value="${it.rir!=null?it.rir:(ex.rir!=null?ex.rir:'')}" title="RIR (reps en reserva) por cliente" style="text-align:center;margin:0"></td>
@@ -6690,6 +6707,7 @@ function verEjercicios(){
    <div class="card"><h2 style="margin-top:0">Agrupar / fusionar ejercicios</h2>
     <div class="muted" style="margin-bottom:6px">Une un ejercicio redundante con otro: el historial de series se reasigna al que conservas y el repetido se borra. Sirve para quitar variantes duplicadas.</div>
     ${dupHint}
+    <input id="fus_buscar" data-nocaps placeholder="Buscar ejercicio por nombre…" oninput="fusFiltrar()" style="margin-bottom:6px">
     <div class="row"><div style="flex:1"><label class="lbl">Conservar (queda este)</label><select id="fus_keep">${opsEj()}</select></div><div style="flex:1"><label class="lbl">Fusionar y borrar</label><select id="fus_drop">${opsEj()}</select></div></div>
     <button style="margin-top:8px" onclick="fusionarEj()">Fusionar</button> <span id="fusMsg" class="muted"></span></div>
    ${(()=>{
@@ -6708,6 +6726,15 @@ function verEjercicios(){
      <input id="x_buscar" placeholder="Buscar…" oninput="renderEj()">
      <div id="ejlist"></div></div>`;
   $("v-ejercicios").innerHTML=h;renderEj();
+}
+// Filtra los dos desplegables del fusionador por texto (conserva la selección si sigue
+// en la lista). Deja escribir el nombre en vez de rodar toda la biblioteca.
+function fusFiltrar(){
+  const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const q=norm(($("fus_buscar")||{}).value||'');
+  const list=q?EJ.filter(e=>norm(e.nombre).includes(q)||norm(e.grupo).includes(q)):EJ;
+  const opts=['<option value="">— elegir —</option>'].concat(list.map(e=>`<option value="${e.id}">${esc(cap(e.nombre))} · ${esc(e.grupo||'')}</option>`)).join("");
+  ["fus_keep","fus_drop"].forEach(id=>{const s=$(id);if(!s)return;const prev=s.value;s.innerHTML=opts;if([...s.options].some(o=>o.value===prev))s.value=prev;});
 }
 async function fusionarEj(){
   const keep=$("fus_keep").value,drop=$("fus_drop").value;
