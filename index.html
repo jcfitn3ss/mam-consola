@@ -5985,12 +5985,25 @@ function opcionesEj(selId, slotGrupo){
 }
 // Al cambiar el ejercicio, rellena reps/RIR de la fila con los de ese ejercicio.
 function ejChange(sel){
-  const e=EJ.find(x=>String(x.id)===String(sel.value))||{};
+  // Cambiar el ejercicio de un espacio = REEMPLAZAR manteniendo el volumen y la
+  // prescripción (series, reps, RIR) de ese espacio. Antes, al cambiar de ejercicio
+  // reps/RIR volvían al default del nuevo ejercicio y, por el bug de sync, se perdían
+  // al refrescar. Ahora el espacio conserva lo que ya tenía; la entrenadora solo
+  // cambia el ejercicio sin rehacer la carga.
+  const di=+sel.dataset.d,ii=+sel.dataset.i;
+  const it=RUT&&RUT.dias&&RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii];
+  if(!it)return;
   const row=sel.closest('tr')||sel.parentElement;
-  // Solo rellena reps/RIR si el campo está VACÍO: no pisa un override que el
-  // entrenador ya haya tecleado en esa fila (antes lo descartaba al cambiar de ejercicio).
-  const set=(cls,v)=>{const el=row.querySelector('.'+cls);if(el&&!el.value)el.value=(v!=null?v:'');};
-  set('rutRmin',e.rep_min);set('rutRmax',e.rep_max);set('rutRir',e.rir);
+  const rd=(cls)=>{const el=row.querySelector('.'+cls);const v=el?parseInt(el.value):NaN;return v>0?v:null;};
+  const sOld=rd('rutSer'),rmin=rd('rutRmin'),rmax=rd('rutRmax'),rir=rd('rutRir');
+  const oldId=it.id;
+  it.id=sel.value;
+  if(sOld!=null)it.s=sOld;                       // conserva series (volumen)
+  if(rmin!=null)it.rep_min=rmin; else delete it.rep_min;
+  if(rmax!=null)it.rep_max=rmax; else delete it.rep_max;
+  if(rir!=null)it.rir=rir; else delete it.rir;
+  // Reencaja la técnica del espacio al nuevo id.
+  if(RUT.tecnicas){const ok=di+"|"+oldId,nk=di+"|"+it.id;if(ok!==nk&&RUT.tecnicas[ok]!=null){RUT.tecnicas[nk]=RUT.tecnicas[ok];delete RUT.tecnicas[ok];}}
 }
 function editorRutinaHTML(){
   if(!RUT||!RUT.dias||!RUT.dias.length)return '<div class="muted">Este cliente no tiene rutina con orden de ejercicios.</div>';
@@ -6163,6 +6176,19 @@ function syncEditorAMemoria(){
   document.querySelectorAll(".rutDiaNom").forEach(s=>{const di=+s.dataset.d;if(RUT.dias[di])RUT.dias[di].nombre=s.value.trim()||('Día '+(di+1));});
   document.querySelectorAll(".rutSel").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;if(RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii])RUT.dias[di].orden[ii].id=s.value;});
   document.querySelectorAll(".rutSer").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii];if(it){const v=parseInt(s.value);if(v>0)it.s=v;else delete it.s;}});
+  // Reps (mín/máx) y RIR por espacio: antes NO se sincronizaban → al refrescar el
+  // editor (agregar/mover ejercicio) se perdían y volvían al default del catálogo.
+  // Los inputs no llevan data-d/data-i, así que tomamos el espacio desde el <select>
+  // de la misma fila.
+  document.querySelectorAll(".rutSel").forEach(s=>{
+    const di=+s.dataset.d,ii=+s.dataset.i;const it=RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii];if(!it)return;
+    const row=s.closest('tr');if(!row)return;
+    const rd=(cls)=>{const el=row.querySelector('.'+cls);const v=el?parseInt(el.value):NaN;return v>0?v:null;};
+    const rmin=rd('rutRmin'),rmax=rd('rutRmax'),rir=rd('rutRir');
+    if(rmin!=null)it.rep_min=rmin;else delete it.rep_min;
+    if(rmax!=null)it.rep_max=rmax;else delete it.rep_max;
+    if(rir!=null)it.rir=rir;else delete it.rir;
+  });
   RUT.tecnicas=RUT.tecnicas||{};
   document.querySelectorAll(".rutTec").forEach(s=>{const di=+s.dataset.d,ii=+s.dataset.i;const it=RUT.dias[di]&&RUT.dias[di].orden&&RUT.dias[di].orden[ii];if(it){const key=di+"|"+it.id;if(s.value&&s.value!=="normal")RUT.tecnicas[key]=s.value;else delete RUT.tecnicas[key];}});
 }
