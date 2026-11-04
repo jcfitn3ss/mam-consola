@@ -467,11 +467,59 @@ document.addEventListener("click",e=>{const m=$("perfilMenu"),b=$("perfilBtn");i
 // Antes había que anotar el nombre, irse a Clientes y buscarlo a mano.
 function abrirFicha(uid){ if(!uid)return; tab('clientes'); verCliente(uid); }
 
+// ---- POSIBLES CUENTAS DUPLICADAS (misma persona, dos user_id) ----
+// Nace del caso María: su entrenamiento quedó en una cuenta y el acceso de consola en
+// otra, partida en dos, y nadie lo veía. Agrupa por nombre (primeros 2 nombres) o por
+// teléfono y marca los grupos con 2+ cuentas ACTIVAS para revisar y archivar la vacía.
+function _normNombre(s){return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();}
+function gruposDuplicados(clientes){
+  const act=(clientes||[]).filter(c=>!c.archivado);
+  const byKey={},byTel={};
+  act.forEach(c=>{
+    const toks=_normNombre(c.nombre_completo||c.nombre).split(' ').filter(Boolean);
+    if(toks.length>=2){const k=toks.slice(0,2).join(' ');(byKey[k]=byKey[k]||[]).push(c);}
+    const t=(c.telefono||'').replace(/\D/g,'');if(t.length>=7){(byTel[t]=byTel[t]||[]).push(c);}
+  });
+  const grupos=[],vistos=new Set();
+  const pushGrupo=(arr,motivo)=>{
+    if(!arr||arr.length<2)return;
+    const ids=arr.map(c=>c.user_id).slice().sort().join('|');
+    if(vistos.has(ids))return;vistos.add(ids);
+    grupos.push({motivo,cuentas:arr.slice().sort((a,b)=>new Date(a.created_at||0)-new Date(b.created_at||0))});
+  };
+  Object.values(byTel).forEach(a=>pushGrupo(a,'mismo teléfono'));
+  Object.values(byKey).forEach(a=>pushGrupo(a,'mismo nombre'));
+  return grupos;
+}
+function dupCardHTML(grupos){
+  if(!grupos.length)return '';
+  const fecha=d=>{try{return new Date(d).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'});}catch(e){return '';}};
+  let h=`<div class="card" style="border-top:3px solid var(--rojo)"><h2 style="margin-top:0">Posibles cuentas duplicadas <span class="muted" style="font-size:13px;font-weight:400">· ${grupos.length} grupo(s)</span></h2>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">Personas que parecen tener <b>dos cuentas</b> (mismo nombre o teléfono). Pasa cuando alguien se registra de nuevo con otro correo. Abre cada una, quédate con la que tiene los datos y <b>archiva la otra</b>. La más antigua suele traer el historial.</div>`;
+  grupos.forEach(g=>{
+    h+=`<div style="border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px"><div class="muted" style="font-size:11px;margin-bottom:4px">${esc(g.motivo)}</div>`;
+    g.cuentas.forEach((c,i)=>{
+      h+=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0;${i<g.cuentas.length-1?'border-bottom:1px solid var(--line)':''}"><a href="#" onclick="event.preventDefault();abrirFicha('${c.user_id}')" style="min-width:150px;color:var(--txt);text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px">${esc(c.nombre_completo||c.nombre||'(sin nombre)')}</a><span class="pill" style="background:var(--card2);font-size:11px">creada ${fecha(c.created_at)}${i===0?' · más antigua':''}</span>${c.telefono?`<span class="muted" style="font-size:11px;user-select:text">${esc(c.telefono)}</span>`:''}<span style="flex:1"></span><button class="sm ghost" onclick="tab('clientes');verCliente('${c.user_id}')">Abrir ficha</button><button class="sm" onclick="archivarDup('${c.user_id}',this)">Archivar esta</button></div>`;
+    });
+    h+=`</div>`;
+  });
+  return h+`</div>`;
+}
+async function archivarDup(id,btn){
+  if(!confirm("¿Archivar esta cuenta? Se oculta de la consola y de la app (no se borra). Hazlo solo con la cuenta DUPLICADA (la vacía), no con la que tiene los datos."))return;
+  if(btn)btn.disabled=true;
+  const e=errFilas(await sb.from("perfiles").update({archivado:true}).eq("user_id",id).select("user_id"));
+  if(e){toast(e,'warn');if(btn)btn.disabled=false;return;}
+  toast('Cuenta archivada.','ok');verSalud();
+}
 // ---- SALUD DE DATOS: huecos por cliente (sin plan/rutina/objetivo/altura, etc.) ----
 async function verSalud(){
   $("v-salud").innerHTML='<div class="card">Analizando la salud de datos de tus clientes…</div>';
   const {data,error}=await invokeFn("salud-datos",{body:{}});
   if(error||(data&&data.error)){$("v-salud").innerHTML=`<div class="card alert">No se pudo analizar: ${esc((data&&data.error)||error.message)}</div>`;return;}
+  // Posibles cuentas duplicadas (prevención del caso María). No bloquea si falla.
+  let dupCard='';
+  try{const _dl=await invokeFn("consola-rutina",{body:{action:'lista',cols:'user_id,nombre,nombre_completo,rol,archivado,telefono,created_at'}});if(_dl&&_dl.data&&Array.isArray(_dl.data.clientes))dupCard=dupCardHTML(gruposDuplicados(_dl.data.clientes));}catch(e){}
   const R=data.detalle||{},res=data.resumen||{};
   // Definición de cada hueco: etiqueta, severidad (color), y qué significa.
   const SECC=[
@@ -486,7 +534,7 @@ async function verSalud(){
     ['inactivos_14d','Inactivos (14+ días)','#e0b84a','No entrenan hace 2+ semanas. Riesgo de que se caigan; contáctalos.'],
     ['sin_registrar_comida_14d','Sin registrar comida (14+ días)','var(--muted)','No registran comida. Normal en muchos; míralo solo si te interesa su nutrición.'],
   ];
-  let h=`<div class="card"><h2 style="margin-top:0">Salud de datos <span class="muted" style="font-size:13px;font-weight:400">· ${data.clientes_con_acceso||0} clientes con acceso</span></h2>
+  let h=dupCard+`<div class="card"><h2 style="margin-top:0">Salud de datos <span class="muted" style="font-size:13px;font-weight:400">· ${data.clientes_con_acceso||0} clientes con acceso</span></h2>
     <div class="muted" style="font-size:12px;margin-bottom:8px">Huecos que hacen que la app no funcione bien. Se actualiza cada vez que abres esta pestaña. <button class="sm ghost" onclick="verSalud()">Actualizar</button></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${SECC.map(([k,l,c])=>`<span class="pill" style="background:${(res[k]||0)?'var(--card2)':'rgba(95,208,127,.12)'};font-weight:700;color:${(res[k]||0)?c:'var(--ok)'}">${esc(l)}: ${res[k]||0}</span>`).join('')}</div></div>`;
   SECC.forEach(([k,l,c,desc])=>{
@@ -3959,6 +4007,7 @@ async function verCliente(id){
         <div style="font-size:19px;font-weight:800">${prom?prom.k:'—'}<span class="muted" style="font-size:11px;font-weight:400"> kcal</span></div>
         <div class="muted" style="font-size:11px">Promedio/día (7d)${o.kcal?' · plan '+o.kcal:''}</div></div>
     </div>
+    <div style="margin-top:10px"><button style="width:100%;font-size:14px;padding:11px" onclick="fichaCard('entreno','editar rutina')">Ver / editar rutina</button></div>
     ${_dashDet}
     <div style="margin-top:12px;background:rgba(79,140,255,.07);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="font-size:11px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;font-weight:700">Coach · 1 cambio</span><span class="muted" style="font-size:11px">sugerencia · tú la apruebas</span></div>
@@ -4296,7 +4345,7 @@ async function verCliente(id){
     <div id="impMsg" class="muted" style="margin-top:6px"></div>
     <div id="impPrev" style="margin-top:8px"></div></details></div>`;
 
-  h+=`<div class="card"><h2 style="margin-top:0">Editar rutina y volumen</h2>${RUT&&RUT.updated_at?`<div class="muted" style="font-size:12px;margin-bottom:6px;border-left:3px solid var(--rojo);padding:4px 10px">Plan actualizado: <b>${new Date(RUT.updated_at).toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'})}</b> — se actualiza sola cada vez que guardas (así queda la fecha del bloque actual).</div>`:''}<div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. Nota: reps y RIR se guardan en el ejercicio, así que aplican donde sea que se use ese ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>
+  h+=`<div class="card"><h2 style="margin-top:0">Editar rutina y volumen</h2>${RUT&&RUT.updated_at?`<div class="muted" style="font-size:12px;margin-bottom:6px;border-left:3px solid var(--rojo);padding:4px 10px">Plan actualizado: <b>${new Date(RUT.updated_at).toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'})}</b> — se actualiza sola cada vez que guardas (así queda la fecha del bloque actual).</div>`:''}<div class="muted" style="margin-bottom:6px">Ahora el desplegable trae <b>TODOS</b> los ejercicios (agrupados por grupo muscular, el objetivo primero) — libertad total. Define <b>series</b> (vacío = automático), <b>reps mín/máx</b>, <b>RIR</b> y <b>técnica</b>; todo se aplica en la app del cliente. <b>Las series, reps y RIR son de ESTE cliente</b> (override por espacio): cambiarlas aquí NO afecta a otros clientes, y al <b>cambiar el ejercicio de un espacio se conserva el volumen</b> (series/reps/RIR) — solo cambias el ejercicio. Usa técnicas avanzadas (biserie/dropset) para dar estímulo en menos tiempo en vez de subir volumen. ¿No está el ejercicio? Créalo en la pestaña <b>Ejercicios</b>.</div>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px">
       <div style="flex:0"><label class="lbl">Días</label><input id="genDias" type="number" min="1" max="6" value="${plan.dias||4}" oninput="document.getElementById('genDistWrap').style.display=(+this.value===3?'':'none')" style="width:80px"></div>
       <div id="genDistWrap" style="${(plan.dias||4)===3?'':'display:none'}"><label class="lbl">Distribución (3 días)</label><select id="genDist"><option value="espaciados"${plan.distribucion==='espaciados'?' selected':''}>Espaciados → fullbody</option><option value="seguidos"${plan.distribucion==='seguidos'?' selected':''}>3 seguidos → rotativa</option><option value="mixto"${plan.distribucion==='mixto'?' selected':''}>2 seguidos + 1 → mixta</option></select></div>
