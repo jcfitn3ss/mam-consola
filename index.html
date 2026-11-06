@@ -3440,23 +3440,62 @@ async function agendarSiguientePorFrecuencia(id,fechaBase){
     await sb.from("perfiles").update({proxima_llamada:d.toISOString().slice(0,10)}).eq("user_id",id);
   }catch(e){/* no bloquear el guardado por esto */}
 }
-async function reuBorrar(rid,id){if(!confirm("¿Borrar esta reunión?"))return;const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){toast(e,'warn');return;}verCliente(id);}
+async function reuBorrar(rid,id,eventoId){
+  if(eventoId&&eventoId!=='0'){
+    if(!confirm('OJO: esto solo quita el registro aquí. La reunión SIGUE en tu Google Calendar (quedaría un evento suelto).\n\nSi solo la quieres MOVER, usa "Reprogramar". Si de verdad quieres cancelarla, bórrala también en tu Google Calendar.\n\n¿Quitar el registro de todos modos?'))return;
+  } else if(!confirm("¿Borrar esta reunión?"))return;
+  const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){toast(e,'warn');return;}verCliente(id);
+}
 // Conectar Google (abre el consentimiento de Google en otra pestaña).
+// Anti doble reunión: bloquea el doble-clic mientras se crea el evento (si no, dos
+// clics = dos eventos en Google Calendar) y avisa si el cliente ya tiene una reunión
+// futura sin realizar (para MOVERLA está "Reprogramar", que no crea otro evento).
+let _AGENDANDO=false;
 async function agendarReunion(id){
+  const m=$("agMsg");
+  if(_AGENDANDO)return;
   const dt=$("ag_dt")?$("ag_dt").value:"";const dur=$("ag_dur")?+$("ag_dur").value:45;
   const invitados=$("ag_inv")?$("ag_inv").value.trim():"";
-  const m=$("agMsg");
   if(!dt){if(m)m.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
   if(agendaFueraDeVentana(dt)){if(m)m.innerHTML='<span class="alert">Esa fecha está muy lejos. Por ahora puedes agendar hasta el '+finVentanaDT().slice(0,10)+'.</span>';return;}
-  if(m){m.style.color='';m.textContent="Agendando en tu Google Calendar…";}
-  const {data,error}=await invokeFn("agendar-reunion",{body:{cliente_id:id,inicio:dt,duracion_min:dur,invitados}});
-  if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
-  let txt=`<b>Reunión agendada</b> para ${esc(data.fecha)}.`;
-  if(data.meetLink)txt+=` <a href="${esc(data.meetLink)}" target="_blank">Abrir enlace Meet</a>.`;
-  txt+=data.invitado?` Invitación enviada a <b>${esc(data.correo||'el cliente')}</b>.`:` <span style="color:var(--warn)">El cliente no tiene correo registrado: no se le invitó, avísale tú.</span>`;
-  if(data.invitados_extra>0)txt+=` +${data.invitados_extra} invitado(s) extra.`;
-  if(m){m.style.color='var(--ok)';m.innerHTML=txt;}
-  setTimeout(()=>verCliente(id),1800);
+  _AGENDANDO=true;
+  try{
+    // ¿Ya tiene una reunión FUTURA sin realizar? No crear otra sin confirmar.
+    try{
+      const hoy=new Date().toISOString().slice(0,10);
+      const {data:fut}=await sb.from("reuniones").select("fecha,resumen,transcripcion,titulo").eq("user_id",id).gte("fecha",hoy).order("fecha",{ascending:true});
+      const pend=(fut||[]).filter(r=>!(r.resumen&&String(r.resumen).trim())&&!(r.transcripcion&&String(r.transcripcion).trim()));
+      if(pend.length){
+        const f=pend[0];
+        if(!confirm(`Este cliente YA tiene una reunión agendada para el ${f.fecha}${f.titulo?(' ('+f.titulo+')'):''}.\n\nPara MOVERLA usa el botón "Reprogramar" en el Historial de reuniones (así NO queda doble en el calendario).\n\n¿Seguro que quieres crear OTRA reunión aparte?`)){
+          if(m){m.style.color='';m.textContent='';}
+          return;
+        }
+      }
+    }catch(e){/* si no se puede verificar, igual deja agendar */}
+    if(m){m.style.color='';m.textContent="Agendando en tu Google Calendar…";}
+    const {data,error}=await invokeFn("agendar-reunion",{body:{cliente_id:id,inicio:dt,duracion_min:dur,invitados}});
+    if(error||(data&&data.error)){if(m)m.innerHTML=`<span class="alert">${esc((data&&data.error)||error.message)}</span>`;return;}
+    let txt=`<b>Reunión agendada</b> para ${esc(data.fecha)}.`;
+    if(data.meetLink)txt+=` <a href="${esc(data.meetLink)}" target="_blank">Abrir enlace Meet</a>.`;
+    txt+=data.invitado?` Invitación enviada a <b>${esc(data.correo||'el cliente')}</b>.`:` <span style="color:var(--warn)">El cliente no tiene correo registrado: no se le invitó, avísale tú.</span>`;
+    if(data.invitados_extra>0)txt+=` +${data.invitados_extra} invitado(s) extra.`;
+    if(m){m.style.color='var(--ok)';m.innerHTML=txt;}
+    setTimeout(()=>verCliente(id),1800);
+  }finally{_AGENDANDO=false;}
+}
+// Reprogramar una reunión del cliente DESDE SU FICHA: mueve el MISMO evento de Google
+// Calendar (edge con evento_id = meet_ref sin "cal-"), no crea otro → no queda doble.
+function reuReproToggle(rid){const p=document.getElementById('reurepro_'+rid);if(p)p.style.display=(p.style.display==='none'||!p.style.display)?'block':'none';}
+async function reuReprogramar(rid,eventoId,cid){
+  const inp=document.getElementById('reureprodt_'+rid),msg=document.getElementById('reurepromsg_'+rid);
+  if(!inp||!inp.value){if(msg){msg.style.color='';msg.innerHTML='<span class="alert">Elige la nueva fecha y hora.</span>';}return;}
+  if(agendaFueraDeVentana(inp.value)){if(msg)msg.innerHTML='<span class="alert">Esa fecha está muy lejos. Por ahora puedes mover hasta el '+finVentanaDT().slice(0,10)+'.</span>';return;}
+  if(msg){msg.style.color='';msg.textContent='Moviendo en Google Calendar…';}
+  const {data,error}=await invokeFn('agendar-reunion',{body:{evento_id:eventoId,inicio:inp.value}});
+  if(error||!data||data.error){if(msg)msg.innerHTML='<span class="alert">'+esc((error&&error.message)||(data&&data.error)||'No se pudo reprogramar')+'</span>';return;}
+  if(msg)msg.innerHTML='✓ <b>Reprogramada</b> para '+esc(data.fecha||inp.value)+'. Se le avisó por correo.';
+  setTimeout(()=>verCliente(cid),1300);
 }
 async function conectarGoogle(){
   const m=$("meetMsg");if(m)m.textContent="Abriendo Google…";
@@ -3821,15 +3860,23 @@ async function verCliente(id){
     // 3) Historial de reuniones (formato interno: oscuro, con acento rojo).
     reuCard+=`<h3 style="margin:6px 0 6px">Historial de reuniones</h3>`;
     if(RNS.length){
-      reuCard+=`<div style="display:flex;flex-direction:column;gap:8px">`+RNS.map(r=>`<div style="background:#14141b;border:1px solid var(--line);border-left:3px solid var(--rojo);border-radius:8px;padding:10px 12px">
+      const _hoyISO=new Date().toISOString().slice(0,10);
+      reuCard+=`<div style="display:flex;flex-direction:column;gap:8px">`+RNS.map(r=>{
+        // Evento de Google (meet_ref = "cal-<eventoId>") y si la reunión es FUTURA y sin
+        // realizar → se puede Reprogramar (mover el mismo evento, sin crear otro).
+        const _ev=(r.meet_ref&&String(r.meet_ref).indexOf('cal-')===0)?String(r.meet_ref).slice(4):'';
+        const _fut=r.fecha&&String(r.fecha)>=_hoyISO&&!(r.resumen&&String(r.resumen).trim());
+        const _puedeRepro=_ev&&_fut;
+        return `<div style="background:#14141b;border:1px solid var(--line);border-left:3px solid var(--rojo);border-radius:8px;padding:10px 12px">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
           <b style="font-size:13px">${_fmtFecha(r.fecha)}${r.titulo?` · ${esc(r.titulo)}`:''}</b>
-          <div style="display:flex;gap:6px;align-items:center">${r.origen?`<span class="pill" style="background:var(--card2);font-size:10px">${esc(r.origen)}</span>`:''}<button class="sm ghost" onclick="reuBorrar('${r.id}','${id}')" style="margin:0;padding:2px 8px">Borrar</button></div>
+          <div style="display:flex;gap:6px;align-items:center">${r.origen?`<span class="pill" style="background:var(--card2);font-size:10px">${esc(r.origen)}</span>`:''}${_puedeRepro?`<button class="sm ghost" onclick="reuReproToggle('${r.id}')" style="margin:0;padding:2px 8px" title="Mover esta reunión sin crear otra">Reprogramar</button>`:''}<button class="sm ghost" onclick="reuBorrar('${r.id}','${id}','${_ev||'0'}')" style="margin:0;padding:2px 8px">Borrar</button></div>
         </div>
         ${r.resumen?`<div style="font-size:12.5px;margin-top:5px;line-height:1.5">${esc(r.resumen)}</div>`:'<div class="muted" style="font-size:12px;margin-top:4px">Sin resumen (reunión agendada o sin transcripción).</div>'}
         ${r.puntos?`<div style="margin-top:6px"><div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.4px">Pendientes</div><ul style="margin:3px 0 0;padding-left:18px;font-size:12px;line-height:1.5">${String(r.puntos).split('\n').filter(Boolean).map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>`:''}
         ${r.meet_url?`<div style="margin-top:5px"><a href="${esc(r.meet_url)}" target="_blank" style="font-size:11px">Abrir enlace de Meet</a></div>`:''}
-      </div>`).join('')+`</div>`;
+        ${_puedeRepro?`<div id="reurepro_${r.id}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)"><div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"><div><label class="lbl" style="font-size:11px">Nueva fecha y hora</label><input type="datetime-local" id="reureprodt_${r.id}" ${dtAttrs()} style="margin:0"></div><button class="sm" onclick="reuReprogramar('${r.id}','${_ev}','${id}')">Mover reunión</button><button class="sm ghost" onclick="reuReproToggle('${r.id}')">Cancelar</button> <span id="reurepromsg_${r.id}" class="muted" style="font-size:12px"></span></div></div>`:''}
+      </div>`;}).join('')+`</div>`;
     } else reuCard+=`<div class="muted" style="font-size:12px">Aún no hay reuniones registradas. Agenda una arriba, o registra una manual abajo.</div>`;
     // 4) Registrar reunión manual (pegar transcripción → IA).
     reuCard+=`<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700">+ Registrar reunión manual</summary>
