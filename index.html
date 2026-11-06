@@ -2735,7 +2735,9 @@ async function cuAgendarLead(k,email,nombre,leadId){
   if(!inp||!inp.value){if(msg)msg.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
   if(agendaFueraDeVentana(inp.value)){if(msg)msg.innerHTML='<span class="alert">Esa fecha está muy lejos. Por ahora puedes agendar hasta el '+finVentanaDT().slice(0,10)+'.</span>';return;}
   if(msg){msg.style.color='';msg.textContent='Agendando en tu Google Calendar…';}
-  const {data,error}=await invokeFn("agendar-reunion",{body:{lead_email:email,lead_nombre:nombre,lead_id:leadId,inicio:inp.value,duracion_min:dur,titulo:`Consultoría inicial · ${nombre||'Lead'} (Músculo al Máximo)`}});
+  const _nom=String(nombre||'').trim();
+  const titulo=_nom?`Llamada de diagnóstico entre ${cap(_nom)} y JC FIT`:'Llamada de diagnóstico · JC FIT';
+  const {data,error}=await invokeFn("agendar-reunion",{body:{lead_email:email,lead_nombre:nombre,lead_id:leadId,inicio:inp.value,duracion_min:dur,titulo}});
   if(error||!data||data.error){if(msg)msg.innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"No se pudo agendar")}</span>`;return;}
   if(msg)msg.innerHTML=`✓ <b>Agendada</b> para ${esc(data.fecha||inp.value)}.${data.meetLink?` <a href="${esc(data.meetLink)}" target="_blank" style="color:var(--rojoTxt)">Abrir Meet</a>`:''} El lead quedó como agendado.`;
   // Refresca (force) para que el lead muestre "agendado" con datos frescos.
