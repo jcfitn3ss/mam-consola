@@ -3441,10 +3441,17 @@ async function agendarSiguientePorFrecuencia(id,fechaBase){
   }catch(e){/* no bloquear el guardado por esto */}
 }
 async function reuBorrar(rid,id,eventoId){
-  if(eventoId&&eventoId!=='0'){
-    if(!confirm('OJO: esto solo quita el registro aquí. La reunión SIGUE en tu Google Calendar (quedaría un evento suelto).\n\nSi solo la quieres MOVER, usa "Reprogramar". Si de verdad quieres cancelarla, bórrala también en tu Google Calendar.\n\n¿Quitar el registro de todos modos?'))return;
+  const tieneEv=eventoId&&eventoId!=='0';
+  if(tieneEv){
+    if(!confirm('¿Cancelar esta reunión?\n\nSe borra el evento de tu Google Calendar y se le avisa al cliente por correo. No se puede deshacer.'))return;
+    // Cancela el evento en Google (edge). Solo si eso sale bien se borra el registro,
+    // para no dejar el evento suelto en el calendario.
+    const {data,error}=await invokeFn('agendar-reunion',{body:{cancelar:true,evento_id:eventoId}});
+    if(error||!data||data.error){toast('No se pudo cancelar en Google Calendar: '+((data&&data.error)||(error&&error.message)||'error')+'. El registro NO se borró.','warn');return;}
   } else if(!confirm("¿Borrar esta reunión?"))return;
-  const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){toast(e,'warn');return;}verCliente(id);
+  const e=errFilas(await sb.from("reuniones").delete().eq("id",rid).select("id"));if(e){toast(e,'warn');return;}
+  if(tieneEv)toast('Reunión cancelada y evento borrado del calendario.');
+  verCliente(id);
 }
 // Conectar Google (abre el consentimiento de Google en otra pestaña).
 // Anti doble reunión: bloquea el doble-clic mientras se crea el evento (si no, dos
