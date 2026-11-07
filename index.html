@@ -1877,6 +1877,61 @@ function llamadasHoyHTML(){
     <div class="muted" style="font-size:12px;margin-bottom:6px">Quién tiene llamada hoy, a qué hora y su contacto. El IG y el teléfono salen si la persona ya está en los leads.</div>
     ${filas}</div>`;
 }
+// Panel "Próximas llamadas (7 días)": las citas de los próximos días (sin contar hoy),
+// para que el setter escriba ANTES de la llamada y asegure el toque previo. Marca en rojo
+// a quién aún le falta que le hablen. Usa window.CU_LLAMADAS (que ya trae 2 meses de citas).
+function proximasLlamadasHTML(){
+  const ll=window.CU_LLAMADAS||[];
+  const hoy=hace(0), tope=hace(-7); // hace(-7) = hoy + 7 días
+  const prox=ll.filter(l=>{const f=String(l.inicio||'').slice(0,10);return f>hoy&&f<=tope;}).sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
+  if(!prox.length)return '';
+  const byMail={};(window.CU_ALL||[]).forEach(i=>{const c=String(i.email||'').toLowerCase();if(c&&!byMail[c])byMail[c]=i;});
+  const hora=iso=>{try{return new Date(iso).toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+  const diaTxt=iso=>{try{return new Date(iso).toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'short'});}catch(e){return String(iso).slice(0,10);}};
+  let faltan=0;
+  const filas=prox.map(l=>{
+    const correo=String(l.invitado_correo||'').toLowerCase();
+    const lead=byMail[correo]||null;
+    const tel=lead&&lead.telefono?String(lead.telefono):'';
+    const ig=lead&&lead.instagram?String(lead.instagram).replace(/^@+/,''):'';
+    const meet=l.meet_code?`<a class="sm ghost" href="https://meet.google.com/${esc(l.meet_code)}" target="_blank" rel="noopener" style="border-radius:9px">Meet</a>`:'';
+    const wa=tel?`<a class="sm" href="${waLink(tel,'')}" target="_blank" rel="noopener" style="border-radius:9px;background:#25d366;color:#0a0a0e;font-weight:700">WhatsApp</a>`:'';
+    const igBtn=ig?`<a class="sm ghost" href="https://instagram.com/${encodeURIComponent(ig)}" target="_blank" rel="noopener" style="border-radius:9px">@${esc(ig)}</a>`:'';
+    const ficha=lead&&lead.user_id?`<button class="sm ghost" style="border-radius:9px" onclick="abrirFicha('${lead.user_id}')">Ficha</button>`:'';
+    const contacto=[correo||'sin correo',tel].filter(Boolean).join(' · ');
+    // Alerta al setter: ¿ya le escribieron? Lead en la base sin estado de contacto = falta.
+    const estado=lead?String(lead.contacto_estado||'').trim():'';
+    let alerta;
+    if(!lead){ alerta=`<span class="pill" style="background:#3a2a10;color:var(--warn);border:1px solid #6b4e14">No está en leads · solo correo</span>`; }
+    else if(!estado){ faltan++; alerta=`<span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);border:1px solid var(--rojo);font-weight:800">Falta escribirle</span>`; }
+    else { alerta=`<span class="pill" style="background:rgba(95,208,127,.13);color:var(--ok);border:1px solid #1f6b43">Ya contactado</span>`; }
+    const nomCell=lead
+      ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();irAContacto('${esc(correo)}')" title="Ver sus respuestas y si califica" style="min-width:140px;font-weight:700;color:var(--txt);text-decoration:underline;text-decoration-color:var(--rojo);text-underline-offset:3px;cursor:pointer">${esc(l.invitado_nombre||'—')}</a>`
+      : `<span style="min-width:140px;font-weight:700" title="No está en los leads">${esc(l.invitado_nombre||'—')}</span>`;
+    const evId=String(l.id||'');
+    const reproBtn=evId?`<button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')" title="Mover esta llamada a otra fecha/hora">Reprogramar</button>`:'';
+    const reproPanel=evId?`<div id="repro_${esc(evId)}" style="display:none;flex-basis:100%;padding:8px 0 2px;margin-top:4px;border-top:1px dashed var(--line)">
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div><label class="lbl" style="font-size:11px">Nueva fecha y hora</label><input type="datetime-local" id="reprodt_${esc(evId)}" ${dtAttrs()} style="margin:0"></div>
+        <button class="sm" style="border-radius:9px" onclick="reprogramarLlamada('${esc(evId)}','${esc(l.invitado_nombre||'')}')">Guardar cambio</button>
+        <button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')">Cancelar</button>
+        <span id="repromsg_${esc(evId)}" class="muted" style="font-size:12px"></span>
+      </div>
+    </div>`:'';
+    return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--line)">
+      <b style="min-width:128px;font-size:12.5px;text-transform:capitalize">${esc(diaTxt(l.inicio))} · ${hora(l.inicio)}</b>
+      ${nomCell}
+      ${alerta}
+      <span class="muted" style="font-size:12px;user-select:text">${esc(contacto)}</span>
+      <span style="flex:1"></span>${igBtn}${meet}${wa}${ficha}${reproBtn}
+      ${reproPanel}
+    </div>`;
+  }).join('');
+  const aviso=faltan?`<div style="margin-bottom:8px;padding:9px 12px;border-radius:9px;background:var(--rojoSoft);border:1px solid var(--rojo);color:var(--rojo2);font-size:13px;font-weight:800">${faltan} ${faltan===1?'lead agendado aún SIN escribirle':'leads agendados aún SIN escribirles'}. Mándale(s) mensaje antes de la llamada.</div>`:'';
+  return `<div class="card"><h2 style="margin-top:0">Próximas llamadas · 7 días (${prox.length})</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">Citas de los próximos días. Escríbele a cada uno ANTES de la llamada para asegurar que llegue.</div>
+    ${aviso}${filas}</div>`;
+}
 // Clic en el nombre de una llamada de hoy: baja a su ficha en la cola de Contactar,
 // le abre las respuestas de la encuesta y la resalta, para revisar de una si califica.
 function irAContacto(correo){
@@ -2404,7 +2459,7 @@ function renderContactar(){
     <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')renderContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';renderContactar()">Limpiar</button>`:''}</div>
   </div>`;
   // La Tanda de hoy reemplaza la lista: una persona a la vez, sin nada que elegir.
-  if(CU_FILTRO==='tanda'){ h+=cuTandaHTML(ALL); el.innerHTML=llamadasHoyHTML()+h; cuFoco(); return; }
+  if(CU_FILTRO==='tanda'){ h+=cuTandaHTML(ALL); el.innerHTML=llamadasHoyHTML()+proximasLlamadasHTML()+h; cuFoco(); return; }
   window._CU_VIS=items.map(cuKey); // claves visibles (para "seleccionar todos")
   if(!items.length){
     const vacios={
@@ -2418,7 +2473,7 @@ function renderContactar(){
       ${v?`<div class="muted" style="font-size:13px;margin-top:6px;max-width:420px;margin-left:auto;margin-right:auto">${esc(v[1])}</div>`:''}
       ${CU_Q?`<button class="sm ghost" style="margin-top:14px;min-height:44px" onclick="CU_Q='';renderContactar()">Limpiar la búsqueda</button>`:''}
     </div>`;
-    el.innerHTML=llamadasHoyHTML()+h;cuFoco();return;}
+    el.innerHTML=llamadasHoyHTML()+proximasLlamadasHTML()+h;cuFoco();return;}
   const nSel=window.CU_SEL.size;
   const barra=nSel>0?`<div style="position:sticky;top:0;z-index:5;background:var(--card2);border:1px solid var(--rojo);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <b style="font-size:13px">${nSel} seleccionados</b>
@@ -2579,7 +2634,7 @@ function renderContactar(){
     </div>${panelAbierto}`;
   }
   h+='</div>';
-  el.innerHTML=llamadasHoyHTML()+h;
+  el.innerHTML=llamadasHoyHTML()+proximasLlamadasHTML()+h;
   cuFoco();
   // El tablero de misión del modo comercial va de primeras. Se inyecta aquí
   // porque renderContactar reescribe todo el contenedor en cada pintada.
