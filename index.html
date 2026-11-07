@@ -2730,18 +2730,34 @@ function cuPanelAgendaHTML(i,k){
 function cuAgendaToggle(k){ window.CU_AGE[k]=!window.CU_AGE[k]; window.CU_OPEN.add(k); renderContactar(); }
 // Agenda la llamada inicial de consultoría de un LEAD (sin cuenta) en Google Calendar.
 async function cuAgendarLead(k,email,nombre,leadId){
+  if(window._AGENDANDO_LEAD)return;            // anti doble-clic: dos clics = dos eventos en Calendar
   const inp=document.getElementById('age_'+k);const dur=+(((document.getElementById('agedur_'+k))||{}).value)||45;
   const msg=document.getElementById('ageMsg_'+k);
   if(!inp||!inp.value){if(msg)msg.innerHTML='<span class="alert">Elige fecha y hora.</span>';return;}
   if(agendaFueraDeVentana(inp.value)){if(msg)msg.innerHTML='<span class="alert">Esa fecha está muy lejos. Por ahora puedes agendar hasta el '+finVentanaDT().slice(0,10)+'.</span>';return;}
-  if(msg){msg.style.color='';msg.textContent='Agendando en tu Google Calendar…';}
-  const _nom=String(nombre||'').trim();
-  const titulo=_nom?`Llamada de diagnóstico entre ${cap(_nom)} y JC FIT`:'Llamada de diagnóstico · JC FIT';
-  const {data,error}=await invokeFn("agendar-reunion",{body:{lead_email:email,lead_nombre:nombre,lead_id:leadId,inicio:inp.value,duracion_min:dur,titulo}});
-  if(error||!data||data.error){if(msg)msg.innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"No se pudo agendar")}</span>`;return;}
-  if(msg)msg.innerHTML=`✓ <b>Agendada</b> para ${esc(data.fecha||inp.value)}.${data.meetLink?` <a href="${esc(data.meetLink)}" target="_blank" style="color:var(--rojoTxt)">Abrir Meet</a>`:''} El lead quedó como agendado.`;
-  // Refresca (force) para que el lead muestre "agendado" con datos frescos.
-  try{window.CU_AGE[k]=false;setTimeout(()=>verContactar&&verContactar(true),1300);}catch(e){}
+  // Anti DOBLE llamada: CU_CITAS cruza por correo TODAS las citas futuras del calendario
+  // (vengan del enlace de autoagenda o de la consola). Si este lead ya tiene una, avisa y
+  // manda a "Reprogramar" en Llamadas de hoy en vez de crear otra y dejar doble.
+  const _mail=String(email||'').toLowerCase();
+  const ya=_mail&&window.CU_CITAS?window.CU_CITAS[_mail]:null;
+  if(ya){
+    const cuando=ya.fecha?fFechaCorta(ya.fecha):String(ya.fecha||'');
+    if(!confirm('Este lead YA tiene una llamada agendada para '+cuando+(ya.titulo?' ("'+ya.titulo+'")':'')+'.\n\nPara cambiarla usa "Reprogramar" en Llamadas de hoy, así no queda doble.\n\n¿Agendar otra de todas formas?')){
+      if(msg)msg.innerHTML='<span class="muted" style="font-size:12px">Ya tiene llamada el '+esc(cuando)+'. Usa Reprogramar para moverla.</span>';
+      return;
+    }
+  }
+  window._AGENDANDO_LEAD=true;
+  try{
+    if(msg){msg.style.color='';msg.textContent='Agendando en tu Google Calendar…';}
+    const _nom=String(nombre||'').trim();
+    const titulo=_nom?`Llamada de diagnóstico entre ${cap(_nom)} y JC FIT`:'Llamada de diagnóstico · JC FIT';
+    const {data,error}=await invokeFn("agendar-reunion",{body:{lead_email:email,lead_nombre:nombre,lead_id:leadId,inicio:inp.value,duracion_min:dur,titulo}});
+    if(error||!data||data.error){if(msg)msg.innerHTML=`<span class="alert">${esc((error&&error.message)||(data&&data.error)||"No se pudo agendar")}</span>`;return;}
+    if(msg)msg.innerHTML=`✓ <b>Agendada</b> para ${esc(data.fecha||inp.value)}.${data.meetLink?` <a href="${esc(data.meetLink)}" target="_blank" style="color:var(--rojoTxt)">Abrir Meet</a>`:''} El lead quedó como agendado.`;
+    // Refresca (force) para que el lead muestre "agendado" con datos frescos.
+    try{window.CU_AGE[k]=false;setTimeout(()=>verContactar&&verContactar(true),1300);}catch(e){}
+  }finally{window._AGENDANDO_LEAD=false;}
 }
 
 // Abre WhatsApp con el texto que la IA escribió (y lo que el setter haya editado a mano).
