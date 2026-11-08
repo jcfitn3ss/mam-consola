@@ -234,6 +234,7 @@
       <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
       <!-- MODO COMERCIAL: todavía no paga. -->
       <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
+      <button id="t-agenda" class="hide" onclick="tab('agenda')">Agenda</button>
       <button id="t-crm" onclick="tab('crm')">Planilla CRM</button>
       <button id="t-embudo" class="hide" onclick="tab('embudo')">Embudo</button>
       <button id="t-contenido" class="hide" onclick="tab('contenido')">Contenido</button>
@@ -270,6 +271,7 @@
       <div id="detalle"></div>
     </div>
     <div id="v-contactar" class="hide"></div>
+    <div id="v-agenda" class="hide"></div>
     <div id="v-resumen" class="hide"></div>
     <div id="v-revision" class="hide"></div>
     <div id="v-riesgo" class="hide"></div>
@@ -453,7 +455,7 @@ async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 // Las que viven dentro del desplegable: al abrir una, el botón toma su nombre.
 const TABS_SEC=["ejercicios","plantillas","alimentos","restaurantes","prospecto"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","acompanamiento","cierre","pagos","finanzas","embudo","contenido","metricas","contactar","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="acompanamiento")verAcompanamiento();if(t==="cierre")verCierre();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","acompanamiento","cierre","pagos","finanzas","embudo","contenido","metricas","contactar","agenda","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="agenda")verAgenda();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="acompanamiento")verAcompanamiento();if(t==="cierre")verCierre();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Biblioteca ▾": si la pestaña activa es de la biblioteca, resáltalo y muestra
   // su nombre; si no, vuelve a decir "Biblioteca". Cierra el menú al final.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Biblioteca")+" ▾";}
@@ -736,11 +738,11 @@ const PESTANAS_POR_ROL={
   // Dueño: todo.
   dueno:'*',
   // Entrenador: entrenamiento y setteo. Sin finanzas, sin pagos, sin consola interna.
-  entrenador:['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','contactar','embudo',
+  entrenador:['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','contactar','agenda','embudo',
               'salud','prospecto',
               'ejercicios','plantillas','alimentos','restaurantes','comunidad','sugerencias'],
   // Comercial (closer y setter): prospección, el CRM de clientes y el embudo sin plata.
-  comercial:['contactar','crm','embudo','contenido'],
+  comercial:['agenda','contactar','crm','embudo','contenido'],
 };
 let MI_ROL='';
 
@@ -797,7 +799,7 @@ const PESTANAS_POR_MODO={
   servicio:['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','comunidad','salud',
             // Biblioteca (van dentro del desplegable)
             'ejercicios','plantillas','alimentos','restaurantes','prospecto'],
-  comercial:['contactar','crm','embudo','contenido','pagos','finanzas','metricas'],
+  comercial:['agenda','contactar','crm','embudo','contenido','pagos','finanzas','metricas'],
 };
 // Las de la Biblioteca, que es el único desplegable que queda en la barra.
 const TABS_BIBLIOTECA=['ejercicios','plantillas','alimentos','restaurantes','prospecto'];
@@ -818,7 +820,7 @@ function puedeVer(pestana){
 
 // Deja a la vista solo las pestañas del rol y abre la primera que le toque.
 function aplicarPermisos(){
-  const todas=['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','pagos','finanzas','embudo','contenido','metricas','contactar',
+  const todas=['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','pagos','finanzas','embudo','contenido','metricas','contactar','agenda',
     'ejercicios','plantillas','alimentos','restaurantes','salud','prospecto',
     'comunidad','sugerencias','interno'];
   let primera='';
@@ -1826,6 +1828,7 @@ async function cargarCitas(){
     });
     window.CU_CITAS=m;
     if(Object.keys(m).length)renderContactar();
+    if(typeof renderAgenda==='function'&&$("v-agenda")&&!$("v-agenda").classList.contains("hide"))renderAgenda();
   }catch(e){/* sin citas la cola funciona igual */}
 }
 
@@ -1931,6 +1934,144 @@ function proximasLlamadasHTML(){
   return `<div class="card"><h2 style="margin-top:0">Próximas llamadas · 7 días (${prox.length})</h2>
     <div class="muted" style="font-size:12px;margin-bottom:6px">Citas de los próximos días. Escríbele a cada uno ANTES de la llamada para asegurar que llegue.</div>
     ${aviso}${filas}</div>`;
+}
+// ===================== AGENDA (calendario del comercial) =====================
+// Vista dedicada para el setter: las llamadas de hoy y de los próximos días, de
+// dónde viene cada una (la agendaste tú / pauta / entró sola), si ya le
+// escribieron, y los botones para contactar. Saca los paneles de llamadas que
+// antes saturaban Contactar. La COMISIÓN del setter es SOLO sobre las que él
+// agenda: se detectan por el título ("…y JC FIT") o marcándolas a mano.
+let AG_DIAS=14; // ventana del calendario (7/14/30)
+// Botón "Yo la agendé": se prende cuando existan las 3 columnas nuevas en
+// embudo_llamadas (agendo_setter, agendo_setter_nombre, agendo_setter_at).
+const AGENDA_MARCA_MANUAL=false;
+
+// Quién agendó la llamada y si comisiona al setter.
+function agClase(l,lead){
+  const t=String(l.titulo||'');
+  const porTitulo=/\bjc\s*fit\b/i.test(t);          // creada desde la consola
+  const marcada=!!(l&&l.agendo_setter);             // marcada a mano "yo la agendé"
+  if(porTitulo||marcada){
+    const quien=marcada?(l.agendo_setter_nombre||'el setter'):'consola';
+    return {cat:'setter',comisiona:true,quien,manual:marcada&&!porTitulo};
+  }
+  const o=lead?String(lead.origen||'').toLowerCase():'';
+  const esPauta=/meta|\bbf\b|booking|paid|anuncio|\bads?\b|cpc|ppc/.test(o);
+  return {cat:esPauta?'pauta':'sola',comisiona:false,quien:'',manual:false};
+}
+function agTag(cl){
+  if(cl.cat==='setter')return `<span class="pill" style="background:rgba(95,208,127,.14);color:var(--ok);border:1px solid #1f6b43;font-weight:800">La agendaste tú · comisiona${cl.manual&&cl.quien?' ('+esc(cl.quien)+')':''}</span>`;
+  if(cl.cat==='pauta')return `<span class="pill" style="background:rgba(95,147,224,.14);color:#7fb0ff;border:1px solid rgba(95,147,224,.5)">Pauta · no comisiona</span>`;
+  return `<span class="pill" style="background:var(--card2);color:var(--muted);border:1px solid var(--line)">Entró sola · no comisiona</span>`;
+}
+function agendaHTML(){
+  const ll=window.CU_LLAMADAS||[];
+  const hoy=hace(0), tope=hace(-AG_DIAS);
+  const prox=ll.filter(l=>{const f=String(l.inicio||'').slice(0,10);return f>=hoy&&f<=tope;})
+              .sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
+  const chips=[7,14,30].map(d=>`<button class="sm ${AG_DIAS===d?'':'ghost'}" style="border-radius:20px" onclick="AG_DIAS=${d};renderAgenda()">${d} días</button>`).join(' ');
+  const head=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Agenda</h2><span style="flex:1"></span>${chips}<button class="sm ghost" style="border-radius:20px" onclick="agSync()" title="Volver a leer el calendario de Google">Releer calendario</button></div>`;
+  if(!prox.length)return `<div class="card">${head}<div class="muted" style="font-size:13px">No hay llamadas en los próximos ${AG_DIAS} días. Cuando alguien agende (por la pauta, por el enlace o porque tú la agendas) aparece aquí.</div></div>`;
+  const byMail={};(window.CU_ALL||[]).forEach(i=>{const c=String(i.email||'').toLowerCase();if(c&&!byMail[c])byMail[c]=i;});
+  const hora=iso=>{try{return new Date(iso).toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
+  const diaTxt=iso=>{try{return new Date(iso).toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'long'});}catch(e){return String(iso).slice(0,10);}};
+  let nSetter=0,nPauta=0,nSola=0,faltan=0;
+  const grupos={};
+  prox.forEach(l=>{const k=String(l.inicio||'').slice(0,10);(grupos[k]=grupos[k]||[]).push(l);});
+  const filaDe=l=>{
+    const correo=String(l.invitado_correo||'').toLowerCase();
+    const lead=byMail[correo]||null;
+    const cl=agClase(l,lead);
+    if(cl.cat==='setter')nSetter++;else if(cl.cat==='pauta')nPauta++;else nSola++;
+    const tel=lead&&lead.telefono?String(lead.telefono):'';
+    const ig=lead&&lead.instagram?String(lead.instagram).replace(/^@+/,''):'';
+    const meet=l.meet_code?`<a class="sm ghost" href="https://meet.google.com/${esc(l.meet_code)}" target="_blank" rel="noopener" style="border-radius:9px">Meet</a>`:'';
+    const wa=tel?`<a class="sm" href="${waLink(tel,'')}" target="_blank" rel="noopener" style="border-radius:9px;background:#25d366;color:#0a0a0e;font-weight:700">WhatsApp</a>`:'';
+    const igBtn=ig?`<a class="sm ghost" href="https://instagram.com/${encodeURIComponent(ig)}" target="_blank" rel="noopener" style="border-radius:9px">@${esc(ig)}</a>`:'';
+    const ficha=lead&&lead.user_id?`<button class="sm ghost" style="border-radius:9px" onclick="abrirFicha('${lead.user_id}')">Ficha</button>`:'';
+    const contacto=[correo||'sin correo',tel].filter(Boolean).join(' · ');
+    const estado=lead?String(lead.contacto_estado||'').trim():'';
+    let alerta;
+    if(!lead){ alerta=`<span class="pill" style="background:#3a2a10;color:var(--warn);border:1px solid #6b4e14">No está en leads · solo correo</span>`; }
+    else if(!estado){ faltan++; alerta=`<span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);border:1px solid var(--rojo);font-weight:800">Falta escribirle</span>`; }
+    else { alerta=`<span class="pill" style="background:rgba(95,208,127,.13);color:var(--ok);border:1px solid #1f6b43">Ya contactado</span>`; }
+    const nomCell=lead
+      ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();tab('contactar');setTimeout(()=>irAContacto('${esc(correo)}'),60)" title="Ver sus respuestas y si califica" style="min-width:140px;font-weight:700;color:var(--txt);text-decoration:underline;text-decoration-color:var(--rojo);text-underline-offset:3px;cursor:pointer">${esc(l.invitado_nombre||'—')}</a>`
+      : `<span style="min-width:140px;font-weight:700" title="No está en los leads">${esc(l.invitado_nombre||'—')}</span>`;
+    const evId=String(l.id||'');
+    const reproBtn=evId?`<button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')" title="Mover esta llamada a otra fecha/hora">Reprogramar</button>`:'';
+    let marcaBtn='';
+    if(AGENDA_MARCA_MANUAL&&evId){
+      marcaBtn=cl.manual
+        ? `<button class="sm ghost" style="border-radius:9px" onclick="agMarcar('${esc(evId)}',true)" title="Quitar de tus agendadas">Quitar mía</button>`
+        : (cl.cat!=='setter'?`<button class="sm ghost" style="border-radius:9px" onclick="agMarcar('${esc(evId)}',false)" title="Marcar que esta llamada la agendaste tú (comisiona)">Yo la agendé</button>`:'');
+    }
+    const reproPanel=evId?`<div id="repro_${esc(evId)}" style="display:none;flex-basis:100%;padding:8px 0 2px;margin-top:4px;border-top:1px dashed var(--line)">
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div><label class="lbl" style="font-size:11px">Nueva fecha y hora</label><input type="datetime-local" id="reprodt_${esc(evId)}" ${dtAttrs()} style="margin:0"></div>
+        <button class="sm" style="border-radius:9px" onclick="reprogramarLlamada('${esc(evId)}','${esc(l.invitado_nombre||'')}')">Guardar cambio</button>
+        <button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')">Cancelar</button>
+        <span id="repromsg_${esc(evId)}" class="muted" style="font-size:12px"></span>
+      </div>
+    </div>`:'';
+    return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)">
+      <b style="min-width:58px">${hora(l.inicio)}</b>
+      ${nomCell}
+      ${agTag(cl)}
+      ${alerta}
+      <span class="muted" style="font-size:12px;user-select:text">${esc(contacto)}</span>
+      <span style="flex:1"></span>${igBtn}${meet}${wa}${ficha}${marcaBtn}${reproBtn}
+      ${reproPanel}
+    </div>`;
+  };
+  const dias=Object.keys(grupos).sort();
+  const cuerpo=dias.map(k=>{
+    const filas=grupos[k].map(filaDe).join('');
+    const esHoy=k===hoy;
+    return `<div style="margin-top:14px"><div style="font-size:12.5px;font-weight:800;text-transform:capitalize;color:${esHoy?'var(--rojo2)':'var(--txt)'};border-bottom:2px solid ${esHoy?'var(--rojo)':'var(--line)'};padding-bottom:4px;margin-bottom:2px">${esHoy?'Hoy · ':''}${esc(diaTxt(grupos[k][0].inicio))} (${grupos[k].length})</div>${filas}</div>`;
+  }).join('');
+  const resumen=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <span class="pill" style="background:rgba(95,208,127,.14);color:var(--ok);border:1px solid #1f6b43;font-weight:800">Tú agendaste: ${nSetter}</span>
+    <span class="pill" style="background:rgba(95,147,224,.14);color:#7fb0ff;border:1px solid rgba(95,147,224,.5)">Pauta: ${nPauta}</span>
+    <span class="pill" style="background:var(--card2);color:var(--muted);border:1px solid var(--line)">Entró sola: ${nSola}</span>
+  </div>`;
+  const aviso=faltan?`<div style="margin-bottom:8px;padding:9px 12px;border-radius:9px;background:var(--rojoSoft);border:1px solid var(--rojo);color:var(--rojo2);font-size:13px;font-weight:800">${faltan} ${faltan===1?'lead agendado aún SIN escribirle':'leads agendados aún SIN escribirles'}. Escríbele(s) antes de la llamada.</div>`:'';
+  const nota=`<div class="muted" style="font-size:11.5px;margin-top:4px">La comisión del setter es SOLO sobre las que tú agendas (verde). Las de pauta y las que entran solas no comisionan.</div>`;
+  return `<div class="card">${head}${resumen}${aviso}${cuerpo}${nota}</div>`;
+}
+function renderAgenda(){ const el=$("v-agenda"); if(!el)return; el.innerHTML=agendaHTML(); }
+async function verAgenda(){
+  if(!window.CU_ALL){ try{ await verContactar(); }catch(e){} }
+  renderAgenda();
+  autoSyncAgenda(); // refresca las citas en segundo plano
+}
+async function agSync(){
+  try{ sessionStorage.removeItem('agenda_sync'); await invokeFn('embudo',{body:{action:'sync',dias:3,clave:finClave()}}); }catch(e){}
+  try{ await cargarCitas(); }catch(e){}
+  renderAgenda();
+}
+async function agMarcar(id,quita){
+  try{
+    const r=await invokeFn('embudo',{body:{action:'agendada',id:id,quita:!!quita}});
+    if(r&&r.error)throw new Error(r.error.message||String(r.error));
+    if(r&&r.data&&r.data.error)throw new Error(r.data.error);
+    try{ await cargarCitas(); }catch(e){}
+    renderAgenda();
+    toast(quita?'Quitada de tus agendadas.':'Marcada como tuya. Ahora comisiona.');
+  }catch(e){ toast('No pude guardarlo: '+(e.message||e)); }
+}
+// Aviso delgado en Contactar: cuántas llamadas hay y un botón para abrir la Agenda.
+function agendaAvisoContactarHTML(){
+  const ll=window.CU_LLAMADAS||[]; const hoy=hace(0), tope=hace(-7);
+  const dehoy=ll.filter(l=>String(l.inicio||'').slice(0,10)===hoy).length;
+  const sem=ll.filter(l=>{const f=String(l.inicio||'').slice(0,10);return f>hoy&&f<=tope;}).length;
+  if(!dehoy&&!sem)return '';
+  const partes=[]; if(dehoy)partes.push(`<b>${dehoy}</b> ${dehoy===1?'llamada hoy':'llamadas hoy'}`); if(sem)partes.push(`<b>${sem}</b> esta semana`);
+  return `<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 14px">
+    <span style="font-size:13px">Tienes ${partes.join(' · ')}.</span>
+    <span style="flex:1"></span>
+    <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:9px;min-height:38px;padding:0 16px" onclick="tab('agenda')">Abrir Agenda</button>
+  </div>`;
 }
 // Clic en el nombre de una llamada de hoy: baja a su ficha en la cola de Contactar,
 // le abre las respuestas de la encuesta y la resalta, para revisar de una si califica.
@@ -2459,7 +2600,7 @@ function renderContactar(){
     <div style="display:flex;gap:8px;margin-top:10px"><input id="cu_q" value="${esc(q)}" placeholder="Buscar nombre, correo o teléfono…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 12px;font-size:13px" oninput="CU_Q=this.value;cuBuscar()" onkeydown="if(event.key==='Enter')renderContactar()">${CU_Q?`<button class="sm ghost" onclick="CU_Q='';renderContactar()">Limpiar</button>`:''}</div>
   </div>`;
   // La Tanda de hoy reemplaza la lista: una persona a la vez, sin nada que elegir.
-  if(CU_FILTRO==='tanda'){ h+=cuTandaHTML(ALL); el.innerHTML=llamadasHoyHTML()+proximasLlamadasHTML()+h; cuFoco(); return; }
+  if(CU_FILTRO==='tanda'){ h+=cuTandaHTML(ALL); el.innerHTML=agendaAvisoContactarHTML()+h; cuFoco(); return; }
   window._CU_VIS=items.map(cuKey); // claves visibles (para "seleccionar todos")
   if(!items.length){
     const vacios={
@@ -2473,7 +2614,7 @@ function renderContactar(){
       ${v?`<div class="muted" style="font-size:13px;margin-top:6px;max-width:420px;margin-left:auto;margin-right:auto">${esc(v[1])}</div>`:''}
       ${CU_Q?`<button class="sm ghost" style="margin-top:14px;min-height:44px" onclick="CU_Q='';renderContactar()">Limpiar la búsqueda</button>`:''}
     </div>`;
-    el.innerHTML=llamadasHoyHTML()+proximasLlamadasHTML()+h;cuFoco();return;}
+    el.innerHTML=agendaAvisoContactarHTML()+h;cuFoco();return;}
   const nSel=window.CU_SEL.size;
   const barra=nSel>0?`<div style="position:sticky;top:0;z-index:5;background:var(--card2);border:1px solid var(--rojo);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <b style="font-size:13px">${nSel} seleccionados</b>
@@ -2634,7 +2775,7 @@ function renderContactar(){
     </div>${panelAbierto}`;
   }
   h+='</div>';
-  el.innerHTML=llamadasHoyHTML()+proximasLlamadasHTML()+h;
+  el.innerHTML=agendaAvisoContactarHTML()+h;
   cuFoco();
   // El tablero de misión del modo comercial va de primeras. Se inyecta aquí
   // porque renderContactar reescribe todo el contenedor en cada pintada.
