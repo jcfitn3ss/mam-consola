@@ -198,6 +198,11 @@
   <header class="appbar">
     <div class="brand"><span class="brandMark">M</span><h1>Músculo al Máximo <span class="brandSub">· Consola</span><span id="modoTag" class="modoTag hide"></span></h1></div>
     <div style="display:flex;gap:8px;align-items:center">
+      <div class="zoomCtl" title="Tamaño del texto" style="display:flex;gap:2px;align-items:center;margin-right:2px">
+        <button class="ghost" aria-label="Reducir el tamaño de la letra" onclick="zoomMenos()" style="padding:5px 9px;font-weight:800;font-size:12px;line-height:1">A−</button>
+        <span id="zoomNivel" class="muted" style="font-size:11px;min-width:34px;text-align:center">100%</span>
+        <button class="ghost" aria-label="Agrandar la letra" onclick="zoomMas()" style="padding:5px 9px;font-weight:800;font-size:16px;line-height:1">A+</button>
+      </div>
       <button id="campana" class="ghost hide" onclick="toggleCampana()">Avisos <span id="nAl" class="pill" style="background:var(--rojo);color:#fff">0</span></button>
       <div class="perfilWrap">
         <button id="perfilBtn" class="ghost hide" onclick="togglePerfil(event)">Mi cuenta ▾</button>
@@ -403,6 +408,20 @@ let INF_CID=null,INF_FOTOS_LIB=[],INF_FOTOS_SEL=[],INF_PICK=null,INF_DATOS=null;
 
 const $=id=>document.getElementById(id);
 const show=(id,on)=>$(id).classList.toggle("hide",!on);
+
+// ===== Tamaño del texto (lo pidieron Henry y Sandy, 2026-11-09) =====
+// Se guarda por navegador, así cada quien conserva el suyo. Usa el zoom del
+// documento: agranda TODA la consola, que es lo que la gente quiere para leer
+// mejor, y no pelea con los font-size en px sueltos del código.
+const ZOOM_KEY='mam_zoom';
+const ZOOM_PASOS=[0.9,1,1.1,1.25,1.4,1.6];
+function zoomActual(){ let z=parseFloat(localStorage.getItem(ZOOM_KEY)||'1'); if(isNaN(z)||z<0.9||z>1.6)z=1; return z; }
+function aplicarZoom(z){ try{ document.documentElement.style.zoom=String(z||1); }catch(e){} const b=$("zoomNivel"); if(b)b.textContent=Math.round((z||1)*100)+'%'; }
+function setZoom(z){ z=Math.min(1.6,Math.max(0.9,Number(z)||1)); try{ localStorage.setItem(ZOOM_KEY,String(z)); }catch(e){} aplicarZoom(z); }
+function _zoomPaso(dir){ const p=ZOOM_PASOS; let i=p.indexOf(zoomActual()); if(i<0)i=p.indexOf(1); setZoom(p[Math.min(p.length-1,Math.max(0,i+dir))]); }
+function zoomMas(){ _zoomPaso(1); }
+function zoomMenos(){ _zoomPaso(-1); }
+try{ aplicarZoom(zoomActual()); }catch(e){}
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // Copia al portapapeles con fallback: en Safari móvil / contexto no seguro el
 // clipboard puede fallar; ahí mostramos un prompt para copiar a mano (antes fingía "✓").
