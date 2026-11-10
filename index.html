@@ -2212,6 +2212,13 @@ function cuEncuesta(all){
 function cuEncPendientes(all){
   return cuEncuesta(all).filter(i=>!i.contacto_estado||i.contacto_estado==='sin_contactar');
 }
+// Leads que escribieron por DM de Instagram (tienen mensajes en la tabla `mensajes`).
+// Mucha gente contesta la encuesta por DM: sus respuestas viven ahí, no en `respuestas`.
+// El más reciente en escribir va arriba.
+function cuInstagram(all){
+  return (all||[]).filter(i=>Number(i.n_mensajes)>0&&i.grupo!=='Cliente')
+    .sort((a,b)=>new Date(b.ultimo_mensaje_at||0).getTime()-new Date(a.ultimo_mensaje_at||0).getTime());
+}
 function cuHaceCuanto(iso){
   if(!iso) return '';
   const min=Math.round((Date.now()-new Date(iso).getTime())/60000);
@@ -2269,6 +2276,7 @@ function cuFiltrar(){
   const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
   if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
   if(CU_FILTRO==='encuesta') return cuVentanaOrden(cuEncuesta(all));
+  if(CU_FILTRO==='instagram') return cuInstagram(all);
   if(CU_FILTRO==='reciente') return cuRecientes(all);
   if(CU_FILTRO==='rutina') return all.filter(i=>/rutina/i.test(i.origen||''));
   if(CU_FILTRO==='tanda') return cuTanda(all);
@@ -2510,6 +2518,7 @@ function renderContactar(){
   const encTodos=cuEncuesta(ALL);
   const encPend=cuEncPendientes(ALL);
   const nEnc=encTodos.length, nEncPend=encPend.length;
+  const nIG=cuInstagram(ALL).length; // leads que escribieron por DM de Instagram
   const encUltimo=encPend.length?cuAplico(encPend[0]):(encTodos.length?cuAplico(encTodos[0]):'');
   const nEncCal=encPend.filter(i=>cuTemp(i)==='CALIENTE').length;
   // Contactos de hoy = actividad del setter (solo sube, sensación de puntos).
@@ -2590,7 +2599,7 @@ function renderContactar(){
       const tab=(label,val,n)=>{const on=CU_FILTRO===val;
         return `<button onclick="CU_FILTRO='${val}';CU_GRUPO='';renderContactar()" style="min-height:44px;padding:0 14px;background:none;border:none;border-bottom:2px solid ${on?'var(--rojo)':'transparent'};border-radius:0;color:${on?'var(--txt)':'var(--muted)'};font-weight:700;font-size:13px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:7px">${esc(label)}${n?`<span style="font-size:11px;background:${on?'var(--rojo)':'var(--card2)'};color:${on?'#fff':'inherit'};border-radius:9px;padding:1px 7px;font-weight:800">${n}</span>`:''}</button>`;};
       return `<div style="display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:14px;flex-wrap:wrap">
-        ${tab('Tanda de hoy','tanda',nTanda)}${tab('Encuesta nueva','encuesta',nEnc)}${tab('Para hoy','hoy',nHoy)}${tab('Seguimiento','seguimiento',nSeg)}
+        ${tab('Tanda de hoy','tanda',nTanda)}${tab('Encuesta nueva','encuesta',nEnc)}${tab('Instagram','instagram',nIG)}${tab('Para hoy','hoy',nHoy)}${tab('Seguimiento','seguimiento',nSeg)}
       </div>
       <!-- Cuándo aplicaron y en qué orden trabajarlos. Son independientes del
            filtro: se pueden combinar ("los de hoy, por prioridad"). -->
@@ -2624,6 +2633,7 @@ function renderContactar(){
   if(!items.length){
     const vacios={
       encuesta:['Todavía nadie ha llenado la encuesta.','El formulario está en aplica.musculoalmaximo.com/captar. En cuanto alguien lo llene, aparece aquí de primero.'],
+      instagram:['Nadie ha escrito por Instagram todavía.','Cuando alguien te mande un DM aparece aquí con lo que escribió. Útil para los que contestan la encuesta por mensaje directo.'],
       hoy:['Nada urgente por ahora.','Buen momento para trabajar la pestaña de Seguimiento.'],
       seguimiento:['Nadie en seguimiento.','Los que marques como "en seguimiento" salen aquí cuando toque volver a escribirles.']
     };
@@ -2690,9 +2700,12 @@ function renderContactar(){
     const eIA=window.CU_IA[k]||{};
     const abRes=!!window.CU_RESP[k];
     const abAge=!!(window.CU_AGE&&window.CU_AGE[k]);
+    const abConv=!!(window.CU_CONV&&window.CU_CONV[k]);
     const btnIA=i.telefono?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIARedactar('${k}')" title="La IA escribe el mensaje con la voz de Juan, usando lo que esta persona contestó">Escribir con IA</button>`:'';
     const btnCal=esEnc?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIACalificar('${k}')" title="La IA lee sus respuestas y dice si vale la llamada">Calificar</button>`:'';
     const btnRes=String(i.respuestas||'').trim()?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuRespToggle('${k}')">${abRes?'Ocultar respuestas':'Ver todo lo que contestó'}</button>`:'';
+    // Conversación de DM (Instagram): mucha gente contesta la encuesta por mensaje directo.
+    const btnConv=Number(i.n_mensajes)>0?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuVerConversacion('${k}')" title="Ver lo que escribió por Instagram">${abConv?'Ocultar conversación':`Ver conversación (${i.n_mensajes})`}</button>`:'';
     // Agendar la llamada inicial de consultoría (Google Calendar + Meet). Requiere correo.
     const nomAge=(i.nombre||'').replace(/['\\]/g,'');
     const btnAgendar=i.email?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuAgendaToggle('${k}')" title="Agenda la llamada inicial en tu Google Calendar e invita al lead por correo">${abAge?'Cerrar agenda':'Agendar consultoría'}</button>`:'';
@@ -2731,6 +2744,19 @@ function renderContactar(){
       </div>`;
     })():'';
     const panelIA=eIA.abierto?cuIAPanelHTML(i,k):'';
+    // Panel de la conversación de Instagram (se llena con crm-mensajes al abrir).
+    const panelConv=abConv?(()=>{
+      const cv=window.CU_CONV[k]||{};
+      if(cv.cargando) return `<div class="muted" style="font-size:12.5px;margin-top:10px">Cargando conversación…</div>`;
+      if(cv.error) return `<div class="muted" style="font-size:12.5px;margin-top:10px">${esc(cv.error)}</div>`;
+      const ms=cv.msgs||[];
+      if(!ms.length) return `<div class="muted" style="font-size:12.5px;margin-top:10px">Sin mensajes guardados.</div>`;
+      const burbujas=ms.map(m=>{const inc=m.direccion==='in';return `<div style="display:flex;justify-content:${inc?'flex-start':'flex-end'}"><div style="max-width:82%;background:${inc?'var(--card2)':'var(--rojoSoft)'};border:1px solid var(--line);border-radius:12px;padding:8px 11px"><div style="font-size:13px;line-height:1.45;color:var(--txt);overflow-wrap:anywhere">${esc(m.texto||'')}</div><div class="muted" style="font-size:10px;margin-top:3px">${esc(fFechaCorta(m.created_at))}</div></div></div>`;}).join('');
+      return `<div style="margin-top:10px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;overflow:hidden">
+        <div style="padding:11px 14px;border-bottom:1px solid var(--line)"><span class="muted" style="font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase">Conversación de Instagram</span></div>
+        <div style="padding:14px;display:flex;flex-direction:column;gap:7px">${burbujas}</div>
+      </div>`;
+    })():'';
     // Instagram como segundo canal: si el WhatsApp falla, por ahi se le escribe.
     // Va DENTRO del panel abierto, como boton de verdad: antes era un <a class="sm ghost">
     // suelto entre los botones y salia azul, porque las reglas de boton de esta hoja
@@ -2742,7 +2768,7 @@ function renderContactar(){
     // Contactar dejo de ser una galeria de tarjetas (dos personas por pantalla) y
     // es una cola: una linea por persona con lo justo para decidir si la llamas,
     // y el detalle completo se abre en el sitio con un clic.
-    const abierto=window.CU_OPEN.has(k)||abRes||abAge||!!(eIA&&eIA.abierto);
+    const abierto=window.CU_OPEN.has(k)||abRes||abAge||abConv||!!(eIA&&eIA.abierto);
     const dEnc=esEnc?cuEncDatos(i):{};
     // La linea de resumen va en el orden que decide la llamada: primero QUE QUIERE
     // y las senales de compra, despues el contexto y de ultimo cuando escribio.
@@ -2754,6 +2780,8 @@ function renderContactar(){
       if(dEnc.coach) partes.push(esc(dEnc.coach.toLowerCase()));
       const ctx=[i.ciudad||'',dEnc.edad?dEnc.edad+' anos':'',dEnc.nivel?'entrena '+dEnc.nivel:''].filter(Boolean).join(' · ');
       if(ctx) partes.push(esc(ctx));
+      // Si contestó por DM de Instagram, el último mensaje es lo que decide si vale: se muestra.
+      if(!esEnc&&i.ultimo_mensaje){ const t=String(i.ultimo_mensaje); partes.unshift('<span style="color:#c9a6ff">DM: &ldquo;'+esc(t.length>80?t.slice(0,80)+'…':t)+'&rdquo;</span>'); }
       if(!partes.length&&g.t) partes.push('<span style="color:'+g.c+'">'+esc(g.t)+'</span>');
       else if(g.t&&!esEnc) partes.push('<span style="color:'+g.c+'">'+esc(g.t)+'</span>');
       const cuando=esEnc&&i.lead_creado?cuHaceCuanto(i.lead_creado):(i.contacto_ultimo?'ultimo toque hace '+cuDiasDesde(i.contacto_ultimo)+' d':'');
@@ -2772,14 +2800,14 @@ function renderContactar(){
       ${encBloque}
       <div style="margin-top:${encBloque?'12px':'0'}">${detalle}</div>
       <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:13px">
-        ${btnAgendar}${btnIA}${btnCal}${btnRes}${igBtn}${infBtn}
+        ${btnAgendar}${btnIA}${btnCal}${btnRes}${btnConv}${igBtn}${infBtn}
       </div>
       <div style="margin-top:12px">
         <textarea id="${notaId}" placeholder="Nota rapida sobre esta persona…" style="width:100%;background:var(--card2);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px;font-size:12px;min-height:44px;font-family:inherit;box-sizing:border-box">${esc(i.notas||'')}</textarea>
         <button class="sm ghost" style="font-size:11px;margin-top:5px;min-height:36px" onclick="guardarNota(${arg},document.getElementById('${notaId}').value)">Guardar nota</button>
       </div>
       ${ht?`<div class="muted" style="font-size:11px;margin-top:10px;line-height:1.7"><b>Historial</b><br>${ht}</div>`:''}
-      ${panelRes}${panelAgenda}${panelIA}
+      ${panelRes}${panelConv}${panelAgenda}${panelIA}
     </div>`:'';
 
     h+=`<div data-k="${k}" onclick="cuAbrir('${k}',event)"
@@ -2891,6 +2919,21 @@ async function cuIACalificar(k){
 
 function cuIACerrar(k){ const e=cuIAEstado(k); e.abierto=false; renderContactar(); }
 function cuRespToggle(k){ window.CU_RESP[k]=!window.CU_RESP[k]; window.CU_OPEN.add(k); renderContactar(); }
+window.CU_CONV = window.CU_CONV || {}; // key -> {cargando,msgs,error} de la conversación de IG
+// Abre/cierra la conversación de DM de un lead. La trae de crm-mensajes (solo lectura).
+async function cuVerConversacion(k){
+  if(window.CU_CONV[k]){ delete window.CU_CONV[k]; renderContactar(); return; }
+  const it=(window.CU_ALL||[]).find(x=>cuKey(x)===k);
+  if(!it||!it.id){ toast('Sin conversación para este contacto','warn'); return; }
+  window.CU_OPEN.add(k);
+  window.CU_CONV[k]={cargando:true}; renderContactar();
+  try{
+    const {data,error}=await invokeFn('crm-mensajes',{body:{lead_id:it.id}});
+    if(error||(data&&data.error)) window.CU_CONV[k]={cargando:false,msgs:[],error:'No se pudo cargar la conversación.'};
+    else window.CU_CONV[k]={cargando:false,msgs:(data&&data.mensajes)||[]};
+  }catch(e){ window.CU_CONV[k]={cargando:false,msgs:[],error:'No se pudo cargar la conversación.'}; }
+  renderContactar();
+}
 window.CU_AGE = window.CU_AGE || {}; // key -> true si el panel de agendar está abierto
 // El panel de agendar se usa en la fila abierta y en la Tanda de hoy. Nunca se
 // pintan los dos a la vez (la tanda reemplaza la lista), asi que los ids no chocan.
