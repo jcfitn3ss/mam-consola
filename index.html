@@ -2649,10 +2649,23 @@ function renderContactar(){
       hoy:['Nada urgente por ahora.','Buen momento para trabajar la pestaña de Seguimiento.'],
       seguimiento:['Nadie en seguimiento.','Los que marques como "en seguimiento" salen aquí cuando toque volver a escribirles.']
     };
-    const v=vacios[CU_FILTRO];
+    let v=vacios[CU_FILTRO];
+    // Trampa que confundía a Ian: la vista salía vacía casi siempre por el chip de
+    // fecha "Hoy" (cuVentanaOrden recorta por CU_DIA en TODAS las pestañas, incluida
+    // Encuesta). Si nadie llenó HOY pero sí hay respuestas de días previos, NO digas
+    // "nadie llenó": dilo claro y ofrece abrirlas quitando el filtro de fecha.
+    if(nEnc>0 && CU_FILTRO!=='seguimiento' && CU_FILTRO!=='instagram'){
+      const cuando=encUltimo?cuHaceCuanto(encUltimo):'';
+      v=[CU_DIA?'Nadie llenó la encuesta en la fecha elegida.':'No hay nada en esta vista.',
+         `Pero tienes ${nEnc} respuesta${nEnc>1?'s':''} de la encuesta esperando${CU_DIA?' (ocultas por el filtro de fecha). La última llegó '+(cuando||'hace poco'):''}. Ábrelas para leer lo que contestó cada persona y agendar la llamada.`];
+    }
+    // Botón directo: salta a Encuesta y QUITA el filtro de fecha (CU_DIA='') para que
+    // no vuelva a esconder las respuestas de ayer.
+    const verResp=nEnc>0?`<button class="sm" style="margin-top:16px;min-height:48px;border:none;background:var(--rojo);color:#fff;font-weight:800;border-radius:11px;padding:0 20px;font-size:14px" onclick="CU_FILTRO='encuesta';CU_DIA='';CU_GRUPO='';CU_Q='';window.CU_ORDEN='prioridad';renderContactar()">Ver las ${nEnc} respuestas de la encuesta</button>`:'';
     h+=`<div class="card" id="cu_lista" style="text-align:center;padding:30px 20px">
       <div style="font-weight:700;font-size:15px">${v?esc(v[0]):'Nadie en este filtro.'}</div>
-      ${v?`<div class="muted" style="font-size:13px;margin-top:6px;max-width:420px;margin-left:auto;margin-right:auto">${esc(v[1])}</div>`:''}
+      ${v?`<div class="muted" style="font-size:13px;margin-top:6px;max-width:460px;margin-left:auto;margin-right:auto">${esc(v[1])}</div>`:''}
+      ${verResp}
       ${CU_Q?`<button class="sm ghost" style="margin-top:14px;min-height:44px" onclick="CU_Q='';renderContactar()">Limpiar la búsqueda</button>`:''}
     </div>`;
     el.innerHTML=agendaAvisoContactarHTML()+h;cuFoco();return;}
