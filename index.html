@@ -2570,6 +2570,18 @@ function renderContactar(){
         <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:44px;padding:0 18px" onclick="cuAbrirEncuesta()">Abrir ${nEncPend===1?'el':'los'} ${nEncPend}</button>
       </div>
     </div>`:''}
+    ${nIG>0?`<div style="margin-top:12px;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:14px;align-items:center">
+          <div style="font-size:26px;font-weight:800;line-height:1">${nIG}</div>
+          <div>
+            <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.6px">${nIG===1?'Escribió por Instagram':'Escribieron por Instagram'}</div>
+            <div class="muted" style="font-size:12.5px">Respuestas que llegaron por DM. Ábrelas para ver lo que contestó cada persona.</div>
+          </div>
+        </div>
+        <button class="sm" style="border:none;background:var(--rojo);color:#fff;font-weight:700;border-radius:10px;min-height:44px;padding:0 18px" onclick="cuIrA('instagram')">Ver ${nIG}</button>
+      </div>
+    </div>`:''}
     ${(()=>{const done=metaHecha; const vacio=pending===0&&contactsHoy===0;
       return `<div style="margin-top:12px;background:${done?'rgba(63,184,79,.10)':(CU_FILTRO==='hoy'?'rgba(226,59,59,.10)':'var(--card2)')};border:1px solid ${done?'var(--ok)':(CU_FILTRO==='hoy'?'var(--rojo)':'var(--line)')};border-radius:14px;padding:14px 16px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
