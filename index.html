@@ -2723,7 +2723,11 @@ function renderContactar(){
     })();
     // ── Panel de la IA del CRM + respuestas completas, dentro de la tarjeta ──
     const eIA=window.CU_IA[k]||{};
-    const abRes=!!window.CU_RESP[k];
+    // Las respuestas salían DOBLE-enterradas: el botón "Ver todo lo que contestó" vive
+    // dentro de la tarjeta expandida, y la tarjeta sale colapsada. Ian veía solo nombre
+    // + estado + WhatsApp y pensaba que "no cargaban". En la pestaña "Encuesta nueva"
+    // ahora salen ABIERTAS solas (sin un toque); el usuario puede ocultarlas si quiere.
+    const abRes=(k in window.CU_RESP)?!!window.CU_RESP[k]:(CU_FILTRO==='encuesta'&&String(i.respuestas||'').trim()!=='');
     const abAge=!!(window.CU_AGE&&window.CU_AGE[k]);
     const abConv=!!(window.CU_CONV&&window.CU_CONV[k]);
     const btnIA=i.telefono?`<button class="sm ghost" style="min-height:40px;border-radius:9px" onclick="cuIARedactar('${k}')" title="La IA escribe el mensaje con la voz de Juan, usando lo que esta persona contestó">Escribir con IA</button>`:'';
