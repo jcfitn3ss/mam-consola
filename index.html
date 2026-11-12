@@ -37,6 +37,8 @@
   .chip{display:inline-block;padding:6px 12px;border:1px solid var(--line2);border-radius:20px;margin:3px;cursor:pointer;user-select:none;font-size:12px;transition:all .15s}
   .chip:hover{border-color:var(--muted)}
   .chip.on{background:var(--rojo);border-color:var(--rojo);color:#fff}
+  .segBtn{min-height:40px;padding:0 14px;background:none;border:none;border-bottom:2px solid transparent;border-radius:0;color:var(--muted);font-weight:700;font-size:13px;font-family:inherit;cursor:pointer}
+  .segBtn.on{color:var(--txt);border-bottom-color:var(--rojo)}
   .foto{width:100%;height:170px;object-fit:cover;border-radius:var(--rsm);background:var(--card2)}
   .alert{color:var(--bad);font-size:12px;margin-top:6px}
   .hide{display:none}
@@ -198,11 +200,6 @@
   <header class="appbar">
     <div class="brand"><span class="brandMark">M</span><h1>Músculo al Máximo <span class="brandSub">· Consola</span><span id="modoTag" class="modoTag hide"></span></h1></div>
     <div style="display:flex;gap:8px;align-items:center">
-      <div class="zoomCtl" title="Tamaño del texto" style="display:flex;gap:2px;align-items:center;margin-right:2px">
-        <button class="ghost" aria-label="Reducir el tamaño de la letra" onclick="zoomMenos()" style="padding:5px 9px;font-weight:800;font-size:12px;line-height:1">A−</button>
-        <span id="zoomNivel" class="muted" style="font-size:11px;min-width:34px;text-align:center">100%</span>
-        <button class="ghost" aria-label="Agrandar la letra" onclick="zoomMas()" style="padding:5px 9px;font-weight:800;font-size:16px;line-height:1">A+</button>
-      </div>
       <button id="campana" class="ghost hide" onclick="toggleCampana()">Avisos <span id="nAl" class="pill" style="background:var(--rojo);color:#fff">0</span></button>
       <div class="perfilWrap">
         <button id="perfilBtn" class="ghost hide" onclick="togglePerfil(event)">Mi cuenta ▾</button>
@@ -226,26 +223,24 @@
 
   <div id="app" class="hide">
     <div class="nav">
-      <!-- MODO SERVICIO: el cliente ya pagó. -->
+      <!-- MODO SERVICIO (el cliente ya pagó) · en orden del ciclo del cliente. -->
       <button id="t-clientes" class="on" onclick="tab('clientes')">Clientes</button>
-      <button id="t-seguimiento" onclick="tab('seguimiento')">Fotos y medidas</button>
-      <button id="t-llamadas" onclick="tab('llamadas')">Llamadas</button>
-      <button id="t-acompanamiento" onclick="tab('acompanamiento')">Acompañamiento</button>
+      <button id="t-seguimiento" onclick="tab('seguimiento')">Seguimiento</button>
       <button id="t-cierre" onclick="tab('cierre')">Cierre de hoy</button>
-      <!-- Revisión del día / Riesgo de baja / Recordatorios / Resumen de gestión se
-           fusionaron en la ÚNICA cola de atención (lista de Clientes, filtro "Atención").
-           Sus botones se quitaron del nav; el código (tab(), ver*, v-*) queda intacto. -->
       <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
-      <button id="t-salud" onclick="tab('salud')">Salud de datos</button>
-      <!-- MODO COMERCIAL: todavía no paga. -->
+      <!-- Revisión/Riesgo/Recordatorios/Resumen están fusionados en la cola de Clientes (filtro "Atención"); su código queda intacto. -->
+      <!-- MODO COMERCIAL (todavía no paga) · en orden del embudo de ventas. -->
       <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
       <button id="t-agenda" class="hide" onclick="tab('agenda')">Agenda</button>
+      <button id="t-cerrarventa" class="hide" onclick="tab('cerrarventa')">Cerrar venta</button>
       <button id="t-crm" onclick="tab('crm')">Planilla CRM</button>
       <button id="t-embudo" class="hide" onclick="tab('embudo')">Embudo</button>
-      <button id="t-contenido" class="hide" onclick="tab('contenido')">Contenido</button>
-      <button id="t-metricas" class="hide" onclick="tab('metricas')">Métricas</button>
       <button id="t-pagos" onclick="tab('pagos')">Pagos</button>
       <button id="t-finanzas" class="hide" onclick="tab('finanzas')">Finanzas</button>
+      <button id="t-contenido" class="hide" onclick="tab('contenido')">Contenido</button>
+      <button id="t-metricas" class="hide" onclick="tab('metricas')">Métricas</button>
+      <!-- Salud de datos se movió al menú "Mi cuenta" (admin, no es trabajo diario). -->
+      <button id="t-salud" class="hide" onclick="tab('salud')">Salud de datos</button>
       <button class="ghost" id="masBtn" style="margin-left:auto;border-radius:20px" onclick="toggleMas(event)">Biblioteca ▾</button>
       <div class="menu" id="masMenu">
         <button id="t-ejercicios" onclick="tab('ejercicios')">Ejercicios</button>
@@ -282,12 +277,18 @@
     <div id="v-riesgo" class="hide"></div>
     <div id="v-crm" class="hide"></div>
     <div id="v-recordatorios" class="hide"></div>
+    <div id="seguiBar" class="hide" style="display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:10px;flex-wrap:wrap">
+      <button class="segBtn" data-sub="seguimiento" onclick="tab('seguimiento')">Fotos y medidas</button>
+      <button class="segBtn" data-sub="acompanamiento" onclick="tab('acompanamiento')">Acompañamiento</button>
+      <button class="segBtn" data-sub="llamadas" onclick="tab('llamadas')">Llamadas</button>
+    </div>
     <div id="v-seguimiento" class="hide"></div>
     <div id="v-llamadas" class="hide"></div>
     <div id="v-acompanamiento" class="hide"></div>
     <div id="v-cierre" class="hide"></div>
     <div id="v-pagos" class="hide"></div>
     <div id="v-finanzas" class="hide"></div>
+    <div id="v-cerrarventa" class="hide"></div>
     <div id="v-embudo" class="hide"></div>
     <div id="v-contenido" class="hide"></div>
     <div id="v-metricas" class="hide"></div>
@@ -421,7 +422,10 @@ function setZoom(z){ z=Math.min(1.6,Math.max(0.9,Number(z)||1)); try{ localStora
 function _zoomPaso(dir){ const p=ZOOM_PASOS; let i=p.indexOf(zoomActual()); if(i<0)i=p.indexOf(1); setZoom(p[Math.min(p.length-1,Math.max(0,i+dir))]); }
 function zoomMas(){ _zoomPaso(1); }
 function zoomMenos(){ _zoomPaso(-1); }
-try{ aplicarZoom(zoomActual()); }catch(e){}
+// El control de tamaño de letra se quitó (JC: "la consola está bien"). Se fuerza
+// 100% y se borra cualquier preferencia guardada para que todos vuelvan al tamaño
+// estándar; las funciones de zoom quedan sin uso.
+try{ localStorage.removeItem(ZOOM_KEY); document.documentElement.style.zoom='1'; }catch(e){}
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 // Copia al portapapeles con fallback: en Safari móvil / contexto no seguro el
 // clipboard puede fallar; ahí mostramos un prompt para copiar a mano (antes fingía "✓").
@@ -474,11 +478,20 @@ async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 // Las que viven dentro del desplegable: al abrir una, el botón toma su nombre.
 const TABS_SEC=["ejercicios","plantillas","alimentos","restaurantes","prospecto"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","acompanamiento","cierre","pagos","finanzas","embudo","contenido","metricas","contactar","agenda","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="agenda")verAgenda();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="acompanamiento")verAcompanamiento();if(t==="cierre")verCierre();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","acompanamiento","cierre","pagos","finanzas","cerrarventa","embudo","contenido","metricas","contactar","agenda","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="agenda")verAgenda();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="acompanamiento")verAcompanamiento();if(t==="cierre")verCierre();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="cerrarventa")verCerrarVenta();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Biblioteca ▾": si la pestaña activa es de la biblioteca, resáltalo y muestra
   // su nombre; si no, vuelve a decir "Biblioteca". Cierra el menú al final.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Biblioteca")+" ▾";}
-  const mm=$("masMenu");if(mm)mm.classList.remove("open");}
+  const mm=$("masMenu");if(mm)mm.classList.remove("open");
+  // Grupo "Seguimiento": una sola entrada en el nav con 3 sub-pestañas (Fotos y medidas,
+  // Acompañamiento, Llamadas). La barra se muestra solo dentro del grupo, resalta la activa
+  // y mantiene marcado el botón del nav. Las 3 vistas (v-*) quedan intactas.
+  const SEGUI=['seguimiento','acompanamiento','llamadas'];
+  const _sb=$("seguiBar");
+  if(_sb){const dentro=SEGUI.includes(t); _sb.classList.toggle('hide',!dentro);
+    if(dentro){const _tb=$("t-seguimiento"); if(_tb)_tb.classList.add('on');
+      _sb.querySelectorAll('.segBtn').forEach(b=>b.classList.toggle('on',b.getAttribute('data-sub')===t));}}
+}
 function toggleMas(e){if(e)e.stopPropagation();const m=$("masMenu");if(m)m.classList.toggle("open");}
 // Cerrar el menú "Más" al hacer clic fuera.
 document.addEventListener("click",e=>{const m=$("masMenu"),b=$("masBtn");if(m&&m.classList.contains("open")&&!m.contains(e.target)&&e.target!==b)m.classList.remove("open");});
@@ -823,7 +836,7 @@ const PESTANAS_POR_MODO={
 // Las de la Biblioteca, que es el único desplegable que queda en la barra.
 const TABS_BIBLIOTECA=['ejercicios','plantillas','alimentos','restaurantes','prospecto'];
 // Estas dos no son pestañas de trabajo: viven en el menú de perfil.
-const TABS_PERFIL=['sugerencias','interno'];
+const TABS_PERFIL=['sugerencias','interno','salud'];
 
 function puedeVer(pestana){
   // 1) ¿El rol lo permite?
@@ -860,6 +873,10 @@ function aplicarPermisos(){
     // Si la pestaña abierta no es de Biblioteca, el botón vuelve a su nombre.
     if(!hayBiblio)mb.classList.remove('on');
   }
+  // "Cerrar venta": pestaña de onboarding, visible SOLO para el closer (Alejandro)
+  // y para los dueños. No depende del rol/modo, así que se resuelve aparte.
+  const _cv=$("t-cerrarventa");
+  if(_cv)_cv.classList.toggle('hide', !((MIID==='86b27fbd-f5e8-4ada-a9ab-d9ab63162a8f')||(MI_ROL==='dueno')));
   return primera;
 }
 
@@ -893,7 +910,7 @@ function pintarPerfilMenu(){
   const deConsola=TABS_PERFIL.filter(t=>puedeVer(t));
   if(deConsola.length){
     h+='<div class="menuSep"></div><div class="menuGrp">Consola</div>';
-    const nom={sugerencias:'Sugerencias',interno:'Mejorar consola'};
+    const nom={sugerencias:'Sugerencias',interno:'Mejorar consola',salud:'Salud de datos'};
     h+=deConsola.map(t=>`<button onclick="cerrarPerfil();tab('${t}')">${nom[t]}</button>`).join('');
   }
   h+='<div class="menuSep"></div>';
@@ -1986,7 +2003,9 @@ function agTag(cl){
 function agendaHTML(){
   const ll=window.CU_LLAMADAS||[];
   const hoy=hace(0), tope=hace(-AG_DIAS);
-  const prox=ll.filter(l=>{const f=String(l.inicio||'').slice(0,10);return f>=hoy&&f<=tope;})
+  // Solo llamadas con nombre real: las agendas sin nombre (chats de IG sin identificar)
+  // ya no ensucian la Agenda. (JC 2026-11-12)
+  const prox=ll.filter(l=>{const f=String(l.inicio||'').slice(0,10);return f>=hoy&&f<=tope&&String(l.invitado_nombre||'').trim();})
               .sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
   const chips=[7,14,30].map(d=>`<button class="sm ${AG_DIAS===d?'':'ghost'}" style="border-radius:20px" onclick="AG_DIAS=${d};renderAgenda()">${d} días</button>`).join(' ');
   const head=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Agenda</h2><span style="flex:1"></span>${chips}<button class="sm ghost" style="border-radius:20px" onclick="agSync()" title="Volver a leer el calendario de Google">Releer calendario</button></div>`;
@@ -2287,11 +2306,24 @@ function cuFiltrar(){
   // el contacto MÁS VIEJO primero = los que ya toca volver a contactar salen arriba.
   if(CU_FILTRO==='seguimiento') return all.filter(i=>i.contacto_estado==='seguimiento')
     .sort((a,b)=>(new Date(a.contacto_ultimo||0).getTime())-(new Date(b.contacto_ultimo||0).getTime()));
+  // ARCHIVO: TODOS los leads, incluidos los ~10k viejos de Quantum y los de IG que
+  // solo chatearon. Solo se ve bajo pedido explícito (chip "Todos"), nunca por defecto.
+  if(CU_FILTRO==='todos'){
+    let l=all.filter(i=>i.contacto_estado!=='seguimiento');
+    if(CU_SINCLI) l=l.filter(i=>i.grupo!=='Cliente');
+    if(CU_GRUPO) l=l.filter(i=>i.grupo===CU_GRUPO);
+    return cuVentanaOrden(l);
+  }
   let l=all;
   // Los "en seguimiento" NO aparecen en las listas normales (salen solo en su pestaña).
   l=l.filter(i=>i.contacto_estado!=='seguimiento');
   if(CU_SINCLI) l=l.filter(i=>i.grupo!=='Cliente');
   if(CU_GRUPO) l=l.filter(i=>i.grupo===CU_GRUPO);
+  // DEFAULT = solo quien llenó la encuesta. Antes la cola mostraba los 10.654 leads
+  // (6.373 de Quantum, 132 de IG, miles sin completar), ahogando al setter en ruido.
+  // Ahora la cola de trabajo son los ~66 reales. Los demás se alcanzan con el buscador
+  // o con el chip "Todos". (JC 2026-11-12)
+  l=l.filter(i=>cuEsEncuesta(i)||String(i.respuestas||'').trim()!=='');
   return cuVentanaOrden(l);
 }
 // Días desde el último contacto (para el badge "toca re-contactar").
@@ -2629,7 +2661,7 @@ function renderContactar(){
         <summary style="cursor:pointer;font-size:12px;color:var(--muted);padding:10px 2px;min-height:44px;display:flex;align-items:center;font-weight:600">Más filtros y grupos</summary>
         <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Vistas de trabajo</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          ${wchip('Recién llegaron','reciente',nReciente)}${wchip('Rutina regalo','rutina',nRutina)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}
+          ${wchip('Recién llegaron','reciente',nReciente)}${wchip('Rutina regalo','rutina',nRutina)}${wchip('Nuevos 48h','nuevos48',nNuevos)}${wchip('Dijo sí, no canjeó','dijo_no_canjeo',nCanjeo)}${wchip('Todos (archivo)','todos',data.total)}
         </div>
         <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:4px">Grupos</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -8626,6 +8658,98 @@ async function finBorrarVenta(id){
   const r=await finCall('borrar_venta',{id:id});
   if(r.error){alert('No se pudo quitar: '+r.error.message);return;}
   await verFinanzas();
+}
+
+// ============================================================
+// CERRAR VENTA · onboarding automático del cliente de mentoría (solo Alejo + dueños).
+// Llama al edge `cerrar-venta`, que en un solo paso crea la cuenta de la app, la
+// sube a mentoría, la asigna al entrenador y registra la venta en finanzas_ventas.
+// El contrato todavía se manda aparte (Fase 2 pendiente: service account de Google).
+// ============================================================
+const CV_HOY=()=>new Date().toISOString().slice(0,10);
+
+function cvAddPago(concepto,valor,fecha){
+  const cont=$("cvPagos");if(!cont)return;
+  const row=document.createElement('div');
+  row.className='cvPagoRow';
+  row.style.cssText='display:flex;gap:8px;margin-bottom:6px';
+  row.innerHTML=`<input class="cvP-concepto" placeholder="Concepto (ej. Primer pago)" value="${esc(concepto||'')}" style="flex:2">
+    <input class="cvP-valor" type="number" placeholder="Valor" value="${valor!=null?esc(String(valor)):''}" style="flex:1">
+    <input class="cvP-fecha" type="date" value="${esc(fecha||'')}" style="flex:1">
+    <button class="ghost sm" type="button" onclick="this.parentNode.remove()">×</button>`;
+  cont.appendChild(row);
+}
+
+function verCerrarVenta(){
+  const cont=$("v-cerrarventa");if(!cont)return;
+  cont.innerHTML=`<div class="card" style="max-width:640px">
+    <h2 style="margin-top:0">Cerrar venta</h2>
+    <div class="muted" style="margin-bottom:12px">Crea la cuenta del cliente, lo sube a mentoría y registra la venta, todo de una. El contrato se envía aparte por ahora.</div>
+    <div class="menuGrp">Datos del cliente</div>
+    <label class="lbl">Nombre completo</label><input id="cvNombre" />
+    <label class="lbl">Correo</label><input id="cvCorreo" type="email" />
+    <label class="lbl">Celular</label><input id="cvCelular" />
+    <div style="display:flex;gap:8px">
+      <div style="flex:1"><label class="lbl">Documento</label><input id="cvDoc" /></div>
+      <div style="flex:1"><label class="lbl">Lugar de expedición</label><input id="cvLugar" /></div>
+    </div>
+    <label class="lbl">Ciudad y país</label><input id="cvCiudad" />
+    <div class="menuSep"></div>
+    <div class="menuGrp">Venta</div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1"><label class="lbl">Valor total</label><input id="cvTotal" type="number" /></div>
+      <div style="flex:1"><label class="lbl">Moneda</label><select id="cvMoneda"><option>USD</option><option>COP</option></select></div>
+      <div style="flex:1"><label class="lbl">Meses</label><input id="cvMeses" type="number" value="6" /></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1"><label class="lbl">Medio de pago</label><select id="cvMedio"><option value="stripe">Stripe</option><option value="transferencia">Transferencia</option><option value="nequi">Nequi</option><option value="daviplata">Daviplata</option><option value="efectivo">Efectivo</option><option value="otro">Otro</option></select></div>
+      <div style="flex:1"><label class="lbl">Inicio</label><input id="cvInicio" type="date" value="${CV_HOY()}" /></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1"><label class="lbl">Closer</label><input id="cvCloser" value="Alejandro" /></div>
+      <div style="flex:1"><label class="lbl">Setter</label><input id="cvSetter" /></div>
+    </div>
+    <label class="lbl">Plan</label><input id="cvPlan" value="Acompañamiento 24 semanas" />
+    <label class="lbl">Cronograma de pagos</label>
+    <div id="cvPagos"></div>
+    <button class="ghost sm" type="button" onclick="cvAddPago()">+ Agregar pago</button>
+    <div class="menuSep"></div>
+    <button onclick="cvCerrar()" id="cvBtn">Crear cliente y registrar venta</button>
+    <span id="cvMsg" class="muted" style="font-size:12.5px;margin-left:10px"></span>
+    <div id="cvResultado" style="margin-top:14px"></div>
+  </div>`;
+  cvAddPago('Primer pago','',CV_HOY());
+  cvAddPago('Segundo pago','','');
+}
+
+async function cvCerrar(){
+  const msg=$("cvMsg");const val=(id)=>{const e=$(id);return e?e.value.trim():'';};
+  const nombre=val('cvNombre'),correo=val('cvCorreo');
+  const total=Number(val('cvTotal'))||0;
+  if(!nombre||!correo||!total){if(msg){msg.textContent='Falta nombre, correo o valor.';msg.style.color='var(--warn)';}return;}
+  const pagos=[...document.querySelectorAll('.cvPagoRow')].map(r=>({
+    concepto:r.querySelector('.cvP-concepto').value.trim(),
+    valor:Number(r.querySelector('.cvP-valor').value)||0,
+    fecha:r.querySelector('.cvP-fecha').value
+  })).filter(p=>p.valor||p.fecha);
+  const body={cliente:{nombre,correo,celular:val('cvCelular'),documento:val('cvDoc'),lugar_expedicion:val('cvLugar'),ciudad:val('cvCiudad')},
+    venta:{valor_total:total,moneda:val('cvMoneda')||'USD',meses:Math.max(1,Number(val('cvMeses'))||6),
+      medio_pago:val('cvMedio')||'stripe',closer:val('cvCloser'),setter:val('cvSetter'),plan:val('cvPlan'),inicio:val('cvInicio'),pagos}};
+  const btn=$("cvBtn");if(btn)btn.disabled=true;
+  if(msg){msg.textContent='Creando…';msg.style.color='';}
+  const {data,error}=await invokeFn('cerrar-venta',{body});
+  if(btn)btn.disabled=false;
+  if(error||!data||!data.ok){if(msg){msg.textContent='No se pudo: '+((error&&error.message)||(data&&data.error)||'error');msg.style.color='var(--rojo2)';}return;}
+  if(msg)msg.textContent='';
+  const cred=data.cuenta_nueva
+    ? `<div><b>Correo:</b> ${esc(data.correo)}</div><div><b>Clave temporal:</b> ${esc(data.clave_temporal||'')}</div><div class="muted" style="font-size:12px">Pásale estos datos al cliente y que cambie la clave al entrar.</div>`
+    : `<div class="muted">La cuenta ya existía (${esc(data.correo)}): se subió a mentoría. La clave no se tocó.</div>`;
+  const r=$("cvResultado");
+  if(r)r.innerHTML=`<div class="card" style="background:rgba(80,180,120,.08);border-color:rgba(80,180,120,.4)">
+    <b>Listo. Cliente en mentoría y venta registrada.</b>
+    ${cred}
+    <div class="muted" style="font-size:12px;margin-top:8px">Falta mandar el contrato (por ahora se envía aparte).</div>
+  </div>`;
 }
 
 // Con qué se cuenta HOY. El resto del tablero modela el flujo del mes, pero el
