@@ -3252,7 +3252,14 @@ async function verSeguimiento(){
     invokeFn("consola-rutina",{body:{action:'seguimiento_fm'}}),
   ]);
   if(lst.error){$("v-seguimiento").innerHTML=`<div class="card alert">No se pudo cargar: ${esc(lst.error.message)}</div>`;return;}
-  const roster=((lst.data&&lst.data.clientes)||[]).filter(c=>c.rol!=='entrenador'&&!c.archivado);
+  const rosterTodos=((lst.data&&lst.data.clientes)||[]).filter(c=>c.rol!=='entrenador'&&!c.archivado);
+  // Solo clientes de coaching ACTIVOS. Las descargas de la app en prueba, vencidas o
+  // canceladas NO son coaching: inflaban esta lista con ~120 "vencidos" que nunca iban a
+  // subir una foto. Se leen las suscripciones y se filtra a estado 'activa'. (JC 2026-11-12)
+  let _subE={};
+  try{const {data:_subs}=await sb.from("suscripciones").select("user_id,estado");(_subs||[]).forEach(s=>{_subE[s.user_id]=s.estado;});}catch(e){}
+  const roster=rosterTodos.filter(c=>_subE[c.user_id]==='activa');
+  const nOcultos=rosterTodos.length-roster.length;
   const fmD=(fm&&fm.data)||{};
   const ULTFOTO={};(fmD.fotos||[]).forEach(f=>{if(f.fecha&&(!ULTFOTO[f.user_id]||f.fecha>ULTFOTO[f.user_id]))ULTFOTO[f.user_id]=f.fecha;});
   const ULTMED={};(fmD.medidas||[]).forEach(m=>{if(m.fecha&&(!ULTMED[m.user_id]||m.fecha>ULTMED[m.user_id]))ULTMED[m.user_id]=m.fecha;});
@@ -3286,6 +3293,7 @@ async function verSeguimiento(){
 
   let h=`<div class="card"><h2 style="margin-top:0">Fotos y medidas · cada 4 semanas</h2>
     <div class="muted" style="font-size:13px;margin-bottom:10px">A cada cliente le toca subir <b>fotos y medidas cada 4 semanas</b> (28 días) para no pausar su plan. Aquí ves quién ya venció o está por vencer; usa el botón <b style="color:#25d366">WhatsApp</b> para recordarle con un mensaje ya listo (editable antes de enviar).</div>
+    ${nOcultos>0?`<div class="muted" style="font-size:12px;margin-bottom:10px">Se ocultaron <b>${nOcultos}</b> usuarios de la app (prueba, vencidos o cancelados): no son clientes de coaching activos.</div>`:''}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <div class="pill" style="background:rgba(181,23,24,.16);color:var(--rojo);font-weight:700">Vencidos: ${nVenc}</div>
       <div class="pill" style="background:rgba(224,184,74,.18);color:var(--warn);font-weight:700">Por vencer: ${nPorV}</div>
