@@ -2317,13 +2317,14 @@ function cuFiltrar(){
   let l=all;
   // Los "en seguimiento" NO aparecen en las listas normales (salen solo en su pestaña).
   l=l.filter(i=>i.contacto_estado!=='seguimiento');
+  // Si se eligió un grupo a mano (chips de Grupos), se respeta tal cual.
+  if(CU_GRUPO) return cuVentanaOrden(l.filter(i=>i.grupo===CU_GRUPO));
   if(CU_SINCLI) l=l.filter(i=>i.grupo!=='Cliente');
-  if(CU_GRUPO) l=l.filter(i=>i.grupo===CU_GRUPO);
-  // DEFAULT = solo quien llenó la encuesta. Antes la cola mostraba los 10.654 leads
-  // (6.373 de Quantum, 132 de IG, miles sin completar), ahogando al setter en ruido.
-  // Ahora la cola de trabajo son los ~66 reales. Los demás se alcanzan con el buscador
-  // o con el chip "Todos". (JC 2026-11-12)
-  l=l.filter(i=>cuEsEncuesta(i)||String(i.respuestas||'').trim()!=='');
+  // DEFAULT del área COMERCIAL = PROSPECTOS: llenaron la encuesta Y todavía NO han entrado
+  // a la app ni pagado por Stripe. Los que YA descargaron la app (prueba, con regalo,
+  // clientes, vencidos) NO van acá: viven en el área de Clientes. (JC 2026-11-12)
+  const EN_APP=['Cliente','Vencido','En app · con regalo','En app · prueba'];
+  l=l.filter(i=>(cuEsEncuesta(i)||String(i.respuestas||'').trim()!=='') && !EN_APP.includes(String(i.grupo||'')));
   return cuVentanaOrden(l);
 }
 // Días desde el último contacto (para el badge "toca re-contactar").
