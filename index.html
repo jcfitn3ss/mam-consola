@@ -4042,6 +4042,42 @@ function grupoDe(c){
 // El resto del detalle se despliega al tocar el chevron; tocar la fila abre la ficha.
 window.CLI_EXP=window.CLI_EXP||new Set();
 function cliToggle(k){ if(window.CLI_EXP.has(k))window.CLI_EXP.delete(k); else window.CLI_EXP.add(k); renderClientes(); }
+
+// Subir a mano una foto de progreso del cliente (la mandó por fuera, p. ej. WhatsApp).
+// Comprime en el navegador (~1200px, JPEG) y la manda al edge cliente-foto, que la
+// guarda en el bucket privado e inserta la fila en `fotos`. Pedido de Miguel (Jorge Cely).
+function cfSubir(clienteId){
+  clienteId=clienteId||SEL; if(!clienteId)return;
+  let inp=document.getElementById('cfFile');
+  if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.id='cfFile'; inp.style.display='none'; document.body.appendChild(inp); }
+  inp.value='';
+  inp.onchange=async()=>{ const f=inp.files&&inp.files[0]; if(f) await cfProcesar(clienteId,f); };
+  inp.click();
+}
+function cfComprimir(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{ const img=new Image(); img.onload=()=>{
+      const max=1200; let w=img.width,h=img.height;
+      if(w>max||h>max){ const r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      res(c.toDataURL('image/jpeg',0.72));
+    }; img.onerror=rej; img.src=fr.result; };
+    fr.onerror=rej; fr.readAsDataURL(file);
+  });
+}
+async function cfProcesar(clienteId,file){
+  try{
+    toast('Subiendo foto…');
+    const dataUrl=await cfComprimir(file);
+    const b64=String(dataUrl).split(',')[1]||'';
+    const {data,error}=await invokeFn('cliente-foto',{body:{cliente_id:clienteId,data_base64:b64,tipo:'libre'}});
+    if(error||(data&&data.error)){ toast((data&&data.error)||(error&&error.message)||'No se pudo subir','warn'); return; }
+    toast('Foto subida','win');
+    if(SEL===clienteId)verCliente(clienteId);
+  }catch(e){ toast('No se pudo subir: '+((e&&e.message)||e),'warn'); }
+}
 function cardClienteHTML(c,enAtencion){
   const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
   const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
@@ -4507,7 +4543,7 @@ async function verCliente(id){
   const _dd=(key,titulo,sig,body,tab,tabLbl)=>`<div id="dd_${key}" style="display:none;background:var(--card2);border:1px solid var(--line);border-left:4px solid ${SEM[sig.e]};border-radius:10px;padding:11px 13px;margin-top:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:13px">${titulo}</b><span style="font-size:11px;color:${SEM[sig.e]};font-weight:700">${esc(sig.v)}</span></div><div style="margin-top:7px">${body}</div><div class="muted" style="font-size:12px;margin-top:7px">${esc(sig.f)}</div>${tab?`<button class="sm ghost" style="margin-top:8px" onclick="fichaTab('${tab}')">${tabLbl}</button>`:''}</div>`;
   const _bodyPeso=_spark(_wptsAsc)||'<span class="muted" style="font-size:12px">Pocos pesos para la curva.</span>';
   const _bodyRend=(s2.movers&&s2.movers.length)?s2.movers.map(mv=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:1px 0"><span>${esc(mv.name)}</span><span style="color:${mv.pct>=0?'var(--ok)':'var(--rojo)'};font-weight:700">${mv.pct>0?'+':''}${mv.pct}%</span></div>`).join(''):'<span class="muted" style="font-size:12px">Sin ejercicios comparables aún (faltan 2 bloques de 21 días con datos).</span>';
-  const _bodyFotos=_fvLast.length?`<div style="display:flex;gap:6px">${_fvLast.map(f=>`<div style="text-align:center"><img src="${esc(f.url)}" style="width:62px;height:82px;object-fit:cover;border-radius:6px"><div class="muted" style="font-size:9px">${esc(String(f.fecha||'').slice(5))}</div></div>`).join('')}</div>`:'<span class="muted" style="font-size:12px">Sin fotos.</span>';
+  const _bodyFotos=(_fvLast.length?`<div style="display:flex;gap:6px">${_fvLast.map(f=>`<div style="text-align:center"><img src="${esc(f.url)}" style="width:62px;height:82px;object-fit:cover;border-radius:6px"><div class="muted" style="font-size:9px">${esc(String(f.fecha||'').slice(5))}</div></div>`).join('')}</div>`:'<span class="muted" style="font-size:12px">Sin fotos.</span>')+`<div style="margin-top:8px"><button class="sm ghost" style="font-size:11px;min-height:30px" onclick="event.stopPropagation();cfSubir('${SEL}')" title="Subir una foto que el cliente mandó por fuera (p. ej. WhatsApp)">+ Subir foto</button></div>`;
   const _bodyAdh=`<div style="font-size:12px;line-height:1.5">Sesiones últimos 7 días: <b>${ses7}</b><br>Días con comida registrada: <b>${_diasReg7}/7</b><br>Comida de hoy: <b>${_kcalHoy!=null?_kcalHoy+' kcal':'sin registrar'}</b> · Promedio/día: <b>${prom?prom.k+' kcal':'—'}</b>${o.kcal?' · Plan '+o.kcal:''}</div>`;
   const _bodyBio=`<div style="font-size:12px;line-height:1.5">${_slp!=null?('Sueño <b>'+_slp.toFixed(1)+'h</b>'):'Sueño —'}${_fat!=null?(' · Fatiga <b>'+_fat+'/10</b>'):''}${_en!=null?(' · Energía <b>'+_en+'/10</b>'):''}${(_da>=6||_dm>=8)?'<br><span style="color:var(--rojo)">Dolor alto reportado</span>':''}</div>`;
   const _dashDet=`${_dd('peso','Peso · tendencia',s1,_bodyPeso,'progreso','Ver gráfica completa')}${_dd('rend','Rendimiento',s2,_bodyRend,'entreno','Ver análisis de entreno')}${_dd('fotos','Fotos',s3,_bodyFotos,'progreso','Ver todas las fotos')}${_dd('adh','Adherencia',s4,_bodyAdh,'','')}${_dd('bio','Biofeedback',s5,_bodyBio,'','')}`;
