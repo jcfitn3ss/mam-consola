@@ -193,6 +193,34 @@
   @media(max-width:680px){
     .card table.data,.card table:not(.kv):not(.chkTbl){display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;max-width:100%}
   }
+  /* ===== Agenda (vista calendario del setter) ===== */
+  /* Tarjeta de una llamada. Las acciones viven en SU PROPIA fila (.agActs), no
+     mezcladas con el nombre: así el botón de WhatsApp queda alineado y nunca "cae"
+     suelto debajo del texto como pasaba con el flex-wrap de la fila vieja. */
+  .agCard{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:8px 0}
+  .agCard.hoy{border-color:var(--rojo);box-shadow:0 0 0 1px rgba(226,59,59,.25) inset}
+  .agCard .agTop{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .agCard .agHora{font-weight:800;font-size:14px;min-width:54px}
+  .agCard .agNom{font-weight:700;font-size:14.5px}
+  .agActs{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .agActs .sm,.agActs a.sm,.agActs a.btnLink{min-height:38px;border-radius:9px}
+  /* Botón "Llamar" (tel:) — acción principal del show-up. */
+  .btnCall{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:0 14px;border-radius:9px;background:var(--rojo);color:#fff;font-weight:800;font-size:12px;text-decoration:none;border:none;cursor:pointer}
+  /* Mini-calendario mensual al pie de la Agenda. */
+  .agCal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:340px}
+  .agCal .dow{font-size:9.5px;color:var(--muted);text-align:center;font-weight:800;text-transform:uppercase;padding-bottom:2px}
+  .agCal .cell{aspect-ratio:1;border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;background:var(--bg2);color:var(--muted)}
+  .agCal .cell.empty{border:none;background:none}
+  .agCal .cell.has{cursor:pointer;color:var(--txt);font-weight:700;border-color:var(--line2);background:var(--card2)}
+  .agCal .cell.has:hover{border-color:var(--rojo)}
+  .agCal .cell.today{outline:2px solid var(--rojo);outline-offset:-2px;color:var(--rojo2);font-weight:800}
+  .agCal .cell .dot{font-size:9px;font-weight:800;color:#fff;background:var(--rojo);border-radius:7px;padding:0 5px;margin-top:2px;line-height:1.5}
+  /* Acordeón de la lista de clientes: fila compacta; el detalle se abre al tocar. */
+  .cliRow{display:flex;gap:9px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin:6px 0;background:var(--bg2);cursor:pointer;transition:border-color .15s}
+  .cliRow:hover{border-color:var(--line2)}
+  .cliRow .cliCaret{flex:none;color:var(--muted);display:inline-flex;transition:transform .18s}
+  .cliRow.abierto .cliCaret{transform:rotate(90deg)}
+  .cliDet{border:1px solid var(--line);border-top:none;border-radius:0 0 11px 11px;margin:-8px 0 8px;padding:10px 14px 12px;background:var(--card2)}
 </style>
 </head>
 <body>
@@ -1792,7 +1820,7 @@ function _crmDiasA(r){return r?Math.floor((new Date(r+"T00:00:00").getTime()-Dat
 // ============ COLA DE CONTACTO / VENTAS (setter) ============
 // Lista semanal ordenada de a quién escribir por WhatsApp para vender: pruebas por vencer,
 // pruebas vencidas sin comprar y vencidos. "de una" a WhatsApp + marca contactado.
-const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['seguimiento','En seguimiento (revisar luego)'],['no_interesado','No interesado'],['ganado','Compró'],['perdido','Perdido']];
+const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['confirmo','Confirmó asistencia'],['no_contesta','No contesta'],['seguimiento','En seguimiento (revisar luego)'],['no_interesado','No interesado'],['ganado','Compró'],['perdido','Perdido']];
 function guionContacto(nom,bucket){
   const n=nom||'';
   if(bucket==='prueba') return `Hola ${n}, soy del equipo de Músculo al Máximo ¿Cómo vas con tu prueba? Si quieres seguir con tu plan, rutina y seguimiento sin perder tu progreso, te ayudo a activarlo hoy. ¿Te cuento cómo?`;
@@ -2000,73 +2028,151 @@ function agTag(cl){
   if(cl.cat==='pauta')return `<span class="pill" style="background:rgba(95,147,224,.14);color:#7fb0ff;border:1px solid rgba(95,147,224,.5)">Pauta · no comisiona</span>`;
   return `<span class="pill" style="background:var(--card2);color:var(--muted);border:1px solid var(--line)">Entró sola · no comisiona</span>`;
 }
+// ── Helpers de la Agenda (formato de hora/día, estado del lead, acciones) ──
+function agHora(iso){try{return new Date(iso).toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}}
+function agDiaLargo(iso){try{return new Date(iso).toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'long'});}catch(e){return String(iso).slice(0,10);}}
+function agDiaCorto(iso){try{return new Date(iso).toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'short',day:'numeric',month:'short'});}catch(e){return String(iso).slice(0,10);}}
+// Pastilla del estado de contacto, con el show-up al centro: confirmó / sin confirmar / no contesta.
+function agEstadoPill(lead){
+  if(!lead) return `<span class="pill" style="background:#3a2a10;color:var(--warn);border:1px solid #6b4e14">No está en leads</span>`;
+  const e=String(lead.contacto_estado||'').trim();
+  if(e==='confirmo'||e==='ganado') return `<span class="pill" style="background:rgba(95,208,127,.18);color:var(--ok);border:1px solid #1f6b43;font-weight:800">Confirmó asistencia</span>`;
+  if(e==='no_contesta') return `<span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);border:1px solid var(--rojo);font-weight:800">No contesta</span>`;
+  if(e==='agendado') return `<span class="pill" style="background:rgba(224,184,74,.14);color:var(--warn);border:1px solid rgba(224,184,74,.4);font-weight:800">Agendó · sin confirmar</span>`;
+  if(e==='') return `<span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);border:1px solid var(--rojo);font-weight:800">Falta escribirle</span>`;
+  return `<span class="pill" style="background:rgba(95,208,127,.13);color:var(--ok);border:1px solid #1f6b43">Ya contactado</span>`;
+}
+// Panel de reagendar (fecha/hora). Solo en la lista por día: cada llamada sale una vez
+// ahí, así el id `repro_<evId>` nunca se duplica en la vista.
+function agReproPanel(l){
+  const evId=String(l.id||''); if(!evId)return '';
+  return `<div id="repro_${esc(evId)}" style="display:none;padding:8px 0 2px;margin-top:8px;border-top:1px dashed var(--line)">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div><label class="lbl" style="font-size:11px">Nueva fecha y hora</label><input type="datetime-local" id="reprodt_${esc(evId)}" ${dtAttrs()} style="margin:0"></div>
+      <button class="sm" style="border-radius:9px" onclick="reprogramarLlamada('${esc(evId)}','${esc(l.invitado_nombre||'')}')">Guardar cambio</button>
+      <button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')">Cancelar</button>
+      <span id="repromsg_${esc(evId)}" class="muted" style="font-size:12px"></span>
+    </div></div>`;
+}
+// Fila de acciones del show-up: Llamar (tel:), WhatsApp, Confirmó, No contesta, Meet, Ficha, Reagendar.
+// Viven en SU PROPIA fila (.agActs): el botón de WhatsApp queda alineado, nunca suelto debajo del texto.
+function agAccionesLead(l,lead,conRepro){
+  const evId=String(l.id||'');
+  const tel=lead&&lead.telefono?String(lead.telefono):'';
+  const ig=lead&&lead.instagram?String(lead.instagram).replace(/^@+/,''):'';
+  const arg=lead?JSON.stringify({id:lead.id,email:lead.email,telefono:lead.telefono,nombre:lead.nombre}).replace(/"/g,'&quot;'):'';
+  const est=String((lead&&lead.contacto_estado)||'').trim();
+  const call=tel?`<a class="btnCall" href="tel:${esc(tel.replace(/[^+0-9]/g,''))}" title="Llamar al prospecto ahora">Llamar</a>`:'';
+  const wa=tel?`<a class="sm" href="${waLink(tel,'')}" target="_blank" rel="noopener" style="background:#25d366;color:#0a0a0e;font-weight:800;border:none">WhatsApp</a>`:'';
+  const bConf=lead?`<button class="sm ghost" ${est==='confirmo'?'disabled style="opacity:.55;min-height:38px"':'style="min-height:38px"'} onclick="agMarcarEstado(${arg},'confirmo')" title="La persona confirmó que asiste a la llamada">${est==='confirmo'?'Confirmada ✓':'Confirmó'}</button>`:'';
+  const bNo=lead?`<button class="sm ghost" style="min-height:38px" onclick="agMarcarEstado(${arg},'no_contesta')" title="No contestó la llamada">No contesta</button>`:'';
+  const meet=l.meet_code?`<a class="sm ghost" href="https://meet.google.com/${esc(l.meet_code)}" target="_blank" rel="noopener">Meet</a>`:'';
+  const igBtn=ig?`<a class="sm ghost" href="https://instagram.com/${encodeURIComponent(ig)}" target="_blank" rel="noopener">@${esc(ig)}</a>`:'';
+  const ficha=lead&&lead.user_id?`<button class="sm ghost" style="min-height:38px" onclick="abrirFicha('${lead.user_id}')">Ficha</button>`:'';
+  const repro=(conRepro&&evId)?`<button class="sm ghost" style="min-height:38px" onclick="reproToggle('${esc(evId)}')" title="Mover esta llamada a otra fecha/hora">Reagendar</button>`:'';
+  return `<div class="agActs">${call}${wa}${bConf}${bNo}${meet}${igBtn}${ficha}${repro}</div>`;
+}
+// Marca el estado del lead (confirmó / no contesta) desde la Agenda y repinta solo la Agenda.
+async function agMarcarEstado(o,estado){
+  try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado,toque:true}}); }
+  catch(e){ toast('No se pudo guardar','warn'); return; }
+  const arr=window.CU_ALL||[];
+  const it=arr.find(x=>(o.id&&x.id===o.id)||(o.email&&String(x.email||'').toLowerCase()===String(o.email||'').toLowerCase()));
+  if(it){ it.contacto_estado=estado; it.contacto_ultimo=new Date().toISOString(); it.toques=(Number(it.toques)||0)+1; }
+  toast(estado==='confirmo'?'Confirmó asistencia':estado==='no_contesta'?'Marcado: no contesta':'Guardado','win');
+  renderAgenda();
+}
+// Board "Recién agendadas": las que entraron en las últimas 36 h y aún no se trabajan.
+// Es la estrategia de show-up: el setter las ve de primeras y llama ya.
+function agRecienHTML(ll,byMail){
+  const ahora=Date.now(), hoy=hace(0);
+  const pend=ll.filter(l=>{
+    const ag=l.agendada_en?new Date(l.agendada_en).getTime():0;
+    if(!ag||(ahora-ag)>=36*3600*1000)return false;
+    if(String(l.inicio||'').slice(0,10)<hoy)return false;
+    if(!String(l.invitado_nombre||'').trim())return false;
+    const lead=byMail[String(l.invitado_correo||'').toLowerCase()]||null;
+    const e=lead?String(lead.contacto_estado||'').trim():'';
+    return e!=='confirmo'&&e!=='ganado'&&e!=='no_contesta';
+  }).sort((a,b)=>String(b.agendada_en||'').localeCompare(String(a.agendada_en||'')));
+  if(!pend.length)return '';
+  const filas=pend.map(l=>{
+    const lead=byMail[String(l.invitado_correo||'').toLowerCase()]||null;
+    const tel=lead&&lead.telefono?String(lead.telefono):'';
+    return `<div class="agCard" style="border-color:var(--rojo)">
+      <div class="agTop"><span class="agNom">${esc(l.invitado_nombre||'—')}</span>${agEstadoPill(lead)}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:3px;user-select:text">Reunión <b style="color:var(--txt);text-transform:capitalize">${esc(agDiaCorto(l.inicio))} · ${agHora(l.inicio)}</b>${tel?' · '+esc(tel):(lead?'':' · solo correo')}</div>
+      ${agAccionesLead(l,lead,false)}
+    </div>`;
+  }).join('');
+  return `<div class="card" style="border-color:var(--rojo);background:rgba(226,59,59,.05)">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px">Recién agendadas · llámalas ya</h2><span class="pill" style="background:var(--rojo);color:#fff;font-weight:800">${pend.length}</span></div>
+    <div class="muted" style="font-size:12px;margin:4px 0 8px">Entraron en las últimas horas. Llama YA para asegurar el show-up: confirma la asistencia o marca "No contesta".</div>
+    ${filas}</div>`;
+}
+// Un mes del mini-calendario (lunes a domingo). Los días con llamadas se marcan y son clicables.
+function agMiniMes(y,m,grupos,hoy){
+  const first=new Date(Date.UTC(y,m,1));
+  const nombreMes=first.toLocaleDateString('es-CO',{timeZone:'UTC',month:'long',year:'numeric'});
+  const dias=new Date(Date.UTC(y,m+1,0)).getUTCDate();
+  const startDow=(first.getUTCDay()+6)%7; // lunes=0
+  let cells=['L','M','X','J','V','S','D'].map(d=>`<div class="dow">${d}</div>`).join('');
+  for(let i=0;i<startDow;i++)cells+=`<div class="cell empty"></div>`;
+  for(let d=1;d<=dias;d++){
+    const k=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const n=(grupos[k]||[]).length, esHoy=k===hoy;
+    cells+=`<div class="cell${n?' has':''}${esHoy?' today':''}" ${n?`onclick="agIrDia('${k}')"`:''}>${d}${n?`<span class="dot">${n}</span>`:''}</div>`;
+  }
+  return `<div><div class="muted" style="font-size:11px;font-weight:800;text-transform:capitalize;margin-bottom:4px">${esc(nombreMes)}</div><div class="agCal">${cells}</div></div>`;
+}
+function agMiniCalHTML(grupos,hoy){
+  const base=new Date(hoy+'T00:00:00Z');
+  let out=agMiniMes(base.getUTCFullYear(),base.getUTCMonth(),grupos,hoy);
+  if(AG_DIAS>=21){ const n=new Date(Date.UTC(base.getUTCFullYear(),base.getUTCMonth()+1,1)); out+=agMiniMes(n.getUTCFullYear(),n.getUTCMonth(),grupos,hoy); }
+  return `<div class="card"><h3 style="margin:0 0 4px;font-size:14px">Calendario</h3><div class="muted" style="font-size:11.5px;margin-bottom:8px">Los días con llamadas están marcados con el número de llamadas. Toca un día para saltar a él.</div><div style="display:flex;gap:22px;flex-wrap:wrap">${out}</div></div>`;
+}
+function agIrDia(k){ const el=document.getElementById('agdia_'+k); if(!el)return; try{el.scrollIntoView({behavior:'smooth',block:'start'});}catch(e){el.scrollIntoView();} el.style.transition='background .35s'; const o=el.style.background; el.style.background='rgba(226,59,59,.12)'; setTimeout(()=>{el.style.background=o;},1400); }
+
 function agendaHTML(){
   const ll=window.CU_LLAMADAS||[];
   const hoy=hace(0), tope=hace(-AG_DIAS);
+  const byMail={};(window.CU_ALL||[]).forEach(i=>{const c=String(i.email||'').toLowerCase();if(c&&!byMail[c])byMail[c]=i;});
+  const recienBoard=agRecienHTML(ll,byMail);
+  const chips=[7,14,30].map(d=>`<button class="sm ${AG_DIAS===d?'':'ghost'}" style="border-radius:20px" onclick="AG_DIAS=${d};renderAgenda()">${d} días</button>`).join(' ');
+  const head=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Agenda</h2><span style="flex:1"></span>${chips}<button class="sm ghost" style="border-radius:20px" onclick="agSync()" title="Volver a leer el calendario de Google">Releer calendario</button></div>`;
   // Solo llamadas con nombre real: las agendas sin nombre (chats de IG sin identificar)
   // ya no ensucian la Agenda. (JC 2026-11-12)
   const prox=ll.filter(l=>{const f=String(l.inicio||'').slice(0,10);return f>=hoy&&f<=tope&&String(l.invitado_nombre||'').trim();})
               .sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
-  const chips=[7,14,30].map(d=>`<button class="sm ${AG_DIAS===d?'':'ghost'}" style="border-radius:20px" onclick="AG_DIAS=${d};renderAgenda()">${d} días</button>`).join(' ');
-  const head=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Agenda</h2><span style="flex:1"></span>${chips}<button class="sm ghost" style="border-radius:20px" onclick="agSync()" title="Volver a leer el calendario de Google">Releer calendario</button></div>`;
-  if(!prox.length)return `<div class="card">${head}<div class="muted" style="font-size:13px">No hay llamadas en los próximos ${AG_DIAS} días. Cuando alguien agende (por la pauta, por el enlace o porque tú la agendas) aparece aquí.</div></div>`;
-  const byMail={};(window.CU_ALL||[]).forEach(i=>{const c=String(i.email||'').toLowerCase();if(c&&!byMail[c])byMail[c]=i;});
-  const hora=iso=>{try{return new Date(iso).toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}};
-  const diaTxt=iso=>{try{return new Date(iso).toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'long'});}catch(e){return String(iso).slice(0,10);}};
+  if(!prox.length)return `${recienBoard}<div class="card">${head}<div class="muted" style="font-size:13px">No hay llamadas en los próximos ${AG_DIAS} días. Cuando alguien agende (por la pauta, por el enlace o porque tú la agendas) aparece aquí.</div></div>`;
   let nSetter=0,nPauta=0,nSola=0,faltan=0;
   const grupos={};
   prox.forEach(l=>{const k=String(l.inicio||'').slice(0,10);(grupos[k]=grupos[k]||[]).push(l);});
-  const filaDe=l=>{
+  const filaCard=l=>{
     const correo=String(l.invitado_correo||'').toLowerCase();
     const lead=byMail[correo]||null;
     const cl=agClase(l,lead);
     if(cl.cat==='setter')nSetter++;else if(cl.cat==='pauta')nPauta++;else nSola++;
-    const tel=lead&&lead.telefono?String(lead.telefono):'';
-    const ig=lead&&lead.instagram?String(lead.instagram).replace(/^@+/,''):'';
-    const meet=l.meet_code?`<a class="sm ghost" href="https://meet.google.com/${esc(l.meet_code)}" target="_blank" rel="noopener" style="border-radius:9px">Meet</a>`:'';
-    const wa=tel?`<a class="sm" href="${waLink(tel,'')}" target="_blank" rel="noopener" style="border-radius:9px;background:#25d366;color:#0a0a0e;font-weight:700">WhatsApp</a>`:'';
-    const igBtn=ig?`<a class="sm ghost" href="https://instagram.com/${encodeURIComponent(ig)}" target="_blank" rel="noopener" style="border-radius:9px">@${esc(ig)}</a>`:'';
-    const ficha=lead&&lead.user_id?`<button class="sm ghost" style="border-radius:9px" onclick="abrirFicha('${lead.user_id}')">Ficha</button>`:'';
-    const contacto=[correo||'sin correo',tel].filter(Boolean).join(' · ');
     const estado=lead?String(lead.contacto_estado||'').trim():'';
-    let alerta;
-    if(!lead){ alerta=`<span class="pill" style="background:#3a2a10;color:var(--warn);border:1px solid #6b4e14">No está en leads · solo correo</span>`; }
-    else if(!estado){ faltan++; alerta=`<span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);border:1px solid var(--rojo);font-weight:800">Falta escribirle</span>`; }
-    else { alerta=`<span class="pill" style="background:rgba(95,208,127,.13);color:var(--ok);border:1px solid #1f6b43">Ya contactado</span>`; }
-    const nomCell=lead
-      ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();tab('contactar');setTimeout(()=>irAContacto('${esc(correo)}'),60)" title="Ver sus respuestas y si califica" style="min-width:140px;font-weight:700;color:var(--txt);text-decoration:underline;text-decoration-color:var(--rojo);text-underline-offset:3px;cursor:pointer">${esc(l.invitado_nombre||'—')}</a>`
-      : `<span style="min-width:140px;font-weight:700" title="No está en los leads">${esc(l.invitado_nombre||'—')}</span>`;
-    const evId=String(l.id||'');
-    const reproBtn=evId?`<button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')" title="Mover esta llamada a otra fecha/hora">Reprogramar</button>`:'';
-    let marcaBtn='';
-    if(AGENDA_MARCA_MANUAL&&evId){
-      marcaBtn=cl.manual
-        ? `<button class="sm ghost" style="border-radius:9px" onclick="agMarcar('${esc(evId)}',true)" title="Quitar de tus agendadas">Quitar mía</button>`
-        : (cl.cat!=='setter'?`<button class="sm ghost" style="border-radius:9px" onclick="agMarcar('${esc(evId)}',false)" title="Marcar que esta llamada la agendaste tú (comisiona)">Yo la agendé</button>`:'');
-    }
-    const reproPanel=evId?`<div id="repro_${esc(evId)}" style="display:none;flex-basis:100%;padding:8px 0 2px;margin-top:4px;border-top:1px dashed var(--line)">
-      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-        <div><label class="lbl" style="font-size:11px">Nueva fecha y hora</label><input type="datetime-local" id="reprodt_${esc(evId)}" ${dtAttrs()} style="margin:0"></div>
-        <button class="sm" style="border-radius:9px" onclick="reprogramarLlamada('${esc(evId)}','${esc(l.invitado_nombre||'')}')">Guardar cambio</button>
-        <button class="sm ghost" style="border-radius:9px" onclick="reproToggle('${esc(evId)}')">Cancelar</button>
-        <span id="repromsg_${esc(evId)}" class="muted" style="font-size:12px"></span>
-      </div>
-    </div>`:'';
-    return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)">
-      <b style="min-width:58px">${hora(l.inicio)}</b>
-      ${nomCell}
-      ${agTag(cl)}
-      ${alerta}
-      <span class="muted" style="font-size:12px;user-select:text">${esc(contacto)}</span>
-      <span style="flex:1"></span>${igBtn}${meet}${wa}${ficha}${marcaBtn}${reproBtn}
-      ${reproPanel}
+    if(lead&&!estado)faltan++;
+    const esHoy=String(l.inicio||'').slice(0,10)===hoy;
+    const tel=lead&&lead.telefono?String(lead.telefono):'';
+    const contacto=[correo||'sin correo',tel].filter(Boolean).join(' · ');
+    const nom=lead
+      ? `<a class="agNom" href="#" onclick="event.preventDefault();tab('contactar');setTimeout(()=>irAContacto('${esc(correo)}'),60)" title="Ver sus respuestas y su ficha" style="color:var(--txt);text-decoration:underline;text-decoration-color:var(--rojo);text-underline-offset:3px;cursor:pointer">${esc(l.invitado_nombre||'—')}</a>`
+      : `<span class="agNom">${esc(l.invitado_nombre||'—')}</span>`;
+    return `<div class="agCard${esHoy?' hoy':''}">
+      <div class="agTop"><span class="agHora">${agHora(l.inicio)}</span>${nom}${agTag(cl)}${agEstadoPill(lead)}</div>
+      <div class="muted" style="font-size:12px;margin-top:3px;user-select:text">${esc(contacto)}</div>
+      ${agAccionesLead(l,lead,true)}
+      ${agReproPanel(l)}
     </div>`;
   };
   const dias=Object.keys(grupos).sort();
   const cuerpo=dias.map(k=>{
-    const filas=grupos[k].map(filaDe).join('');
     const esHoy=k===hoy;
-    return `<div style="margin-top:14px"><div style="font-size:12.5px;font-weight:800;text-transform:capitalize;color:${esHoy?'var(--rojo2)':'var(--txt)'};border-bottom:2px solid ${esHoy?'var(--rojo)':'var(--line)'};padding-bottom:4px;margin-bottom:2px">${esHoy?'Hoy · ':''}${esc(diaTxt(grupos[k][0].inicio))} (${grupos[k].length})</div>${filas}</div>`;
+    const cards=grupos[k].map(filaCard).join('');
+    return `<div id="agdia_${k}" style="margin-top:16px"><div style="font-size:13px;font-weight:800;text-transform:capitalize;color:${esHoy?'var(--rojo2)':'var(--txt)'};border-bottom:2px solid ${esHoy?'var(--rojo)':'var(--line)'};padding-bottom:5px;margin-bottom:4px">${esHoy?'Hoy · ':''}${esc(agDiaLargo(grupos[k][0].inicio))} <span class="muted" style="font-weight:600">(${grupos[k].length})</span></div>${cards}</div>`;
   }).join('');
   const resumen=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
     <span class="pill" style="background:rgba(95,208,127,.14);color:var(--ok);border:1px solid #1f6b43;font-weight:800">Tú agendaste: ${nSetter}</span>
@@ -2075,7 +2181,7 @@ function agendaHTML(){
   </div>`;
   const aviso=faltan?`<div style="margin-bottom:8px;padding:9px 12px;border-radius:9px;background:var(--rojoSoft);border:1px solid var(--rojo);color:var(--rojo2);font-size:13px;font-weight:800">${faltan} ${faltan===1?'lead agendado aún SIN escribirle':'leads agendados aún SIN escribirles'}. Escríbele(s) antes de la llamada.</div>`:'';
   const nota=`<div class="muted" style="font-size:11.5px;margin-top:4px">La comisión del setter es SOLO sobre las que tú agendas (verde). Las de pauta y las que entran solas no comisionan.</div>`;
-  return `<div class="card">${head}${resumen}${aviso}${cuerpo}${nota}</div>`;
+  return `${recienBoard}<div class="card">${head}${resumen}${aviso}${cuerpo}${nota}</div>${agMiniCalHTML(grupos,hoy)}`;
 }
 function renderAgenda(){ const el=$("v-agenda"); if(!el)return; el.innerHTML=agendaHTML(); }
 async function verAgenda(){
@@ -3110,7 +3216,7 @@ async function guardarNota(o,txt){
   toast('Nota guardada','win');
 }
 // Historial (últimos 6 eventos) en texto legible.
-function histTexto(h){ if(!Array.isArray(h)||!h.length)return''; const et={contactado:'Contactado',respondio:'Respondió',acepto_regalo:'Aceptó regalo',agendado:'Agendó',seguimiento:'Seguimiento',no_interesado:'No interesado',ganado:'Compró',perdido:'Perdido'}; return h.slice(-6).reverse().map(e=>{const f=e.f?fFechaCorta(e.f):''; if(e.k==='toque')return f+' · toque '+e.v; if(e.k==='nota')return f+' · nota'; if(e.k==='estado')return f+' · '+(et[e.v]||e.v); return f;}).join('<br>'); }
+function histTexto(h){ if(!Array.isArray(h)||!h.length)return''; const et={contactado:'Contactado',respondio:'Respondió',acepto_regalo:'Aceptó regalo',agendado:'Agendó',confirmo:'Confirmó asistencia',no_contesta:'No contesta',seguimiento:'Seguimiento',no_interesado:'No interesado',ganado:'Compró',perdido:'Perdido'}; return h.slice(-6).reverse().map(e=>{const f=e.f?fFechaCorta(e.f):''; if(e.k==='toque')return f+' · toque '+e.v; if(e.k==='nota')return f+' · nota'; if(e.k==='estado')return f+' · '+(et[e.v]||e.v); return f;}).join('<br>'); }
 // Importar contactos (nombre + teléfono) al CRM. Pega la lista; cada línea es un
 // contacto. Acepta "Nombre, Teléfono" o "Nombre Teléfono" o "Teléfono, Nombre".
 function cuImportar(){
@@ -3932,6 +4038,10 @@ function grupoDe(c){
   return 'otros';                                              // sin pagar, prueba, vencido
 }
 // Tarjeta de un cliente (reutilizable en la lista plana y en la vista por grupos).
+// Acordeón de la lista: la fila sale compacta (nombre + etiquetas + la acción urgente).
+// El resto del detalle se despliega al tocar el chevron; tocar la fila abre la ficha.
+window.CLI_EXP=window.CLI_EXP||new Set();
+function cliToggle(k){ if(window.CLI_EXP.has(k))window.CLI_EXP.delete(k); else window.CLI_EXP.add(k); renderClientes(); }
 function cardClienteHTML(c,enAtencion){
   const rs=(c._r&&c._r.length)?`<div class="muted" style="font-size:12px;margin-top:3px">${esc(c._r.join(" · "))}</div>`:"";
   const inact=c._inact?`<div style="font-size:12px;margin-top:3px;color:var(--rojo);font-weight:600">En riesgo: ${c._nuncaEntreno?"nunca ha entrenado ("+c._inact+"d)":c._inact+" días sin entrenar"}</div>`:"";
@@ -3951,8 +4061,21 @@ function cardClienteHTML(c,enAtencion){
   const _nc=(c.nombre_completo||'').trim();
   const fullL=(_nc && _nc.toLowerCase()!==(c.nombre||'').trim().toLowerCase())?`<div class="muted" style="font-size:11px;margin-top:1px;user-select:text">${esc(_nc)}</div>`:"";
   const acc=(c._accion&&c._accion!=='En orden')?`<div style="margin-top:4px;font-size:12.5px;font-weight:700;color:${c._accionCol||'var(--warn)'}">→ ${esc(c._accion)}</div>`:"";
-  const cardBtn=`<button class="cliBtn ${SEL===c.user_id?'sel':''}" onclick="verCliente('${c.user_id}')" style="${enAtencion?'flex:1;margin:0;':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(c.nombre||c.user_id.slice(0,8))}</span>${meta}</div>${fullL}${emL}${acc}${inact}${risk}${sinAlt}${rs}${ms}</button>`;
-  return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${cardBtn}<button class="sm ghost" onclick="resolverHoy('${c.user_id}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:cardBtn;
+  const k=c.user_id;
+  const abierto=!!(window.CLI_EXP&&window.CLI_EXP.has(k));
+  const detalle=`${fullL}${emL}${acc}${inact}${risk}${sinAlt}${rs}${ms}`;
+  const tieneDet=!!detalle.replace(/\s/g,'');
+  // Colapsada deja visible la acción urgente (triage), oculta el resto hasta tocar el chevron.
+  const caret=tieneDet?`<span class="cliCaret" onclick="event.stopPropagation();cliToggle('${k}')" title="${abierto?'Ocultar':'Ver'} detalle">${SVG_CARET}</span>`:`<span style="width:12px;flex:none"></span>`;
+  const sel=SEL===k;
+  const row=`<div class="cliRow${abierto?' abierto':''}" onclick="verCliente('${k}')" style="${enAtencion?'flex:1;margin:0;':''}${sel?'border-color:var(--rojo);background:var(--card2);':''}">
+    ${caret}
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.nombre||k.slice(0,8))}</span>${meta}</div>
+      ${abierto?detalle:(acc||'')}
+    </div>
+  </div>`;
+  return enAtencion?`<div style="display:flex;gap:6px;align-items:stretch;margin-bottom:6px">${row}<button class="sm ghost" onclick="resolverHoy('${k}')" title="Marcar resuelto hoy — reaparece mañana si sigue la alerta" style="margin:0;white-space:nowrap;align-self:stretch;padding:6px 10px;line-height:1.15">✓ Resuelto<br>hoy</button></div>`:row;
 }
 
 const nombreEj=id=>{const e=EJ.find(x=>String(x.id)===String(id));return e?e.nombre:"(ejercicio)";};
