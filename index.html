@@ -8757,7 +8757,7 @@ async function cvCerrar(){
   if(r)r.innerHTML=`<div class="card" style="background:rgba(80,180,120,.08);border-color:rgba(80,180,120,.4)">
     <b>Listo. Cliente en mentoría y venta registrada.</b>
     ${cred}
-    <div class="muted" style="font-size:12px;margin-top:8px">Falta mandar el contrato (por ahora se envía aparte).</div>
+    ${data.contrato_enviado?'<div style="font-size:12px;margin-top:8px;color:var(--ok);font-weight:700">Contrato enviado al correo del cliente.</div>':'<div class="muted" style="font-size:12px;margin-top:8px">El contrato NO se envió'+(data.contrato_error?' ('+esc(data.contrato_error)+')':'')+'. Mándalo a mano.</div>'}
   </div>`;
 }
 
