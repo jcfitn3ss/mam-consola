@@ -3363,11 +3363,13 @@ async function verSeguimiento(){
   // Solo clientes de coaching ACTIVOS. Las descargas de la app en prueba, vencidas o
   // canceladas NO son coaching: inflaban esta lista con ~120 "vencidos" que nunca iban a
   // subir una foto. Se leen las suscripciones y se filtra a estado 'activa'. (JC 2026-11-12)
-  let _subE={};
-  try{const {data:_subs}=await sb.from("suscripciones").select("user_id,estado");(_subs||[]).forEach(s=>{_subE[s.user_id]=s.estado;});}catch(e){}
+  const fmD=(fm&&fm.data)||{};
+  // Estados de suscripción vienen del EDGE (service_role). Antes se leían por RLS
+  // (sb.from "suscripciones"), que a un entrenador solo le daba SU fila → roster vacío
+  // y los clientes salían todos "ocultos". (2026-11-18)
+  const _subE={};((fmD.suscripciones)||[]).forEach(s=>{_subE[s.user_id]=s.estado;});
   const roster=rosterTodos.filter(c=>_subE[c.user_id]==='activa');
   const nOcultos=rosterTodos.length-roster.length;
-  const fmD=(fm&&fm.data)||{};
   const ULTFOTO={};(fmD.fotos||[]).forEach(f=>{if(f.fecha&&(!ULTFOTO[f.user_id]||f.fecha>ULTFOTO[f.user_id]))ULTFOTO[f.user_id]=f.fecha;});
   const ULTMED={};(fmD.medidas||[]).forEach(m=>{if(m.fecha&&(!ULTMED[m.user_id]||m.fecha>ULTMED[m.user_id]))ULTMED[m.user_id]=m.fecha;});
   const dias=f=>f?Math.floor((Date.now()-new Date(f+"T00:00:00").getTime())/864e5):null;
