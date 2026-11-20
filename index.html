@@ -1820,7 +1820,7 @@ function _crmDiasA(r){return r?Math.floor((new Date(r+"T00:00:00").getTime()-Dat
 // ============ COLA DE CONTACTO / VENTAS (setter) ============
 // Lista semanal ordenada de a quién escribir por WhatsApp para vender: pruebas por vencer,
 // pruebas vencidas sin comprar y vencidos. "de una" a WhatsApp + marca contactado.
-const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['confirmo','Confirmó asistencia'],['no_contesta','No contesta'],['seguimiento','En seguimiento (revisar luego)'],['no_interesado','No interesado'],['ganado','Compró'],['perdido','Perdido']];
+const CONTACTAR_ESTADOS=[['','—'],['contactado','Contactado (sin respuesta)'],['respondio','Respondió'],['acepto_regalo','Aceptó el regalo'],['agendado','Agendó llamada'],['confirmo','Confirmó asistencia'],['no_contesta','No contesta'],['asistio','Asistió a la llamada'],['no_asistio','Confirmó pero no se unió'],['seguimiento','En seguimiento (revisar luego)'],['no_interesado','No interesado'],['ganado','Compró'],['perdido','Perdido']];
 function guionContacto(nom,bucket){
   const n=nom||'';
   if(bucket==='prueba') return `Hola ${n}, soy del equipo de Músculo al Máximo ¿Cómo vas con tu prueba? Si quieres seguir con tu plan, rutina y seguimiento sin perder tu progreso, te ayudo a activarlo hoy. ¿Te cuento cómo?`;
@@ -2036,6 +2036,8 @@ function agDiaCorto(iso){try{return new Date(iso).toLocaleDateString('es-CO',{ti
 function agEstadoPill(lead){
   if(!lead) return `<span class="pill" style="background:#3a2a10;color:var(--warn);border:1px solid #6b4e14">No está en leads</span>`;
   const e=String(lead.contacto_estado||'').trim();
+  if(e==='asistio') return `<span class="pill" style="background:rgba(95,208,127,.26);color:var(--ok);border:1px solid #1f6b43;font-weight:800">Asistió ✓</span>`;
+  if(e==='no_asistio') return `<span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);border:1px solid var(--rojo);font-weight:800">Confirmó · no se unió</span>`;
   if(e==='confirmo'||e==='ganado') return `<span class="pill" style="background:rgba(95,208,127,.18);color:var(--ok);border:1px solid #1f6b43;font-weight:800">Confirmó asistencia</span>`;
   if(e==='no_contesta') return `<span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);border:1px solid var(--rojo);font-weight:800">No contesta</span>`;
   if(e==='agendado') return `<span class="pill" style="background:rgba(224,184,74,.14);color:var(--warn);border:1px solid rgba(224,184,74,.4);font-weight:800">Agendó · sin confirmar</span>`;
@@ -2079,7 +2081,8 @@ async function agMarcarEstado(o,estado){
   const arr=window.CU_ALL||[];
   const it=arr.find(x=>(o.id&&x.id===o.id)||(o.email&&String(x.email||'').toLowerCase()===String(o.email||'').toLowerCase()));
   if(it){ it.contacto_estado=estado; it.contacto_ultimo=new Date().toISOString(); it.toques=(Number(it.toques)||0)+1; }
-  toast(estado==='confirmo'?'Confirmó asistencia':estado==='no_contesta'?'Marcado: no contesta':'Guardado','win');
+  const msgEst={confirmo:'Confirmó asistencia',no_contesta:'Marcado: no contesta',asistio:'Se unió a la llamada',no_asistio:'Confirmó y no se unió',seguimiento:'Pasado a seguimiento'};
+  toast(msgEst[estado]||'Guardado','win');
   renderAgenda();
 }
 // Board "Recién agendadas": las que entraron en las últimas 36 h y aún no se trabajan.
@@ -2110,6 +2113,71 @@ function agRecienHTML(ll,byMail){
     <div class="muted" style="font-size:12px;margin:4px 0 8px">Entraron en las últimas horas. Llama YA para asegurar el show-up: confirma la asistencia o marca "No contesta".</div>
     ${filas}</div>`;
 }
+// Board "Por revisar · ¿asistió?": llamadas CONFIRMADAS cuya hora YA PASÓ y aún no se
+// cerró si la persona se unió. La agenda normal solo muestra de hoy en adelante, así que
+// sin este board un confirmado que no se unió desaparecía sin poder gestionarlo. Aquí el
+// setter cierra el show-up: "Se unió" o "No se unió".
+function agPorRevisarHTML(ll,byMail){
+  const ahora=Date.now(), limite=ahora-14*864e5;
+  const pend=ll.filter(l=>{
+    const t=l.inicio?new Date(l.inicio).getTime():0;
+    if(!t||t>=ahora||t<limite)return false;            // ya pasó y dentro de los últimos 14 días
+    if(!String(l.invitado_nombre||'').trim())return false;
+    const lead=byMail[String(l.invitado_correo||'').toLowerCase()]||null;
+    return lead&&String(lead.contacto_estado||'').trim()==='confirmo';  // confirmó y sin cerrar
+  }).sort((a,b)=>String(b.inicio||'').localeCompare(String(a.inicio||'')));
+  if(!pend.length)return '';
+  const filas=pend.map(l=>{
+    const lead=byMail[String(l.invitado_correo||'').toLowerCase()]||null;
+    const tel=lead&&lead.telefono?String(lead.telefono):'';
+    const arg=JSON.stringify({id:lead.id,email:lead.email,telefono:lead.telefono,nombre:lead.nombre}).replace(/"/g,'&quot;');
+    const wa=tel?`<a class="sm" href="${waLink(tel,'')}" target="_blank" rel="noopener" style="background:#25d366;color:#0a0a0e;font-weight:800;border:none">WhatsApp</a>`:'';
+    const ficha=lead&&lead.user_id?`<button class="sm ghost" style="min-height:38px" onclick="abrirFicha('${lead.user_id}')">Ficha</button>`:'';
+    return `<div class="agCard" style="border-color:var(--warn)">
+      <div class="agTop"><span class="agNom">${esc(l.invitado_nombre||'—')}</span>${agEstadoPill(lead)}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:3px;user-select:text">Era <b style="color:var(--txt);text-transform:capitalize">${esc(agDiaCorto(l.inicio))} · ${agHora(l.inicio)}</b>${tel?' · '+esc(tel):''}</div>
+      <div class="agActs">
+        <button class="sm" style="min-height:38px;background:var(--ok);color:#0a0a0e;font-weight:800;border:none" onclick="agMarcarEstado(${arg},'asistio')" title="La persona sí se unió a la llamada">Se unió</button>
+        <button class="sm ghost" style="min-height:38px" onclick="agMarcarEstado(${arg},'no_asistio')" title="Confirmó pero no se unió a la llamada">No se unió</button>
+        ${wa}${ficha}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="card" style="border-color:var(--warn);background:rgba(224,184,74,.06)">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px">Por revisar · ¿asistió?</h2><span class="pill" style="background:var(--warn);color:#0a0a0e;font-weight:800">${pend.length}</span></div>
+    <div class="muted" style="font-size:12px;margin:4px 0 8px">Confirmaron y su llamada ya pasó. Marca si se unió o no, para cerrar el show-up.</div>
+    ${filas}</div>`;
+}
+// Board "Confirmaron y no se unieron · recupéralos": los leads marcados no_asistio.
+// Salen de los leads (persisten aunque la llamada caiga fuera de la ventana de 2 meses).
+// Para recuperarlos: escríbeles/llámalos y, cuando queden en manos de seguimiento, "A seguimiento".
+function agNoShowHTML(byMail){
+  const seen=new Set(), leads=[];
+  Object.values(byMail).forEach(l=>{
+    if(String(l.contacto_estado||'').trim()!=='no_asistio')return;
+    const k=String(l.email||l.id||''); if(!k||seen.has(k))return; seen.add(k);
+    leads.push(l);
+  });
+  if(!leads.length)return '';
+  leads.sort((a,b)=>String(b.contacto_ultimo||'').localeCompare(String(a.contacto_ultimo||'')));
+  const filas=leads.map(lead=>{
+    const tel=lead.telefono?String(lead.telefono):'';
+    const arg=JSON.stringify({id:lead.id,email:lead.email,telefono:lead.telefono,nombre:lead.nombre}).replace(/"/g,'&quot;');
+    const call=tel?`<a class="btnCall" href="tel:${esc(tel.replace(/[^+0-9]/g,''))}" title="Llamar">Llamar</a>`:'';
+    const wa=tel?`<a class="sm" href="${waLink(tel,'')}" target="_blank" rel="noopener" style="background:#25d366;color:#0a0a0e;font-weight:800;border:none">WhatsApp</a>`:'';
+    const ficha=lead.user_id?`<button class="sm ghost" style="min-height:38px" onclick="abrirFicha('${lead.user_id}')">Ficha</button>`:'';
+    const seg=`<button class="sm ghost" style="min-height:38px" onclick="agMarcarEstado(${arg},'seguimiento')" title="Pasar a seguimiento para reintentar luego">A seguimiento</button>`;
+    return `<div class="agCard">
+      <div class="agTop"><span class="agNom">${esc(lead.nombre||'—')}</span>${agEstadoPill(lead)}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:3px;user-select:text">${tel?esc(tel):'solo correo'}</div>
+      <div class="agActs">${call}${wa}${seg}${ficha}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card" style="border-color:var(--rojo)">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px">Confirmaron y no se unieron · recupéralos</h2><span class="pill" style="background:var(--rojo);color:#fff;font-weight:800">${leads.length}</span></div>
+    <div class="muted" style="font-size:12px;margin:4px 0 8px">Escríbeles ya para reagendar. Usa "A seguimiento" cuando los dejes en la cola de seguimiento.</div>
+    ${filas}</div>`;
+}
 // Un mes del mini-calendario (lunes a domingo). Los días con llamadas se marcan y son clicables.
 function agMiniMes(y,m,grupos,hoy){
   const first=new Date(Date.UTC(y,m,1));
@@ -2138,13 +2206,15 @@ function agendaHTML(){
   const hoy=hace(0), tope=hace(-AG_DIAS);
   const byMail={};(window.CU_ALL||[]).forEach(i=>{const c=String(i.email||'').toLowerCase();if(c&&!byMail[c])byMail[c]=i;});
   const recienBoard=agRecienHTML(ll,byMail);
+  const revisarBoard=agPorRevisarHTML(ll,byMail);
+  const noShowBoard=agNoShowHTML(byMail);
   const chips=[7,14,30].map(d=>`<button class="sm ${AG_DIAS===d?'':'ghost'}" style="border-radius:20px" onclick="AG_DIAS=${d};renderAgenda()">${d} días</button>`).join(' ');
   const head=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Agenda</h2><span style="flex:1"></span>${chips}<button class="sm ghost" style="border-radius:20px" onclick="agSync()" title="Volver a leer el calendario de Google">Releer calendario</button></div>`;
   // Solo llamadas con nombre real: las agendas sin nombre (chats de IG sin identificar)
   // ya no ensucian la Agenda. (JC 2026-11-12)
   const prox=ll.filter(l=>{const f=String(l.inicio||'').slice(0,10);return f>=hoy&&f<=tope&&String(l.invitado_nombre||'').trim();})
               .sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
-  if(!prox.length)return `${recienBoard}<div class="card">${head}<div class="muted" style="font-size:13px">No hay llamadas en los próximos ${AG_DIAS} días. Cuando alguien agende (por la pauta, por el enlace o porque tú la agendas) aparece aquí.</div></div>`;
+  if(!prox.length)return `${recienBoard}${revisarBoard}${noShowBoard}<div class="card">${head}<div class="muted" style="font-size:13px">No hay llamadas en los próximos ${AG_DIAS} días. Cuando alguien agende (por la pauta, por el enlace o porque tú la agendas) aparece aquí.</div></div>`;
   let nSetter=0,nPauta=0,nSola=0,faltan=0;
   const grupos={};
   prox.forEach(l=>{const k=String(l.inicio||'').slice(0,10);(grupos[k]=grupos[k]||[]).push(l);});
@@ -2181,7 +2251,7 @@ function agendaHTML(){
   </div>`;
   const aviso=faltan?`<div style="margin-bottom:8px;padding:9px 12px;border-radius:9px;background:var(--rojoSoft);border:1px solid var(--rojo);color:var(--rojo2);font-size:13px;font-weight:800">${faltan} ${faltan===1?'lead agendado aún SIN escribirle':'leads agendados aún SIN escribirles'}. Escríbele(s) antes de la llamada.</div>`:'';
   const nota=`<div class="muted" style="font-size:11.5px;margin-top:4px">La comisión del setter es SOLO sobre las que tú agendas (verde). Las de pauta y las que entran solas no comisionan.</div>`;
-  return `${recienBoard}<div class="card">${head}${resumen}${aviso}${cuerpo}${nota}</div>${agMiniCalHTML(grupos,hoy)}`;
+  return `${recienBoard}${revisarBoard}${noShowBoard}<div class="card">${head}${resumen}${aviso}${cuerpo}${nota}</div>${agMiniCalHTML(grupos,hoy)}`;
 }
 function renderAgenda(){ const el=$("v-agenda"); if(!el)return; el.innerHTML=agendaHTML(); }
 async function verAgenda(){
@@ -3216,7 +3286,7 @@ async function guardarNota(o,txt){
   toast('Nota guardada','win');
 }
 // Historial (últimos 6 eventos) en texto legible.
-function histTexto(h){ if(!Array.isArray(h)||!h.length)return''; const et={contactado:'Contactado',respondio:'Respondió',acepto_regalo:'Aceptó regalo',agendado:'Agendó',confirmo:'Confirmó asistencia',no_contesta:'No contesta',seguimiento:'Seguimiento',no_interesado:'No interesado',ganado:'Compró',perdido:'Perdido'}; return h.slice(-6).reverse().map(e=>{const f=e.f?fFechaCorta(e.f):''; if(e.k==='toque')return f+' · toque '+e.v; if(e.k==='nota')return f+' · nota'; if(e.k==='estado')return f+' · '+(et[e.v]||e.v); return f;}).join('<br>'); }
+function histTexto(h){ if(!Array.isArray(h)||!h.length)return''; const et={contactado:'Contactado',respondio:'Respondió',acepto_regalo:'Aceptó regalo',agendado:'Agendó',confirmo:'Confirmó asistencia',no_contesta:'No contesta',asistio:'Asistió',no_asistio:'No se unió (confirmó)',seguimiento:'Seguimiento',no_interesado:'No interesado',ganado:'Compró',perdido:'Perdido'};return h.slice(-6).reverse().map(e=>{const f=e.f?fFechaCorta(e.f):''; if(e.k==='toque')return f+' · toque '+e.v; if(e.k==='nota')return f+' · nota'; if(e.k==='estado')return f+' · '+(et[e.v]||e.v); return f;}).join('<br>'); }
 // Importar contactos (nombre + teléfono) al CRM. Pega la lista; cada línea es un
 // contacto. Acepta "Nombre, Teléfono" o "Nombre Teléfono" o "Teléfono, Nombre".
 function cuImportar(){
