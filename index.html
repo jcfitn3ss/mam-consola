@@ -2173,6 +2173,15 @@ async function agMarcarEstado(o,estado){
   toast(msgEst[estado]||'Guardado','win');
   renderAgenda();
 }
+// "Compró" desde el board de cierre: marca asistencia (quedó registrado el show-up aunque
+// no termine el formulario) y salta a Cerrar venta con nombre/correo/celular ya puestos.
+async function agIrCerrar(o){
+  try{ await invokeFn('crm-contacto',{body:{id:o.id,email:o.email,telefono:o.telefono,nombre:o.nombre,estado:'asistio',toque:true}}); }catch(e){}
+  const arr=window.CU_ALL||[]; const it=arr.find(x=>(o.id&&x.id===o.id)||(o.email&&String(x.email||'').toLowerCase()===String(o.email||'').toLowerCase()));
+  if(it)it.contacto_estado='asistio';
+  try{ tab('cerrarventa'); }catch(e){}
+  setTimeout(()=>{ const s=(id,v)=>{const e=$(id);if(e&&v)e.value=v;}; s('cvNombre',o.nombre); s('cvCorreo',o.email); s('cvCelular',o.telefono); },90);
+}
 // Board "Recién agendadas": las que entraron en las últimas 36 h y aún no se trabajan.
 // Es la estrategia de show-up: el setter las ve de primeras y llama ya.
 function agRecienHTML(ll,byMail){
@@ -2201,18 +2210,22 @@ function agRecienHTML(ll,byMail){
     <div class="muted" style="font-size:12px;margin:4px 0 8px">Entraron en las últimas horas. Llama YA para asegurar el show-up: confirma la asistencia o marca "No contesta".</div>
     ${filas}</div>`;
 }
-// Board "Por revisar · ¿asistió?": llamadas CONFIRMADAS cuya hora YA PASÓ y aún no se
-// cerró si la persona se unió. La agenda normal solo muestra de hoy en adelante, así que
-// sin este board un confirmado que no se unió desaparecía sin poder gestionarlo. Aquí el
-// setter cierra el show-up: "Se unió" o "No se unió".
+// Board "Por revisar · ¿asistió?": TODA llamada cuya hora YA PASÓ y aún no tiene resultado.
+// Antes exigía contacto_estado==='confirmo', pero casi nadie se marca 'confirmo' primero,
+// así que el board vivía vacío y las llamadas que ya pasaban se perdían sin cerrarles el
+// resultado (19 llamadas pasadas, 0 con resultado, medido 25-nov). Ahora cae aquí cualquier
+// llamada pasada cuyo lead NO esté ya cerrado (asistió / no se unió / compró / perdido /
+// no interesado). Es el forcing-function del cierre: ninguna llamada agendada se abandona.
+const AG_CERRADO=['asistio','no_asistio','ganado','perdido','no_interesado'];
 function agPorRevisarHTML(ll,byMail){
-  const ahora=Date.now(), limite=ahora-14*864e5;
+  const ahora=Date.now(), limite=ahora-30*864e5;   // ventana de 30 días hacia atrás
   const pend=ll.filter(l=>{
     const t=l.inicio?new Date(l.inicio).getTime():0;
-    if(!t||t>=ahora||t<limite)return false;            // ya pasó y dentro de los últimos 14 días
+    if(!t||t>=ahora||t<limite)return false;            // ya pasó y dentro de la ventana
     if(!String(l.invitado_nombre||'').trim())return false;
     const lead=byMail[String(l.invitado_correo||'').toLowerCase()]||null;
-    return lead&&String(lead.contacto_estado||'').trim()==='confirmo';  // confirmó y sin cerrar
+    if(!lead)return false;                              // sin lead no se puede cerrar el estado
+    return !AG_CERRADO.includes(String(lead.contacto_estado||'').trim());  // pasó y aún sin resultado
   }).sort((a,b)=>String(b.inicio||'').localeCompare(String(a.inicio||'')));
   if(!pend.length)return '';
   const filas=pend.map(l=>{
@@ -2225,15 +2238,16 @@ function agPorRevisarHTML(ll,byMail){
       <div class="agTop"><span class="agNom">${esc(l.invitado_nombre||'—')}</span>${agEstadoPill(lead)}</div>
       <div class="muted" style="font-size:12.5px;margin-top:3px;user-select:text">Era <b style="color:var(--txt);text-transform:capitalize">${esc(agDiaCorto(l.inicio))} · ${agHora(l.inicio)}</b>${tel?' · '+esc(tel):''}</div>
       <div class="agActs">
-        <button class="sm" style="min-height:38px;background:var(--ok);color:#0a0a0e;font-weight:800;border:none" onclick="agMarcarEstado(${arg},'asistio')" title="La persona sí se unió a la llamada">Se unió</button>
+        <button class="sm" style="min-height:38px;background:var(--ok);color:#0a0a0e;font-weight:800;border:none" onclick="agMarcarEstado(${arg},'asistio')" title="Se unió a la llamada y no compró (todavía)">Se unió</button>
+        <button class="sm" style="min-height:38px;background:#2fa85f;color:#0a0a0e;font-weight:800;border:none" onclick="agIrCerrar(${arg})" title="Se unió y compró: pasa a registrar la venta">Compró</button>
         <button class="sm ghost" style="min-height:38px" onclick="agMarcarEstado(${arg},'no_asistio')" title="Confirmó pero no se unió a la llamada">No se unió</button>
         ${wa}${ficha}
       </div>
     </div>`;
   }).join('');
   return `<div class="card" style="border-color:var(--warn);background:rgba(224,184,74,.06)">
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px">Por revisar · ¿asistió?</h2><span class="pill" style="background:var(--warn);color:#0a0a0e;font-weight:800">${pend.length}</span></div>
-    <div class="muted" style="font-size:12px;margin:4px 0 8px">Confirmaron y su llamada ya pasó. Marca si se unió o no, para cerrar el show-up.</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0;font-size:16px">Por revisar · ¿cómo salió?</h2><span class="pill" style="background:var(--warn);color:#0a0a0e;font-weight:800">${pend.length}</span></div>
+    <div class="muted" style="font-size:12px;margin:4px 0 8px">Toda llamada cuya hora ya pasó y aún sin resultado. Cierra el ciclo: <b>Se unió</b> (asistió, sin venta aún), <b>Compró</b> (registra la venta) o <b>No se unió</b> (a recuperar). Ninguna llamada agendada se abandona.</div>
     ${filas}</div>`;
 }
 // Board "Confirmaron y no se unieron · recupéralos": los leads marcados no_asistio.
