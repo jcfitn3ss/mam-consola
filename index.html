@@ -258,6 +258,7 @@
       <button id="t-comunidad" onclick="tab('comunidad')">Comunidad</button>
       <!-- Revisión/Riesgo/Recordatorios/Resumen están fusionados en la cola de Clientes (filtro "Atención"); su código queda intacto. -->
       <!-- MODO COMERCIAL (todavía no paga) · en orden del embudo de ventas. -->
+      <button id="t-ruta" onclick="tab('ruta')">Ruta del cliente</button>
       <button id="t-contactar" onclick="tab('contactar')">Contactar</button>
       <button id="t-agenda" class="hide" onclick="tab('agenda')">Agenda</button>
       <button id="t-cerrarventa" class="hide" onclick="tab('cerrarventa')">Cerrar venta</button>
@@ -298,6 +299,7 @@
       </div>
       <div id="detalle"></div>
     </div>
+    <div id="v-ruta" class="hide"></div>
     <div id="v-contactar" class="hide"></div>
     <div id="v-agenda" class="hide"></div>
     <div id="v-resumen" class="hide"></div>
@@ -506,7 +508,7 @@ async function logout(){await sb.auth.signOut();location.reload();}
 // Pestañas que viven dentro del menú "Más ▾" (las secundarias).
 // Las que viven dentro del desplegable: al abrir una, el botón toma su nombre.
 const TABS_SEC=["ejercicios","plantillas","alimentos","restaurantes","prospecto"];
-function tab(t){["clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","acompanamiento","cierre","pagos","finanzas","cerrarventa","embudo","contenido","metricas","contactar","agenda","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="contactar")verContactar();if(t==="agenda")verAgenda();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="acompanamiento")verAcompanamiento();if(t==="cierre")verCierre();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="cerrarventa")verCerrarVenta();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
+function tab(t){["ruta","clientes","crm","resumen","revision","riesgo","recordatorios","seguimiento","llamadas","acompanamiento","cierre","pagos","finanzas","cerrarventa","embudo","contenido","metricas","contactar","agenda","salud","prospecto","restaurantes","ejercicios","plantillas","alimentos","comunidad","sugerencias","interno"].forEach(x=>{const b=$("t-"+x);show("v-"+x,x===t);if(b)b.classList.toggle("on",x===t);});if(t==="ruta")verRuta();if(t==="contactar")verContactar();if(t==="agenda")verAgenda();if(t==="crm")verCRM();if(t==="resumen")verResumen();if(t==="revision")verRevision();if(t==="riesgo")verRiesgo();if(t==="recordatorios")verRecordatorios();if(t==="seguimiento")verSeguimiento();if(t==="llamadas")verLlamadas();if(t==="acompanamiento")verAcompanamiento();if(t==="cierre")verCierre();if(t==="pagos")verPagos();if(t==="finanzas")verFinanzas();if(t==="cerrarventa")verCerrarVenta();if(t==="embudo")verEmbudo();if(t==="contenido")verContenido();if(t==="metricas")verMetricas();if(t==="salud")verSalud();if(t==="prospecto")verProspecto();if(t==="restaurantes")verRestaurantes();if(t==="ejercicios")verEjercicios();if(t==="plantillas")verPlantillas();if(t==="alimentos")verAlimentos();if(t==="comunidad")verComunidad();if(t==="sugerencias")verSugerencias();if(t==="interno")verInterno();
   // "Biblioteca ▾": si la pestaña activa es de la biblioteca, resáltalo y muestra
   // su nombre; si no, vuelve a decir "Biblioteca". Cierra el menú al final.
   const mb=$("masBtn");if(mb){const sec=TABS_SEC.includes(t);mb.classList.toggle("on",sec);const bt=$("t-"+t);mb.textContent=(sec&&bt?bt.textContent:"Biblioteca")+" ▾";}
@@ -798,11 +800,11 @@ const PESTANAS_POR_ROL={
   // Dueño: todo.
   dueno:'*',
   // Entrenador: entrenamiento y setteo. Sin finanzas, sin pagos, sin consola interna.
-  entrenador:['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','contactar','agenda','embudo',
+  entrenador:['ruta','clientes','crm','seguimiento','llamadas','acompanamiento','cierre','contactar','agenda','embudo',
               'salud','prospecto',
               'ejercicios','plantillas','alimentos','restaurantes','comunidad','sugerencias'],
   // Comercial (closer y setter): prospección, el CRM de clientes y el embudo sin plata.
-  comercial:['agenda','contactar','crm','embudo','contenido'],
+  comercial:['ruta','agenda','contactar','crm','embudo','contenido'],
 };
 let MI_ROL='';
 
@@ -826,7 +828,7 @@ function rolDe(p){
 //   comercial → gente que todavía no paga
 const MODOS={
   servicio:{nombre:'Servicio',entrada:'clientes',ayuda:'Clientes que ya pagaron'},
-  comercial:{nombre:'Comercial',entrada:'contactar',ayuda:'Gente que todavía no paga'},
+  comercial:{nombre:'Comercial',entrada:'ruta',ayuda:'Gente que todavía no paga'},
 };
 
 // Qué modos tiene una cuenta. La regla sale del rol y de las banderas que ya
@@ -859,7 +861,7 @@ const PESTANAS_POR_MODO={
   servicio:['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','agenda','comunidad','salud',
             // Biblioteca (van dentro del desplegable)
             'ejercicios','plantillas','alimentos','restaurantes','prospecto'],
-  comercial:['agenda','contactar','crm','embudo','contenido','pagos','finanzas','metricas'],
+  comercial:['ruta','agenda','contactar','crm','embudo','contenido','pagos','finanzas','metricas'],
 };
 // Las de la Biblioteca, que es el único desplegable que queda en la barra.
 const TABS_BIBLIOTECA=['ejercicios','plantillas','alimentos','restaurantes','prospecto'];
@@ -880,7 +882,7 @@ function puedeVer(pestana){
 
 // Deja a la vista solo las pestañas del rol y abre la primera que le toque.
 function aplicarPermisos(){
-  const todas=['clientes','crm','seguimiento','llamadas','acompanamiento','cierre','pagos','finanzas','embudo','contenido','metricas','contactar','agenda',
+  const todas=['ruta','clientes','crm','seguimiento','llamadas','acompanamiento','cierre','pagos','finanzas','embudo','contenido','metricas','contactar','agenda',
     'ejercicios','plantillas','alimentos','restaurantes','salud','prospecto',
     'comunidad','sugerencias','interno'];
   let primera='';
@@ -1034,7 +1036,7 @@ async function trasLogin(){
   const _entrada=MI_MODO?MODOS[MI_MODO].entrada:'';
 
   // COMERCIAL: no carga nada de entrenamiento (ni puede: el servidor se lo niega).
-  if(MI_ROL==='comercial'){ tab(puedeVer('contactar')?'contactar':(_primera||'crm')); return; }
+  if(MI_ROL==='comercial'){ tab(puedeVer('ruta')?'ruta':(puedeVer('contactar')?'contactar':(_primera||'crm'))); return; }
 
   // AUTO-REPARACIÓN (1 vez por navegador): restaura las policies de LECTURA del
   // entrenador si se cayeron (fotos/medidas/pesos/comidas/series/… salían vacías).
@@ -1836,6 +1838,92 @@ function waContactar(uid,tel,msg){ const wl=waLink(tel,msg); if(wl) window.open(
 // Carga TODO el CRM UNA vez y lo guarda en memoria del navegador. Después, buscar/
 // filtrar/cambiar de grupo es INSTANTÁNEO (renderContactar, sin volver a llamar al
 // servidor). Antes cada tecla del buscador disparaba una llamada de ~2s = se sentía lento.
+// ============ RUTA DEL CLIENTE (guía paso a paso del comercial/setter) ============
+// Los 6 pasos que recorre un prospecto desde que llena la encuesta hasta que compra.
+// Es la pantalla de entrada del modo Comercial: dice en qué paso está cada persona,
+// cuántas esperan en cada uno y QUÉ hacer para moverlas al siguiente. Solo LEE; no
+// escribe nada. Reutiliza window.CU_ALL (la misma base de Contactar) y window.CU_CITAS.
+const RUTA_CLOSER_ID='86b27fbd-f5e8-4ada-a9ab-d9ab63162a8f';
+function rutaEtapa(i){
+  const e=String((i&&i.contacto_estado)||'').trim().toLowerCase();
+  if(e==='no_interesado'||e==='perdido')return 0;                 // cerrado perdido (fuera de la ruta activa)
+  if(e==='ganado')return 6;                                       // compró
+  if(e==='asistio'||e==='no_asistio')return 5;                    // asistió a la llamada
+  const cita=!!(window.CU_CITAS||{})[String((i&&i.email)||'').toLowerCase()];
+  if(cita||e==='agendado'||e==='confirmo')return 4;               // llamada agendada
+  if(e==='respondio'||e==='acepto_regalo'||e==='seguimiento')return 3; // respondió
+  if(e==='contactado'||e==='no_contesta')return 2;                // contactado, sin respuesta
+  return 1;                                                       // encuesta nueva, sin tocar
+}
+function rutaIr(f){
+  if(f==='agenda'){tab('agenda');return;}
+  if(f==='cerrarventa'){tab('cerrarventa');return;}
+  CU_FILTRO=f; CU_GRUPO=''; CU_Q='';
+  tab('contactar');
+  if(typeof renderContactar==='function')renderContactar();
+}
+async function verRuta(){
+  const el=$("v-ruta"); if(!el)return;
+  if(!window.CU_ALL){
+    el.innerHTML='<div class="card">Cargando tu ruta…</div>';
+    const {data,error}=await invokeFn('crm-unificado',{body:{all:true}});
+    if(error||(data&&data.error)){el.innerHTML=`<div class="card alert">No se pudo cargar: ${esc((data&&data.error)||(error&&error.message)||'error')}</div>`;return;}
+    window.CU_ALL=(data.items||[]).map(i=>{const e=String(i.contacto_estado||'').trim().toLowerCase();if(e==='sin contactar'||e==='sin_contactar'||e==='sin contacto')i.contacto_estado='';return i;});
+    window.CU_META={counts:(data.counts||{}),nivelCount:(data.nivelCount||{}),total_general:(data.total_general||0),generado:data.generado,cupon:(data.cupon||null)};
+  }
+  renderRuta();
+  autoSyncAgenda();  // trae las citas del calendario en segundo plano…
+  setTimeout(()=>{ const v=$("v-ruta"); if(v&&!v.classList.contains('hide'))renderRuta(); },1600); // …y re-pinta cuando lleguen
+}
+function renderRuta(){
+  const el=$("v-ruta"); if(!el)return;
+  const EN_APP=['Cliente','Vencido','En app · con regalo','En app · prueba'];
+  const base=(window.CU_ALL||[]).filter(i=>(((typeof cuEsEncuesta==='function')&&cuEsEncuesta(i))||String(i.respuestas||'').trim()!=='') && !EN_APP.includes(String(i.grupo||'')));
+  const c=[0,0,0,0,0,0,0];                 // c[0]=perdidos, c[1..6]=pasos
+  base.forEach(i=>{ c[rutaEtapa(i)]++; });
+  const esCloser=(MIID===RUTA_CLOSER_ID)||(MI_ROL==='dueno');
+  const PASOS=[
+    {n:1,t:'Encuesta nueva',col:'#e23b3b',q:'Escríbele HOY por WhatsApp. La velocidad vende: contáctalo el mismo día que llena la encuesta. Usa “Escribir con IA” y mándalo.',cta:'Escribir ahora',ir:"rutaIr('encuesta')"},
+    {n:2,t:'Contactado, sin respuesta',col:'#e0b84a',q:'Ya le escribiste y no contesta. Insiste con criterio: máximo 2 mensajes al día y 4 por semana. Si a los 3 días sigue callado, cambia el enfoque del mensaje.',cta:'Ver pendientes',ir:"rutaIr('hoy')"},
+    {n:3,t:'Respondió · agéndalo',col:'#5aa6ff',q:'Está interesado. Tu meta ahora es una sola: que agende la llamada. Mándale el enlace y confirma día y hora.',cta:'Ver interesados',ir:"rutaIr('seguimiento')"},
+    {n:4,t:'Llamada agendada',col:'#3a7afe',q:'Ya tiene cita. Confírmale el día antes y una hora antes. El show-up es lo que más se cae: ese recordatorio es tu trabajo.',cta:'Abrir agenda',ir:"rutaIr('agenda')"},
+    {n:5,t:'Asistió a la llamada',col:'#5fd07f',q:'Entró a la llamada; ahí el closer vende. Si confirmó pero no se unió (no-show), re-agéndalo de una.',cta:'Abrir agenda',ir:"rutaIr('agenda')"},
+    {n:6,t:'Compró',col:'#2fa85f',q:'Cerró. El closer lo registra en “Cerrar venta” para crearle el acceso a la app. A por el siguiente.',cta:(esCloser?'Cerrar venta':''),ir:"rutaIr('cerrarventa')"}
+  ];
+  const tarjetas=PASOS.map(p=>{
+    const n=c[p.n]||0;
+    const urgente=(p.n===1&&n>0);
+    const btn=p.cta
+      ? `<button class="sm" style="background:${p.col};color:#0a0a0e;font-weight:800;border-radius:9px" onclick="${p.ir}">${esc(p.cta)} →</button>`
+      : `<span class="muted" style="font-size:11px">El closer cierra</span>`;
+    return `<div class="card" style="margin:0;border-left:4px solid ${p.col};${urgente?('box-shadow:0 0 0 2px '+p.col+' inset;'):''}display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="width:30px;height:30px;flex:0 0 auto;border-radius:50%;background:${p.col};color:#0a0a0e;font-weight:800;display:flex;align-items:center;justify-content:center">${p.n}</div>
+      <div style="flex:1;min-width:200px">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><b style="font-size:15px">${esc(p.t)}</b><span style="font-size:22px;font-weight:800;color:${p.col}">${n}</span><span class="muted" style="font-size:11px">${n===1?'persona':'personas'}</span></div>
+        <div class="muted" style="font-size:12.5px;margin-top:3px;max-width:64ch">${esc(p.q)}</div>
+      </div>
+      <div style="flex:0 0 auto">${btn}</div>
+    </div>`;
+  }).join('');
+  const nuevas=c[1]||0, esperando=c[2]||0, citas=c[4]||0;
+  el.innerHTML=`
+  <div class="card" style="border-top:3px solid var(--rojo)">
+    <h2 style="margin:0 0 2px">Ruta del cliente · tu proceso paso a paso</h2>
+    <div class="muted" style="font-size:12.5px;max-width:72ch">Cada persona que llena la encuesta recorre estos 6 pasos. Tu trabajo es moverla al siguiente. El número es cuántas esperan hoy en cada paso.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);font-weight:800;border:1px solid var(--rojo)">${nuevas} encuesta(s) nueva(s) sin tocar</span>
+      <span class="pill" style="background:var(--card2);font-weight:700">${esperando} esperando respuesta</span>
+      <span class="pill" style="background:var(--card2);font-weight:700">${citas} con llamada agendada</span>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
+      <b style="color:var(--txt)">Rutina diaria del setter:</b> 1) vacía las encuestas nuevas (paso 1), 2) haz seguimiento a los que no respondieron (paso 2), 3) confirma las citas de mañana (paso 4). En ese orden, todos los días.
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">${tarjetas}</div>
+  ${c[0]?`<div class="muted" style="font-size:11.5px;margin-top:8px;text-align:center">${c[0]} marcado(s) como no interesado / perdido (fuera de la ruta activa).</div>`:''}
+  `;
+}
+
 async function verContactar(force){
   const el=$("v-contactar");
   if(force||!window.CU_ALL){
