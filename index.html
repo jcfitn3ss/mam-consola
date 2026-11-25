@@ -1878,7 +1878,7 @@ async function verRuta(){
 function renderRuta(){
   const el=$("v-ruta"); if(!el)return;
   const EN_APP=['Cliente','Vencido','En app · con regalo','En app · prueba'];
-  const base=(window.CU_ALL||[]).filter(i=>(((typeof cuEsEncuesta==='function')&&cuEsEncuesta(i))||String(i.respuestas||'').trim()!=='') && !EN_APP.includes(String(i.grupo||'')));
+  const base=(window.CU_ALL||[]).filter(i=>cuEsProspecto(i) && !EN_APP.includes(String(i.grupo||'')));
   const c=[0,0,0,0,0,0,0];                 // c[0]=perdidos, c[1..6]=pasos
   base.forEach(i=>{ c[rutaEtapa(i)]++; });
   const esCloser=(MIID===RUTA_CLOSER_ID)||(MI_ROL==='dueno');
@@ -2569,11 +2569,21 @@ function cuVentanaOrden(lista){
   return l;
 }
 
+// Un lead es PROSPECTO del embudo comercial si llenó la encuesta (tags empezar:/invertir:),
+// dejó respuestas, o un humano YA lo movió a una etapa en juego (respondió / aceptó el regalo
+// / agendó / confirmó / asistió). Ese último caso recupera a los que un setter avanzó a mano
+// aunque no traigan los tags de la encuesta: antes se caían de la Ruta y de las vistas por
+// defecto y solo salían en "Todos · archivo" (9 leads invisibles, medido 25-nov). NO incluye
+// 'contactado'/'no_contesta' (serían miles de importados) ni los cerrados (ganado/perdido/no_interesado).
+const CU_EN_JUEGO=['respondio','acepto_regalo','agendado','confirmo','asistio'];
+function cuEsProspecto(i){
+  return ((((typeof cuEsEncuesta==='function')&&cuEsEncuesta(i))||String((i&&i.respuestas)||'').trim()!=='') || CU_EN_JUEGO.includes(String((i&&i.contacto_estado)||'').trim()));
+}
 // Prospectos en una etapa concreta de la Ruta (rutaEtapa). Mismo universo que el
-// default comercial de cuFiltrar: llenó la encuesta/respuestas y NO está en la app.
+// default comercial de cuFiltrar: es prospecto (cuEsProspecto) y NO está en la app.
 function cuPaso(all,n){
   const EN_APP=['Cliente','Vencido','En app · con regalo','En app · prueba'];
-  return (all||[]).filter(i=>(((typeof cuEsEncuesta==='function')&&cuEsEncuesta(i))||String(i.respuestas||'').trim()!=='') && !EN_APP.includes(String(i.grupo||'')) && rutaEtapa(i)===n);
+  return (all||[]).filter(i=>cuEsProspecto(i) && !EN_APP.includes(String(i.grupo||'')) && rutaEtapa(i)===n);
 }
 function cuFiltrar(){
   const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
@@ -2612,7 +2622,7 @@ function cuFiltrar(){
   // a la app ni pagado por Stripe. Los que YA descargaron la app (prueba, con regalo,
   // clientes, vencidos) NO van acá: viven en el área de Clientes. (JC 2026-11-12)
   const EN_APP=['Cliente','Vencido','En app · con regalo','En app · prueba'];
-  l=l.filter(i=>(cuEsEncuesta(i)||String(i.respuestas||'').trim()!=='') && !EN_APP.includes(String(i.grupo||'')));
+  l=l.filter(i=>cuEsProspecto(i) && !EN_APP.includes(String(i.grupo||'')));
   return cuVentanaOrden(l);
 }
 // Días desde el último contacto (para el badge "toca re-contactar").
