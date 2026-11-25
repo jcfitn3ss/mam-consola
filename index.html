@@ -1884,8 +1884,8 @@ function renderRuta(){
   const esCloser=(MIID===RUTA_CLOSER_ID)||(MI_ROL==='dueno');
   const PASOS=[
     {n:1,t:'Encuesta nueva',col:'#e23b3b',q:'Escríbele HOY por WhatsApp. La velocidad vende: contáctalo el mismo día que llena la encuesta. Usa “Escribir con IA” y mándalo.',cta:'Escribir ahora',ir:"rutaIr('encuesta')"},
-    {n:2,t:'Contactado, sin respuesta',col:'#e0b84a',q:'Ya le escribiste y no contesta. Insiste con criterio: máximo 2 mensajes al día y 4 por semana. Si a los 3 días sigue callado, cambia el enfoque del mensaje.',cta:'Ver pendientes',ir:"rutaIr('hoy')"},
-    {n:3,t:'Respondió · agéndalo',col:'#5aa6ff',q:'Está interesado. Tu meta ahora es una sola: que agende la llamada. Mándale el enlace y confirma día y hora.',cta:'Ver interesados',ir:"rutaIr('seguimiento')"},
+    {n:2,t:'Contactado, sin respuesta',col:'#e0b84a',q:'Ya le escribiste y no contesta. Insiste con criterio: máximo 2 mensajes al día y 4 por semana. Si a los 3 días sigue callado, cambia el enfoque del mensaje.',cta:'Ver pendientes',ir:"rutaIr('paso2')"},
+    {n:3,t:'Respondió · agéndalo',col:'#5aa6ff',q:'Está interesado. Tu meta ahora es una sola: que agende la llamada. Mándale el enlace y confirma día y hora.',cta:'Ver interesados',ir:"rutaIr('paso3')"},
     {n:4,t:'Llamada agendada',col:'#3a7afe',q:'Ya tiene cita. Confírmale el día antes y una hora antes. El show-up es lo que más se cae: ese recordatorio es tu trabajo.',cta:'Abrir agenda',ir:"rutaIr('agenda')"},
     {n:5,t:'Asistió a la llamada',col:'#5fd07f',q:'Entró a la llamada; ahí el closer vende. Si confirmó pero no se unió (no-show), re-agéndalo de una.',cta:'Abrir agenda',ir:"rutaIr('agenda')"},
     {n:6,t:'Compró',col:'#2fa85f',q:'Cerró. El closer lo registra en “Cerrar venta” para crearle el acceso a la app. A por el siguiente.',cta:(esCloser?'Cerrar venta':''),ir:"rutaIr('cerrarventa')"}
@@ -2555,6 +2555,12 @@ function cuVentanaOrden(lista){
   return l;
 }
 
+// Prospectos en una etapa concreta de la Ruta (rutaEtapa). Mismo universo que el
+// default comercial de cuFiltrar: llenó la encuesta/respuestas y NO está en la app.
+function cuPaso(all,n){
+  const EN_APP=['Cliente','Vencido','En app · con regalo','En app · prueba'];
+  return (all||[]).filter(i=>(((typeof cuEsEncuesta==='function')&&cuEsEncuesta(i))||String(i.respuestas||'').trim()!=='') && !EN_APP.includes(String(i.grupo||'')) && rutaEtapa(i)===n);
+}
 function cuFiltrar(){
   const all=window.CU_ALL||[]; const q=(CU_Q||'').trim().toLowerCase();
   if(q) return all.filter(i=>String(i.nombre||'').toLowerCase().includes(q)||String(i.email||'').toLowerCase().includes(q)||String(i.telefono||'').includes(q));
@@ -2566,6 +2572,10 @@ function cuFiltrar(){
   if(CU_FILTRO==='hoy') return cuParaHoy(all);
   if(CU_FILTRO==='dijo_no_canjeo') return all.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21');
   if(CU_FILTRO==='nuevos48'){const lim=Date.now()-48*3600*1000;return all.filter(i=>i.registrado&&new Date(i.registrado).getTime()>=lim);}
+  // Pasos 2 y 3 de la Ruta del cliente: vista EXACTA de cada etapa (mismo cálculo que
+  // la tarjeta de la Ruta). Ordenadas por prioridad.
+  if(CU_FILTRO==='paso2') return cuVentanaOrden(cuPaso(all,2));
+  if(CU_FILTRO==='paso3') return cuVentanaOrden(cuPaso(all,3));
   // Pestaña Seguimiento: los marcados "En seguimiento (revisar luego)". Se ordenan por
   // el contacto MÁS VIEJO primero = los que ya toca volver a contactar salen arriba.
   if(CU_FILTRO==='seguimiento') return all.filter(i=>i.contacto_estado==='seguimiento')
@@ -2833,6 +2843,8 @@ function renderContactar(){
   const nSeg=ALL.filter(i=>i.contacto_estado==='seguimiento').length;
   const nCanjeo=ALL.filter(i=>i.contacto_estado==='acepto_regalo'&&i.regalo!=='MAM-APP21').length;
   const nRutina=ALL.filter(i=>/rutina/i.test(i.origen||'')).length;
+  const nSinResp=cuPaso(ALL,2).length;   // paso 2 Ruta: contactado, sin respuesta
+  const nInteres=cuPaso(ALL,3).length;   // paso 3 Ruta: respondió, hay que agendar
   // Embudo de los últimos 7 días (por último contacto). Solo no-clientes.
   const cupon=meta.cupon;
   const wk=Date.now()-7*86400000;
@@ -2908,7 +2920,7 @@ function renderContactar(){
       const tab=(label,val,n)=>{const on=CU_FILTRO===val;
         return `<button onclick="CU_FILTRO='${val}';CU_GRUPO='';renderContactar()" style="min-height:44px;padding:0 14px;background:none;border:none;border-bottom:2px solid ${on?'var(--rojo)':'transparent'};border-radius:0;color:${on?'var(--txt)':'var(--muted)'};font-weight:700;font-size:13px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:7px">${esc(label)}${n?`<span style="font-size:11px;background:${on?'var(--rojo)':'var(--card2)'};color:${on?'#fff':'inherit'};border-radius:9px;padding:1px 7px;font-weight:800">${n}</span>`:''}</button>`;};
       return `<div style="display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:14px;flex-wrap:wrap">
-        ${tab('Tanda de hoy','tanda',nTanda)}${tab('Encuesta nueva','encuesta',nEnc)}${tab('Instagram','instagram',nIG)}${tab('Para hoy','hoy',nHoy)}${tab('Seguimiento','seguimiento',nSeg)}
+        ${tab('Tanda de hoy','tanda',nTanda)}${tab('Encuesta nueva','encuesta',nEnc)}${tab('Sin respuesta','paso2',nSinResp)}${tab('Interesados','paso3',nInteres)}${tab('Instagram','instagram',nIG)}${tab('Para hoy','hoy',nHoy)}${tab('Seguimiento','seguimiento',nSeg)}
       </div>
       <!-- Cuándo aplicaron y en qué orden trabajarlos. Son independientes del
            filtro: se pueden combinar ("los de hoy, por prioridad"). -->
@@ -2922,7 +2934,7 @@ function renderContactar(){
           ${ochip('Por prioridad','prioridad')}${ochip('Por fecha','fecha')}
         </div>
       </div>
-      <details${CU_FILTRO&&!['encuesta','hoy','seguimiento'].includes(CU_FILTRO)||CU_GRUPO?' open':''}>
+      <details${CU_FILTRO&&!['encuesta','hoy','seguimiento','paso2','paso3'].includes(CU_FILTRO)||CU_GRUPO?' open':''}>
         <summary style="cursor:pointer;font-size:12px;color:var(--muted);padding:10px 2px;min-height:44px;display:flex;align-items:center;font-weight:600">Más filtros y grupos</summary>
         <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Vistas de trabajo</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -2944,14 +2956,16 @@ function renderContactar(){
       encuesta:['Todavía nadie ha llenado la encuesta.','El formulario está en aplica.musculoalmaximo.com/captar. En cuanto alguien lo llene, aparece aquí de primero.'],
       instagram:['Nadie ha escrito por Instagram todavía.','Cuando alguien te mande un DM aparece aquí con lo que escribió. Útil para los que contestan la encuesta por mensaje directo.'],
       hoy:['Nada urgente por ahora.','Buen momento para trabajar la pestaña de Seguimiento.'],
-      seguimiento:['Nadie en seguimiento.','Los que marques como "en seguimiento" salen aquí cuando toque volver a escribirles.']
+      seguimiento:['Nadie en seguimiento.','Los que marques como "en seguimiento" salen aquí cuando toque volver a escribirles.'],
+      paso2:['Nadie contactado esperando respuesta.','Aquí salen los que ya contactaste (sin respuesta) y que todavía no tienen cita. Insiste con criterio: máximo 2 mensajes al día y 4 por semana.'],
+      paso3:['Nadie interesado por agendar ahora.','Aquí salen los que respondieron o aceptaron el regalo y hay que llevar a agendar la llamada. Mándales el enlace y confirma día y hora.']
     };
     let v=vacios[CU_FILTRO];
     // Trampa que confundía a Ian: la vista salía vacía casi siempre por el chip de
     // fecha "Hoy" (cuVentanaOrden recorta por CU_DIA en TODAS las pestañas, incluida
     // Encuesta). Si nadie llenó HOY pero sí hay respuestas de días previos, NO digas
     // "nadie llenó": dilo claro y ofrece abrirlas quitando el filtro de fecha.
-    if(nEnc>0 && CU_FILTRO!=='seguimiento' && CU_FILTRO!=='instagram'){
+    if(nEnc>0 && CU_FILTRO!=='seguimiento' && CU_FILTRO!=='instagram' && CU_FILTRO!=='paso2' && CU_FILTRO!=='paso3'){
       const cuando=encUltimo?cuHaceCuanto(encUltimo):'';
       v=[CU_DIA?'Nadie llenó la encuesta en la fecha elegida.':'No hay nada en esta vista.',
          `Pero tienes ${nEnc} respuesta${nEnc>1?'s':''} de la encuesta esperando${CU_DIA?' (ocultas por el filtro de fecha). La última llegó '+(cuando||'hace poco'):''}. Ábrelas para leer lo que contestó cada persona y agendar la llamada.`];
