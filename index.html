@@ -1906,6 +1906,10 @@ function renderRuta(){
     </div>`;
   }).join('');
   const nuevas=c[1]||0, esperando=c[2]||0, citas=c[4]||0;
+  // Llamadas que ya pasaron y nadie cerró el resultado: la fuga #1. Misma fuente que el
+  // board "Por revisar" de la Agenda. Se puebla cuando autoSyncAgenda trae las citas.
+  const _by={}; (window.CU_ALL||[]).forEach(i=>{const cc=String(i.email||'').toLowerCase();if(cc&&!_by[cc])_by[cc]=i;});
+  const porCerrar=(typeof agRevisarLista==='function')?agRevisarLista(window.CU_LLAMADAS||[],_by).length:0;
   el.innerHTML=`
   <div class="card" style="border-top:3px solid var(--rojo)">
     <h2 style="margin:0 0 2px">Ruta del cliente · tu proceso paso a paso</h2>
@@ -1914,6 +1918,7 @@ function renderRuta(){
       <span class="pill" style="background:var(--rojoSoft);color:var(--rojo2);font-weight:800;border:1px solid var(--rojo)">${nuevas} encuesta(s) nueva(s) sin tocar</span>
       <span class="pill" style="background:var(--card2);font-weight:700">${esperando} esperando respuesta</span>
       <span class="pill" style="background:var(--card2);font-weight:700">${citas} con llamada agendada</span>
+      ${porCerrar?`<button class="pill" style="background:var(--rojo);color:#fff;font-weight:800;border:none;cursor:pointer" onclick="rutaIr('agenda')" title="Llamadas que ya pasaron y nadie cerró el resultado. Ciérralas: se unió / compró / no se unió.">${porCerrar} llamada(s) por cerrar →</button>`:''}
     </div>
     <div class="muted" style="font-size:12px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">
       <b style="color:var(--txt)">Rutina diaria del setter:</b> 1) vacía las encuestas nuevas (paso 1), 2) haz seguimiento a los que no respondieron (paso 2), 3) confirma las citas de mañana (paso 4). En ese orden, todos los días.
@@ -2217,16 +2222,22 @@ function agRecienHTML(ll,byMail){
 // llamada pasada cuyo lead NO esté ya cerrado (asistió / no se unió / compró / perdido /
 // no interesado). Es el forcing-function del cierre: ninguna llamada agendada se abandona.
 const AG_CERRADO=['asistio','no_asistio','ganado','perdido','no_interesado'];
-function agPorRevisarHTML(ll,byMail){
-  const ahora=Date.now(), limite=ahora-30*864e5;   // ventana de 30 días hacia atrás
-  const pend=ll.filter(l=>{
+// Una sola fuente de verdad: llamadas cuya hora ya pasó (ventana 30 días) y cuyo lead aún
+// no tiene resultado. La usan el board "Por revisar" Y el aviso de la Ruta, para que el
+// número que ve el setter en su home y lo que sale en el board SIEMPRE cuadren.
+function agRevisarLista(ll,byMail){
+  const ahora=Date.now(), limite=ahora-30*864e5;
+  return (ll||[]).filter(l=>{
     const t=l.inicio?new Date(l.inicio).getTime():0;
     if(!t||t>=ahora||t<limite)return false;            // ya pasó y dentro de la ventana
     if(!String(l.invitado_nombre||'').trim())return false;
     const lead=byMail[String(l.invitado_correo||'').toLowerCase()]||null;
     if(!lead)return false;                              // sin lead no se puede cerrar el estado
     return !AG_CERRADO.includes(String(lead.contacto_estado||'').trim());  // pasó y aún sin resultado
-  }).sort((a,b)=>String(b.inicio||'').localeCompare(String(a.inicio||'')));
+  });
+}
+function agPorRevisarHTML(ll,byMail){
+  const pend=agRevisarLista(ll,byMail).sort((a,b)=>String(b.inicio||'').localeCompare(String(a.inicio||'')));
   if(!pend.length)return '';
   const filas=pend.map(l=>{
     const lead=byMail[String(l.invitado_correo||'').toLowerCase()]||null;
